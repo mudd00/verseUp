@@ -221,6 +221,49 @@ auth.users → profiles
    - 테스트 계정 생성 가이드
    - 실행 불필요, 문서로만 참고
 
+6. **006_add_course_code.sql** 실행 (권장)
+   - 강의 수강번호 및 추가 필드
+   - 기존 courses 테이블에 컬럼 추가
+
+---
+
+### 6️⃣ `006_add_course_code.sql` (권장)
+**강의 테이블 확장**
+
+#### 추가되는 필드:
+- **course_code** - 고유 수강번호 (예: CS101, MATH201)
+  - 자동 생성 또는 수동 입력 가능
+  - UNIQUE 제약조건
+
+- **category** - 강의 카테고리
+  - 예: programming, math, design, business
+
+- **level** - 난이도
+  - beginner (초급)
+  - intermediate (중급)
+  - advanced (고급)
+
+- **status** - 강의 상태
+  - draft (초안)
+  - published (공개)
+  - archived (보관)
+
+- **price** - 강의 가격
+  - 0 = 무료
+  - 양수 = 유료 (단위: 원)
+
+#### 자동 생성 기능:
+```sql
+-- 강의 생성 시 자동으로 수강번호 생성
+generate_course_code('Web Development') → 'WEB123'
+generate_course_code('Introduction to AI') → 'INT456'
+```
+
+#### 인덱스:
+- course_code (빠른 조회)
+- category (카테고리별 필터링)
+- status (공개/초안 필터링)
+
 ---
 
 ## 🧪 테스트 계정 생성

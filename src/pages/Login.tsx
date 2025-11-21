@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
 import { ROUTES } from '@/utils/constants'
 
@@ -10,7 +9,6 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
-  const { login } = useAuthStore()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -18,30 +16,21 @@ export default function Login() {
 
     try {
       setLoading(true)
+      console.log('🔑 [Login] Attempting login:', email)
 
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+      const { error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
       if (signInError) throw signInError
 
-      if (data.user && data.session) {
-        const user = {
-          id: data.user.id,
-          email: data.user.email || '',
-          name: data.user.user_metadata?.name || 'User',
-          role: (data.user.user_metadata?.role || 'student') as 'student' | 'instructor' | 'admin',
-          createdAt: data.user.created_at,
-          updatedAt: data.user.updated_at || data.user.created_at,
-        }
-
-        login(user, data.session.access_token)
-        navigate(ROUTES.DASHBOARD)
-      }
+      console.log('✅ [Login] Sign in successful, navigating to dashboard')
+      // onAuthStateChange will handle setting the user
+      navigate(ROUTES.DASHBOARD)
     } catch (err) {
+      console.error('❌ [Login] Sign in failed:', err)
       setError(err instanceof Error ? err.message : '로그인에 실패했습니다.')
-    } finally {
       setLoading(false)
     }
   }
@@ -84,26 +73,15 @@ export default function Login() {
       setLoading(true)
       setError(null)
 
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+      const { error: signInError } = await supabase.auth.signInWithPassword({
         email: credentials.email,
         password: credentials.password,
       })
 
       if (signInError) throw signInError
 
-      if (data.user && data.session) {
-        const user = {
-          id: data.user.id,
-          email: data.user.email || '',
-          name: data.user.user_metadata?.name || 'User',
-          role: (data.user.user_metadata?.role || role) as 'student' | 'instructor' | 'admin',
-          createdAt: data.user.created_at,
-          updatedAt: data.user.updated_at || data.user.created_at,
-        }
-
-        login(user, data.session.access_token)
-        navigate(ROUTES.DASHBOARD)
-      }
+      // onAuthStateChange will handle setting the user
+      navigate(ROUTES.DASHBOARD)
     } catch (err) {
       const errorMessage =
         err instanceof Error
@@ -114,7 +92,6 @@ export default function Login() {
 
       setError(errorMessage)
       console.error('Test login error:', err)
-    } finally {
       setLoading(false)
     }
   }

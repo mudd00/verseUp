@@ -12,6 +12,7 @@ export interface User {
 // Session/Course types
 export interface Course {
   id: string
+  courseCode: string
   title: string
   description: string
   instructorId: string
@@ -21,7 +22,12 @@ export interface Course {
   enrolledCount: number
   startDate: string
   endDate: string
+  category?: string
+  level?: 'beginner' | 'intermediate' | 'advanced'
+  status?: 'draft' | 'published' | 'archived'
+  price?: number
   createdAt: string
+  updatedAt?: string
 }
 
 export interface LiveSession {

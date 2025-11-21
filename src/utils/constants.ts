@@ -23,6 +23,7 @@ export const ROUTES = {
   DASHBOARD: '/dashboard',
   COURSES: '/courses',
   COURSE_DETAIL: '/courses/:id',
+  CREATE_COURSE: '/courses/create',
   LIVE_SESSION: '/session/:id',
   METAVERSE: '/metaverse',
   PROFILE: '/profile',
