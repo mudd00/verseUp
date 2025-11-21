@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import { courseService, UpdateCourseData } from '@/services/courseService'
 import { ROUTES } from '@/utils/constants'
 
@@ -112,9 +113,17 @@ export default function EditCourse() {
         status: formData.status,
       }
 
-      await courseService.updateCourse(id, updateData)
+      const updatedCourse = await courseService.updateCourse(id, updateData)
 
-      alert('강의가 성공적으로 수정되었습니다!')
+      // 성공 토스트
+      const statusText = updatedCourse.status === 'published' ? '공개' : updatedCourse.status === 'draft' ? '초안' : '보관됨'
+      toast.success(
+        `강의 "${updatedCourse.title}"이(가) 수정되었습니다!\n상태: ${statusText}`,
+        {
+          duration: 5000,
+        }
+      )
+
       navigate(ROUTES.DASHBOARD)
     } catch (err) {
       console.error('강의 수정 실패:', err)

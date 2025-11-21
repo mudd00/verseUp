@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { Course } from '@/types'
+import { useAuthStore } from '@/stores/authStore'
 
 export interface CreateCourseData {
   title: string
@@ -23,22 +24,15 @@ class CourseService {
    * 새 강의 생성 (강사용)
    */
   async createCourse(data: CreateCourseData): Promise<Course> {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    // zustand store에서 인증된 사용자 정보 가져오기 (이미 role이 추론됨)
+    const currentUser = useAuthStore.getState().user
 
-    if (!user) {
+    if (!currentUser) {
       throw new Error('로그인이 필요합니다.')
     }
 
     // 강사 권한 확인
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    if (profile?.role !== 'instructor' && profile?.role !== 'admin') {
+    if (currentUser.role !== 'instructor' && currentUser.role !== 'admin') {
       throw new Error('강사 권한이 필요합니다.')
     }
 
@@ -50,7 +44,7 @@ class CourseService {
         course_code: data.courseCode,
         category: data.category || 'general',
         level: data.level || 'beginner',
-        instructor_id: user.id,
+        instructor_id: currentUser.id,
         max_students: data.maxStudents,
         start_date: data.startDate,
         end_date: data.endDate,
@@ -101,11 +95,10 @@ class CourseService {
    * 내 강의 목록 조회 (강사용)
    */
   async getMyCourses(): Promise<Course[]> {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    // zustand store에서 인증된 사용자 정보 가져오기
+    const currentUser = useAuthStore.getState().user
 
-    if (!user) {
+    if (!currentUser) {
       throw new Error('로그인이 필요합니다.')
     }
 
@@ -117,7 +110,7 @@ class CourseService {
         instructor:profiles!instructor_id(id, name, email, avatar_url)
       `
       )
-      .eq('instructor_id', user.id)
+      .eq('instructor_id', currentUser.id)
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -155,11 +148,10 @@ class CourseService {
    * 강의 업데이트 (강사/관리자용)
    */
   async updateCourse(id: string, data: UpdateCourseData): Promise<Course> {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    // zustand store에서 인증된 사용자 정보 가져오기
+    const currentUser = useAuthStore.getState().user
 
-    if (!user) {
+    if (!currentUser) {
       throw new Error('로그인이 필요합니다.')
     }
 
@@ -200,11 +192,10 @@ class CourseService {
    * 강의 삭제 (강사/관리자용)
    */
   async deleteCourse(id: string): Promise<void> {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    // zustand store에서 인증된 사용자 정보 가져오기
+    const currentUser = useAuthStore.getState().user
 
-    if (!user) {
+    if (!currentUser) {
       throw new Error('로그인이 필요합니다.')
     }
 

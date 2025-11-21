@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import { courseService, CreateCourseData } from '@/services/courseService'
 import { ROUTES } from '@/utils/constants'
 
@@ -56,7 +57,14 @@ export default function CreateCourse() {
       // 강의 생성
       const course = await courseService.createCourse(formData)
 
-      alert('강의가 성공적으로 생성되었습니다!')
+      // 성공 토스트
+      toast.success(
+        `강의 "${course.title}"이(가) 생성되었습니다!\n강의코드: ${course.courseCode}`,
+        {
+          duration: 5000,
+        }
+      )
+
       navigate(ROUTES.DASHBOARD)
     } catch (err) {
       console.error('강의 생성 실패:', err)
