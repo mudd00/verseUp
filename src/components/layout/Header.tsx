@@ -5,6 +5,10 @@ import { ROUTES } from '@/utils/constants'
 export default function Header() {
   const { user, isAuthenticated, logout } = useAuthStore()
 
+  const handleLogout = async () => {
+    await logout()
+  }
+
   return (
     <header className="bg-gray-800 border-b border-gray-700">
       <nav className="container mx-auto px-4 py-4 flex items-center justify-between">
@@ -36,7 +40,7 @@ export default function Header() {
               <div className="flex items-center gap-3">
                 <span className="text-gray-300">{user?.name}</span>
                 <button
-                  onClick={logout}
+                  onClick={handleLogout}
                   className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded transition"
                 >
                   Logout
@@ -49,13 +53,13 @@ export default function Header() {
                 to={ROUTES.LOGIN}
                 className="text-gray-300 hover:text-white transition"
               >
-                Login
+                로그인
               </Link>
               <Link
                 to={ROUTES.REGISTER}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition"
               >
-                Sign Up
+                회원가입
               </Link>
             </>
           )}

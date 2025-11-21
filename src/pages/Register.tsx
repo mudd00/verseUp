@@ -1,46 +1,54 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
 import { ROUTES } from '@/utils/constants'
 
-export default function Login() {
+export default function Register() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [name, setName] = useState('')
+  const [role, setRole] = useState<'student' | 'instructor'>('student')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
-  const { login } = useAuthStore()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
 
+    if (password !== confirmPassword) {
+      setError('비밀번호가 일치하지 않습니다.')
+      return
+    }
+
+    if (password.length < 6) {
+      setError('비밀번호는 최소 6자 이상이어야 합니다.')
+      return
+    }
+
     try {
       setLoading(true)
 
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            name,
+            role,
+          },
+        },
       })
 
-      if (signInError) throw signInError
+      if (signUpError) throw signUpError
 
-      if (data.user && data.session) {
-        const user = {
-          id: data.user.id,
-          email: data.user.email || '',
-          name: data.user.user_metadata?.name || 'User',
-          role: (data.user.user_metadata?.role || 'student') as 'student' | 'instructor' | 'admin',
-          createdAt: data.user.created_at,
-          updatedAt: data.user.updated_at || data.user.created_at,
-        }
-
-        login(user, data.session.access_token)
-        navigate(ROUTES.DASHBOARD)
+      if (data.user) {
+        alert('회원가입이 완료되었습니다. 이메일을 확인해주세요.')
+        navigate(ROUTES.LOGIN)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '로그인에 실패했습니다.')
+      setError(err instanceof Error ? err.message : '회원가입에 실패했습니다.')
     } finally {
       setLoading(false)
     }
@@ -68,7 +76,7 @@ export default function Login() {
   return (
     <div className="min-h-[80vh] flex items-center justify-center">
       <div className="bg-gray-800 p-8 rounded-lg w-full max-w-md">
-        <h1 className="text-3xl font-bold mb-6 text-center">로그인</h1>
+        <h1 className="text-3xl font-bold mb-6 text-center">회원가입</h1>
 
         {error && (
           <div className="mb-4 p-3 bg-red-500/20 border border-red-500 rounded-lg text-red-200 text-sm">
@@ -77,6 +85,51 @@ export default function Login() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">이름</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">역할</label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setRole('student')}
+                className={`px-4 py-3 rounded-lg border-2 transition ${
+                  role === 'student'
+                    ? 'border-blue-500 bg-blue-500/20 text-blue-300'
+                    : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-gray-500'
+                }`}
+              >
+                <div className="text-center">
+                  <div className="text-2xl mb-1">🎓</div>
+                  <div className="font-semibold">학생</div>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setRole('instructor')}
+                className={`px-4 py-3 rounded-lg border-2 transition ${
+                  role === 'instructor'
+                    ? 'border-blue-500 bg-blue-500/20 text-blue-300'
+                    : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-gray-500'
+                }`}
+              >
+                <div className="text-center">
+                  <div className="text-2xl mb-1">👨‍🏫</div>
+                  <div className="font-semibold">강사</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium mb-2">이메일</label>
             <input
@@ -99,12 +152,23 @@ export default function Login() {
             />
           </div>
 
+          <div>
+            <label className="block text-sm font-medium mb-2">비밀번호 확인</label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
+              required
+            />
+          </div>
+
           <button
             type="submit"
             disabled={loading}
             className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? '처리 중...' : '로그인'}
+            {loading ? '처리 중...' : '회원가입'}
           </button>
         </form>
 
@@ -137,13 +201,13 @@ export default function Login() {
               d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
             />
           </svg>
-          Google로 로그인
+          Google로 시작하기
         </button>
 
         <p className="mt-4 text-center text-gray-400">
-          계정이 없으신가요?{' '}
-          <Link to={ROUTES.REGISTER} className="text-blue-400 hover:text-blue-300">
-            회원가입
+          이미 계정이 있으신가요?{' '}
+          <Link to={ROUTES.LOGIN} className="text-blue-400 hover:text-blue-300">
+            로그인
           </Link>
         </p>
       </div>

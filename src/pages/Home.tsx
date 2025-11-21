@@ -19,7 +19,7 @@ export default function Home() {
           강의 둘러보기
         </Link>
         <Link
-          to={ROUTES.REGISTER}
+          to={ROUTES.LOGIN} // 로그인이 되지 않았다면 LOGIN으로 라우팅, 로그인이 되어있다면 METAVERSE로 라우팅
           className="px-8 py-4 bg-purple-600 hover:bg-purple-700 text-white text-lg font-semibold rounded-lg transition"
         >
           시작하기
