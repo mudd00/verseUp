@@ -1,69 +1,128 @@
-import { useEffect, useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { useEffect, useMemo, useRef } from 'react'
+import { useLoader } from '@react-three/fiber'
 import { useAnimations } from '@react-three/drei'
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader'
-import { useLoader } from '@react-three/fiber'
+import { SkeletonUtils } from 'three-stdlib'
 import * as THREE from 'three'
 
 interface CharacterModelProps {
   isMoving?: boolean
 }
 
+/**
+ * FBX 기반 캐릭터 로더 (Standing Idle + Walking)
+ * - Walking.fbx: 스킨/메시 + 걷기 클립
+ * - Standing Idle.fbx: 애니메이션만 포함
+ * - GLB가 없을 때도 동작하도록 FBX 경로만 사용
+ */
 export default function CharacterModel({ isMoving = false }: CharacterModelProps) {
-  const idleFbx = useLoader(FBXLoader, '/models/Standing Idle.fbx')
-  const walkingFbx = useLoader(FBXLoader, '/models/Walking.fbx')
-  const group = useRef<THREE.Group>(null)
+  // 애니/모델 로드
+  const walkFbx = useLoader(FBXLoader, '/models/Walking.fbx') // with skin
+  const idleFbx = useLoader(FBXLoader, '/models/Standing Idle.fbx') // anim-only
 
-  // 두 애니메이션을 합쳐서 관리
-  const allAnimations = [...idleFbx.animations, ...walkingFbx.animations]
-  const { actions } = useAnimations(allAnimations, group)
+  // 스켈레톤/메시 클론 (원본 보호)
+  const model = useMemo(() => SkeletonUtils.clone(walkFbx) as THREE.Group, [walkFbx])
+  const modelRef = useRef<THREE.Object3D>(null)
 
+  // 사용할 클립 리스트
+  const clips = useMemo(() => [...idleFbx.animations, ...walkFbx.animations].filter(Boolean), [idleFbx, walkFbx])
+
+  // 액션/믹서
+  const { actions, mixer } = useAnimations(clips, modelRef)
+
+  // 액션 선택 헬퍼: 명시 이름 → 키워드 포함 순
+  const pickAction = (preferred: string[], keyword: string) => {
+    if (!actions) return undefined
+    for (const name of preferred) {
+      if (name && actions[name]) return actions[name]
+    }
+    const entry = Object.entries(actions).find(([key]) => key.toLowerCase().includes(keyword.toLowerCase()))
+    return entry ? entry[1] : undefined
+  }
+
+  // 스케일/그림자 1회 설정
   useEffect(() => {
-    console.log('✅ Mixamo 캐릭터 로드 완료!')
-    console.log('📦 애니메이션 개수:', allAnimations.length)
-
-    if (allAnimations.length > 0) {
-      allAnimations.forEach((clip, i) => {
-        console.log(`🎬 애니메이션 ${i}:`, clip.name)
-      })
-    }
-
-    // FBX 모델 스케일 조정 (Mixamo는 보통 100배 크게 옴)
-    if (group.current) {
-      group.current.scale.set(0.01, 0.01, 0.01)
-    }
-
-    // 그림자 설정 (idle 모델만 렌더링하므로 idle에만 적용)
-    idleFbx.traverse((child) => {
+    model.scale.set(0.5, 0.5, 0.5)
+    model.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         child.castShadow = true
         child.receiveShadow = true
       }
     })
-  }, [idleFbx, walkingFbx, allAnimations])
+  }, [model])
 
-  // 움직임에 따라 애니메이션 전환
+  // 액션 이름 로그 (디버깅용)
   useEffect(() => {
-    if (!actions || Object.keys(actions).length === 0) return
+    if (actions) {
+      console.log('✅ 사용 가능한 액션:', Object.keys(actions))
+    }
+  }, [actions])
 
-    // 애니메이션 이름으로 찾기 (allAnimations의 순서대로 [idle, walking])
-    const idleAction = Object.values(actions)[0]  // Standing Idle
-    const walkAction = Object.values(actions)[1]  // Walking
+  // 초기 Idle/Walk 세팅 (T-포즈 최소화)
+  const initialized = useRef(false)
+  useEffect(() => {
+    if (initialized.current || !actions) return
+
+    const idleCandidates = idleFbx.animations.map((clip) => clip.name)
+    const walkCandidates = walkFbx.animations.map((clip) => clip.name)
+
+    const idle = pickAction(idleCandidates, 'idle') || pickAction(idleCandidates, 'standing')
+    const walk = pickAction(walkCandidates, 'walk')
+
+    if (!idle) {
+      console.error('❌ Idle 액션을 찾을 수 없습니다.')
+      return
+    }
+    initialized.current = true
+
+    idle.enabled = true
+    walk && (walk.enabled = true)
+
+    idle.reset()
+    idle.time = 1 / 60
+    idle.setEffectiveTimeScale(1)
+    idle.setEffectiveWeight(1)
+    idle.play()
+
+    if (walk) {
+      walk.reset()
+      walk.time = 1 / 60
+      walk.setEffectiveTimeScale(1)
+      walk.setEffectiveWeight(0)
+      walk.play()
+    }
+
+    mixer?.update(0)
+  }, [actions, mixer, idleFbx.animations, walkFbx.animations])
+
+  // 이동 여부에 따른 전환
+  useEffect(() => {
+    if (!actions) return
+
+    const idleCandidates = idleFbx.animations.map((clip) => clip.name)
+    const walkCandidates = walkFbx.animations.map((clip) => clip.name)
+
+    const idle = pickAction(idleCandidates, 'idle') || pickAction(idleCandidates, 'standing')
+    const walk = pickAction(walkCandidates, 'walk')
 
     if (isMoving) {
-      // 움직일 때: Idle 중지, Walking 재생
-      idleAction?.fadeOut(0.2)
-      walkAction?.reset().fadeIn(0.2).play()
+      if (walk && idle) {
+        walk.setEffectiveWeight(1)
+        idle.crossFadeTo(walk, 0.15, false)
+      } else {
+        walk?.reset().fadeIn(0.15).play()
+        idle?.fadeOut(0.15)
+      }
     } else {
-      // 멈춰있을 때: Walking 중지, Idle 재생
-      walkAction?.fadeOut(0.2)
-      idleAction?.reset().fadeIn(0.2).play()
+      if (walk && idle) {
+        idle.setEffectiveWeight(1)
+        walk.crossFadeTo(idle, 0.15, false)
+      } else {
+        walk?.fadeOut(0.15)
+        idle?.reset().fadeIn(0.15).play()
+      }
     }
-  }, [isMoving, actions])
+  }, [isMoving, actions, idleFbx.animations, walkFbx.animations])
 
-  return (
-    <group ref={group}>
-      <primitive object={idleFbx} />
-    </group>
-  )
+  return <primitive ref={modelRef} object={model} />
 }

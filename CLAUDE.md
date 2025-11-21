@@ -48,6 +48,15 @@ npx tsc --noEmit          # TypeScript 타입 체크
 - 새 파일은 기존 TypeScript/TSX 스타일과 일치시킬 것
 - 텍스트 파일만 포맷 (`.ts`, `.tsx`, `.js`, `.jsx`, `.json`, `.css`, `.md`)
 
+### DevTools/MCP 사용 규칙
+- **이미지 크기 제한**: Anthropic API는 5MB 이미지 제한 (초과 시 400 에러)
+- **스크린샷 촬영 시 필수 규칙**:
+  - `filePath` 옵션 사용하여 파일로 저장 (응답에 base64로 직접 첨부하지 않기)
+  - JPEG 포맷 + 품질 60-70 사용 (PNG 대신)
+  - 또는 `take_snapshot` (텍스트 기반 a11y tree) 우선 사용
+- **예시**: `take_screenshot({ filePath: './screenshot.jpg', format: 'jpeg', quality: 70 })`
+- 5MB 이상 스크린샷은 base64 인코딩 시 제한 초과 가능
+
 ### 서버 구조 보존
 - `server/server.ts`를 메인 진입점으로 유지 (Express + Socket.IO)
 - `server/routes/`의 라우트 구조 유지
@@ -61,6 +70,23 @@ npx tsc --noEmit          # TypeScript 타입 체크
 - **콜라이더**: 바닥 콜라이더 크기 (500×1×500, y=-0.5) 유지
 - **애니메이션**: `isMoving` 기반 애니메이션 전환 로직 보존
 - **모델 경로**: `public/models/Standing Idle.fbx`와 `Walking.fbx` 경로 유지
+
+### FBX 애니메이션 패턴 (필수)
+- **필수**: `useAnimations`에서 액션을 찾을 때 **인덱스 대신 이름으로 찾기**
+  - ❌ 금지: `Object.values(actions)[0]`, `Object.values(actions)[1]` (순서 보장 안 됨, undefined 발생)
+  - ✅ 권장: `actions[clipName]` (클립 이름으로 액션 찾기)
+- **필수**: FBX 모델 복제 시 `SkeletonUtils.clone()` 사용 (`three-stdlib`에서 import)
+- **패턴**: Mixamo without skin 클립도 with skin 메시에 적용 가능 (동일 리그라면)
+- **예시**:
+  ```typescript
+  const idleClip = idleFbx.animations[0]
+  const idleName = idleClip?.name || 'Idle'
+  const { actions } = useAnimations([idleClip, walkClip].filter(Boolean), group)
+
+  // 이름으로 액션 찾기
+  const idle = actions?.[idleName]
+  idle?.reset().fadeIn(0.2).play()
+  ```
 
 ### 에셋 관리
 - 바이너리 파일 (FBX, GLB, 텍스처): 불필요한 수정이나 경로 변경 금지
