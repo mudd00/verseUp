@@ -1,12 +1,14 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { ROUTES } from '@/utils/constants'
 
 export default function Header() {
   const { user, isAuthenticated, logout } = useAuthStore()
+  const navigate = useNavigate()
 
   const handleLogout = async () => {
     await logout()
+    navigate(ROUTES.HOME)
   }
 
   return (

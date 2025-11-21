@@ -1,7 +1,10 @@
 import { Link } from 'react-router-dom'
 import { ROUTES } from '@/utils/constants'
+import { useAuthStore } from '@/stores/authStore'
 
 export default function Home() {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+
   return (
     <div className="min-h-[80vh] flex flex-col items-center justify-center">
       <h1 className="text-7xl font-bold mb-6 bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">
@@ -19,7 +22,7 @@ export default function Home() {
           강의 둘러보기
         </Link>
         <Link
-          to={ROUTES.LOGIN} // 로그인이 되지 않았다면 LOGIN으로 라우팅, 로그인이 되어있다면 METAVERSE로 라우팅
+          to={isAuthenticated ? ROUTES.METAVERSE : ROUTES.LOGIN}
           className="px-8 py-4 bg-purple-600 hover:bg-purple-700 text-white text-lg font-semibold rounded-lg transition"
         >
           시작하기
