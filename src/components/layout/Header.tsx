@@ -23,19 +23,19 @@ export default function Header() {
                 to={ROUTES.DASHBOARD}
                 className="text-gray-300 hover:text-white transition"
               >
-                Dashboard
+                데시보드
               </Link>
               <Link
                 to={ROUTES.COURSES}
                 className="text-gray-300 hover:text-white transition"
               >
-                Courses
+                강의목록
               </Link>
               <Link
                 to={ROUTES.METAVERSE}
                 className="text-gray-300 hover:text-white transition"
               >
-                Metaverse
+                메타버스
               </Link>
               <div className="flex items-center gap-3">
                 <span className="text-gray-300">{user?.name}</span>
