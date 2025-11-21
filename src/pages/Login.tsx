@@ -65,6 +65,60 @@ export default function Login() {
     }
   }
 
+  // Test login handler
+  const handleTestLogin = async (role: 'student' | 'instructor') => {
+    const testCredentials = {
+      student: {
+        email: 'student@test.com',
+        password: 'test123',
+      },
+      instructor: {
+        email: 'instructor@test.com',
+        password: 'test123',
+      },
+    }
+
+    const credentials = testCredentials[role]
+
+    try {
+      setLoading(true)
+      setError(null)
+
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email: credentials.email,
+        password: credentials.password,
+      })
+
+      if (signInError) throw signInError
+
+      if (data.user && data.session) {
+        const user = {
+          id: data.user.id,
+          email: data.user.email || '',
+          name: data.user.user_metadata?.name || 'User',
+          role: (data.user.user_metadata?.role || role) as 'student' | 'instructor' | 'admin',
+          createdAt: data.user.created_at,
+          updatedAt: data.user.updated_at || data.user.created_at,
+        }
+
+        login(user, data.session.access_token)
+        navigate(ROUTES.DASHBOARD)
+      }
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error
+          ? err.message === 'Invalid login credentials'
+            ? `테스트 계정이 없습니다. Supabase Dashboard에서 ${role === 'student' ? 'student@test.com' : 'instructor@test.com'} 계정을 먼저 생성하세요. (QUICK_START_TEST.md 참고)`
+            : err.message
+          : `테스트 ${role === 'student' ? '학생' : '강사'} 로그인에 실패했습니다.`
+
+      setError(errorMessage)
+      console.error('Test login error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="min-h-[80vh] flex items-center justify-center">
       <div className="bg-gray-800 p-8 rounded-lg w-full max-w-md">
@@ -140,7 +194,30 @@ export default function Login() {
           Google로 로그인
         </button>
 
-        <p className="mt-4 text-center text-gray-400">
+        <div className="my-6 flex items-center">
+          <div className="flex-1 border-t border-gray-600"></div>
+          <span className="px-4 text-gray-400 text-sm">테스트 계정</span>
+          <div className="flex-1 border-t border-gray-600"></div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => handleTestLogin('student')}
+            disabled={loading}
+            className="px-4 py-3 bg-green-600/20 border-2 border-green-600 hover:bg-green-600/30 text-green-300 font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            🎓 학생으로 테스트
+          </button>
+          <button
+            onClick={() => handleTestLogin('instructor')}
+            disabled={loading}
+            className="px-4 py-3 bg-purple-600/20 border-2 border-purple-600 hover:bg-purple-600/30 text-purple-300 font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            👨‍🏫 강사로 테스트
+          </button>
+        </div>
+
+        <p className="mt-6 text-center text-gray-400">
           계정이 없으신가요?{' '}
           <Link to={ROUTES.REGISTER} className="text-blue-400 hover:text-blue-300">
             회원가입

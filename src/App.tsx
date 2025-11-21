@@ -7,6 +7,7 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Courses from './pages/Courses'
+import Profile from './pages/Profile'
 import Metaverse from './pages/Metaverse'
 import { useAuthStore } from './stores/authStore'
 import { supabase } from './lib/supabase'
@@ -85,6 +86,14 @@ function App() {
               element={
                 <PrivateRoute>
                   <Dashboard />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path={ROUTES.PROFILE}
+              element={
+                <PrivateRoute>
+                  <Profile />
                 </PrivateRoute>
               }
             />

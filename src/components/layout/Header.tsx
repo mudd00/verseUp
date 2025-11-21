@@ -39,6 +39,12 @@ export default function Header() {
               </Link>
               <div className="flex items-center gap-3">
                 <span className="text-gray-300">{user?.name}</span>
+                <Link
+                  to={ROUTES.PROFILE}
+                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition"
+                >
+                  설정
+                </Link>
                 <button
                   onClick={handleLogout}
                   className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded transition"

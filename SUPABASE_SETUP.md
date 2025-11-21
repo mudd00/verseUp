@@ -53,6 +53,15 @@ VerseUp 프로젝트를 위한 Supabase 데이터베이스 설정 가이드입�
 - ✅ 감사 로그 (역할 변경 추적)
 - ✅ 유용한 뷰 (course_statistics, user_enrollment_summary)
 
+#### Step 4: 프로필 관리 기능 (권장)
+`supabase/migrations/004_profile_management.sql` 파일 내용 복사 → 붙여넣기 → "Run" 클릭
+
+**포함 내용:**
+- ✅ 프로필 정보 수정 함수 (이름, 아바타)
+- ✅ 회원 탈퇴 함수 (CASCADE 삭제)
+- ✅ 사용자 통계 조회 함수 (역할별)
+- ✅ 이메일 변경 요청 함수
+
 ### 생성되는 테이블:
 - ✅ **profiles** - 사용자 프로필 정보
 - ✅ **courses** - 강의 정보
@@ -122,7 +131,51 @@ JWT_SECRET=your-jwt-secret-key
    - live_sessions
    - chat_messages
 
-## 6. 테스트
+## 6. 테스트 계정 생성 (권장)
+
+빠른 테스트를 위해 테스트 계정을 생성하세요.
+
+### 테스트 계정 정보:
+- **학생**: `student@test.com` / `test123`
+- **강사**: `instructor@test.com` / `test123`
+
+### 생성 방법:
+
+1. Supabase Dashboard → **Authentication** → **Users**
+2. **"Add user"** → **"Create new user"** 클릭
+3. 학생 계정 생성:
+   ```
+   Email: student@test.com
+   Password: test123
+   ☑ Auto Confirm User (체크)
+   ```
+4. **User Metadata** 섹션 확장, JSON 입력:
+   ```json
+   {
+     "name": "테스트 학생",
+     "role": "student"
+   }
+   ```
+5. **"Create user"** 클릭
+6. 강사 계정도 동일하게 생성:
+   ```
+   Email: instructor@test.com
+   Password: test123
+   ☑ Auto Confirm User
+   User Metadata: {"name": "테스트 강사", "role": "instructor"}
+   ```
+
+### 원클릭 테스트 로그인:
+
+로그인 페이지에 테스트 버튼이 있습니다:
+- 🎓 **"학생으로 테스트"** - 학생 계정 자동 로그인
+- 👨‍🏫 **"강사로 테스트"** - 강사 계정 자동 로그인
+
+**상세 가이드:** [docs/TEST_ACCOUNTS.md](docs/TEST_ACCOUNTS.md)
+
+---
+
+## 7. 일반 사용자 테스트
 
 ### 회원가입 테스트:
 1. 애플리케이션 실행: `npm run dev:both`
@@ -138,7 +191,7 @@ JWT_SECRET=your-jwt-secret-key
 2. "Confirm email" 토글 끄기
 3. "Save" 클릭
 
-## 7. 데이터베이스 스키마 구조
+## 8. 데이터베이스 스키마 구조
 
 ```
 auth.users (Supabase 자동 관리)
@@ -178,7 +231,7 @@ public.chat_messages (채팅)
     └── type (text/system)
 ```
 
-## 8. Row Level Security (RLS) 정책
+## 9. Row Level Security (RLS) 정책
 
 보안을 위해 다음 역할 기반 정책들이 적용되어 있습니다:
 
@@ -202,7 +255,7 @@ SET role = 'admin'
 WHERE email = 'admin@example.com';
 ```
 
-## 9. 자동화된 기능
+## 10. 자동화된 기능
 
 다음 기능들이 자동으로 실행됩니다:
 

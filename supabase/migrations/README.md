@@ -153,6 +153,54 @@ user_enrollment_summary
 
 ---
 
+### 4️⃣ `004_profile_management.sql` (권장)
+**프로필 관리 기능**
+
+#### 프로필 관리 함수:
+```sql
+-- 프로필 정보 업데이트
+update_profile(user_id, new_name, new_avatar_url) → JSONB
+
+-- 회원 탈퇴 (CASCADE 삭제)
+delete_user() → VOID
+
+-- 사용자 통계 조회
+get_profile_stats(user_id) → JSONB
+
+-- 이메일 변경 요청 (유효성 검사)
+request_email_change(new_email) → JSONB
+```
+
+#### 기능:
+- ✅ **프로필 업데이트**
+  - 이름, 아바타 URL 변경
+  - updated_at 자동 갱신
+  - RLS로 본인만 수정 가능
+
+- ✅ **회원 탈퇴**
+  - 계정 영구 삭제
+  - CASCADE로 모든 관련 데이터 삭제
+  - 수강 신청, 강의, 채팅 등 모두 제거
+
+- ✅ **통계 정보**
+  - 역할별 맞춤 통계
+  - 학생: 수강 현황
+  - 강사: 강의 및 학생 수
+  - 관리자: 전체 시스템 통계
+
+#### 삭제되는 데이터 (CASCADE):
+```
+auth.users → profiles
+    ↓
+    ├── enrollments (수강 신청)
+    ├── courses (강의)
+    │   ├── live_sessions
+    │   └── enrollments
+    └── chat_messages
+```
+
+---
+
 ## 🚀 설치 순서
 
 ### Supabase SQL Editor에서:
@@ -165,6 +213,39 @@ user_enrollment_summary
 
 3. **003_improvements.sql** 실행 (선택)
    - 추가 기능 및 최적화
+
+4. **004_profile_management.sql** 실행 (권장)
+   - 프로필 관리 기능
+
+5. **005_test_accounts.sql** 읽기 전용 (참고용)
+   - 테스트 계정 생성 가이드
+   - 실행 불필요, 문서로만 참고
+
+---
+
+## 🧪 테스트 계정 생성
+
+개발 및 테스트를 위한 테스트 계정:
+
+**Supabase Dashboard → Authentication → Users에서 생성:**
+
+1. **학생 계정**
+   - Email: `student@test.com`
+   - Password: `test123`
+   - Auto Confirm: ✅
+   - User Metadata: `{"name": "테스트 학생", "role": "student"}`
+
+2. **강사 계정**
+   - Email: `instructor@test.com`
+   - Password: `test123`
+   - Auto Confirm: ✅
+   - User Metadata: `{"name": "테스트 강사", "role": "instructor"}`
+
+**로그인 페이지에서 원클릭 테스트:**
+- 🎓 "학생으로 테스트" 버튼
+- 👨‍🏫 "강사로 테스트" 버튼
+
+**상세 가이드:** [docs/TEST_ACCOUNTS.md](../../docs/TEST_ACCOUNTS.md)
 
 ---
 
