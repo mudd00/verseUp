@@ -16,7 +16,6 @@ export default function Login() {
 
     try {
       setLoading(true)
-      console.log('🔑 [Login] Attempting login:', email)
 
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email,
@@ -25,11 +24,9 @@ export default function Login() {
 
       if (signInError) throw signInError
 
-      console.log('✅ [Login] Sign in successful, navigating to dashboard')
       // onAuthStateChange will handle setting the user
       navigate(ROUTES.DASHBOARD)
     } catch (err) {
-      console.error('❌ [Login] Sign in failed:', err)
       setError(err instanceof Error ? err.message : '로그인에 실패했습니다.')
       setLoading(false)
     }
@@ -91,7 +88,6 @@ export default function Login() {
           : `테스트 ${role === 'student' ? '학생' : '강사'} 로그인에 실패했습니다.`
 
       setError(errorMessage)
-      console.error('Test login error:', err)
       setLoading(false)
     }
   }

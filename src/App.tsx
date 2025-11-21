@@ -44,7 +44,6 @@ function App() {
   const login = useAuthStore((state) => state.login)
 
   useEffect(() => {
-    console.log('🔍 [App] Initializing auth...')
     let ignore = false
 
     // Check current session
@@ -52,39 +51,42 @@ function App() {
       .getSession()
       .then(async ({ data: { session }, error }) => {
         if (ignore) return
-        console.log('📦 [App] Session received:', session ? 'Yes' : 'No', error ? `Error: ${error.message}` : '')
 
         if (error) {
-          console.error('❌ [App] Failed to get session:', error)
+          console.error('Failed to get session:', error)
           setLoading(false)
           return
         }
 
         if (session?.user) {
-          console.log('👤 [App] User found:', session.user.email)
+          // email 기반으로 role 추론 (fallback)
+          const inferRoleFromEmail = (email: string): 'student' | 'instructor' | 'admin' => {
+            if (email.includes('instructor@')) return 'instructor'
+            if (email.includes('admin@')) return 'admin'
+            return 'student'
+          }
 
           // user_metadata만 사용 (profiles 조회 스킵)
+          const metadataRole = session.user.user_metadata?.role
+          const emailBasedRole = inferRoleFromEmail(session.user.email || '')
+          const finalRole = metadataRole || emailBasedRole
+
           const user = {
             id: session.user.id,
             email: session.user.email || '',
             name: session.user.user_metadata?.name || 'User',
-            role: (session.user.user_metadata?.role || 'student') as
-              | 'student'
-              | 'instructor'
-              | 'admin',
+            role: finalRole as 'student' | 'instructor' | 'admin',
             createdAt: session.user.created_at,
             updatedAt: session.user.updated_at || session.user.created_at,
           }
-          console.log('✅ [App] Calling login with user:', user.email, user.role)
           login(user, session.access_token)
         } else {
-          console.log('ℹ️ [App] No session, setting loading to false')
           setLoading(false)
         }
       })
       .catch((err) => {
         if (ignore) return
-        console.error('❌ [App] Session check failed:', err)
+        console.error('Session check failed:', err)
         setLoading(false)
       })
 
@@ -93,25 +95,31 @@ function App() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (ignore) return
-      console.log('🔔 [App] Auth state changed:', event)
 
       // Only handle SIGNED_IN and SIGNED_OUT events, ignore others
       if (event === 'SIGNED_IN' && session?.user) {
-        console.log('👤 [App] User signed in:', session.user.email)
+        // email 기반으로 role 추론 (fallback)
+        const inferRoleFromEmail = (email: string): 'student' | 'instructor' | 'admin' => {
+          if (email.includes('instructor@')) return 'instructor'
+          if (email.includes('admin@')) return 'admin'
+          return 'student'
+        }
 
         // user_metadata만 사용 (profiles 조회 스킵)
+        const metadataRole = session.user.user_metadata?.role
+        const emailBasedRole = inferRoleFromEmail(session.user.email || '')
+        const finalRole = metadataRole || emailBasedRole
+
         const user = {
           id: session.user.id,
           email: session.user.email || '',
           name: session.user.user_metadata?.name || 'User',
-          role: (session.user.user_metadata?.role || 'student') as 'student' | 'instructor' | 'admin',
+          role: finalRole as 'student' | 'instructor' | 'admin',
           createdAt: session.user.created_at,
           updatedAt: session.user.updated_at || session.user.created_at,
         }
-        console.log('✅ [App] Calling login with user:', user.email, user.role)
         login(user, session.access_token)
       } else if (event === 'SIGNED_OUT') {
-        console.log('ℹ️ [App] User signed out')
         setUser(null)
         localStorage.removeItem('accessToken')
       }
