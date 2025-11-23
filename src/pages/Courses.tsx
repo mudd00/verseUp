@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { courseService } from '@/services/courseService'
 import { Course } from '@/types'
+import { formatSchedule } from '@/components/course/ScheduleInput'
 
 export default function Courses() {
   const [courses, setCourses] = useState<Course[]>([])
@@ -126,8 +127,9 @@ export default function Courses() {
                 {course.description}
               </p>
 
-              <div className="text-sm text-gray-500 mb-4">
+              <div className="text-sm text-gray-500 mb-4 space-y-1">
                 <p>기간: {formatDate(course.startDate)} ~ {formatDate(course.endDate)}</p>
+                <p>시간: {formatSchedule(course.schedule)}</p>
                 <p>
                   수강 인원: {course.enrolledCount} / {course.maxStudents}명
                 </p>
