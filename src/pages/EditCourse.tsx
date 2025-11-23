@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { courseService, UpdateCourseData } from '@/services/courseService'
 import { ROUTES } from '@/utils/constants'
+import { CourseSchedule } from '@/types'
+import ScheduleInput from '@/components/course/ScheduleInput'
 
 export default function EditCourse() {
   const { id } = useParams<{ id: string }>()
@@ -20,10 +22,15 @@ export default function EditCourse() {
     maxStudents: 30,
     startDate: '',
     endDate: '',
+    schedule: [] as CourseSchedule[],
     thumbnail: '',
     price: 0,
     status: 'draft' as 'draft' | 'published' | 'archived',
   })
+
+  const handleScheduleChange = (schedules: CourseSchedule[]) => {
+    setFormData((prev) => ({ ...prev, schedule: schedules }))
+  }
 
   useEffect(() => {
     if (id) {
@@ -50,6 +57,7 @@ export default function EditCourse() {
         maxStudents: course.maxStudents,
         startDate: formatDateForInput(course.startDate),
         endDate: formatDateForInput(course.endDate),
+        schedule: course.schedule || [],
         thumbnail: course.thumbnail || '',
         price: course.price || 0,
         status: course.status || 'draft',
@@ -108,6 +116,7 @@ export default function EditCourse() {
         maxStudents: formData.maxStudents,
         startDate: formData.startDate,
         endDate: formData.endDate,
+        schedule: formData.schedule,
         thumbnail: formData.thumbnail || undefined,
         price: formData.price,
         status: formData.status,
@@ -281,9 +290,9 @@ export default function EditCourse() {
           </div>
         </div>
 
-        {/* 기간 및 가격 */}
+        {/* 기간 및 시간표 */}
         <div className="bg-gray-800 p-6 rounded-lg">
-          <h2 className="text-2xl font-semibold mb-4">기간 및 가격</h2>
+          <h2 className="text-2xl font-semibold mb-4">기간 및 시간표</h2>
 
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -316,6 +325,19 @@ export default function EditCourse() {
               </div>
             </div>
 
+            {/* 강의 시간표 */}
+            <ScheduleInput
+              schedules={formData.schedule}
+              onChange={handleScheduleChange}
+            />
+          </div>
+        </div>
+
+        {/* 가격 설정 */}
+        <div className="bg-gray-800 p-6 rounded-lg">
+          <h2 className="text-2xl font-semibold mb-4">가격 설정</h2>
+
+          <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-2">
                 가격 (원)

@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { ROUTES } from '@/utils/constants'
-import MyCoursesList from './MyCoursesList'
 
 export default function InstructorDashboard() {
   const { user } = useAuthStore()
@@ -46,9 +45,25 @@ export default function InstructorDashboard() {
         <p className="text-gray-400">예정된 수업이 없습니다.</p>
       </div>
 
-      <div className="mt-8">
-        <h3 className="text-2xl font-semibold mb-4">내 강의 목록</h3>
-        <MyCoursesList />
+      <div className="mt-8 bg-gray-800 p-6 rounded-lg">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-semibold">내 강의 관리</h3>
+          <Link
+            to={ROUTES.MY_COURSES}
+            className="text-blue-400 hover:text-blue-300 transition"
+          >
+            전체 보기 →
+          </Link>
+        </div>
+        <p className="text-gray-400 mb-4">
+          강의 목록 관리, 공개/비공개 설정, 수정 및 삭제는 "내 강의 관리" 페이지에서 할 수 있습니다.
+        </p>
+        <Link
+          to={ROUTES.MY_COURSES}
+          className="inline-block px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition"
+        >
+          내 강의 관리로 이동
+        </Link>
       </div>
 
       <div className="mt-8 bg-gray-800 p-6 rounded-lg">

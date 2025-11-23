@@ -10,6 +10,7 @@ import Dashboard from './pages/Dashboard'
 import Courses from './pages/Courses'
 import CreateCourse from './pages/CreateCourse'
 import EditCourse from './pages/EditCourse'
+import MyCourses from './pages/MyCourses'
 import Profile from './pages/Profile'
 import Metaverse from './pages/Metaverse'
 import { useAuthStore } from './stores/authStore'
@@ -178,6 +179,14 @@ function App() {
               element={
                 <PrivateRoute>
                   <EditCourse />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path={ROUTES.MY_COURSES}
+              element={
+                <PrivateRoute>
+                  <MyCourses />
                 </PrivateRoute>
               }
             />

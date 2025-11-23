@@ -25,8 +25,16 @@ export default function Header() {
                 to={ROUTES.DASHBOARD}
                 className="text-gray-300 hover:text-white transition"
               >
-                데시보드
+                대시보드
               </Link>
+              {(user?.role === 'instructor' || user?.role === 'admin') && (
+                <Link
+                  to={ROUTES.MY_COURSES}
+                  className="text-gray-300 hover:text-white transition"
+                >
+                  내 강의 관리
+                </Link>
+              )}
               <Link
                 to={ROUTES.COURSES}
                 className="text-gray-300 hover:text-white transition"

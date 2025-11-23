@@ -9,6 +9,13 @@ export interface User {
   updatedAt: string
 }
 
+// 강의 시간표 타입
+export interface CourseSchedule {
+  dayOfWeek: 0 | 1 | 2 | 3 | 4 | 5 | 6 // 0=일요일, 1=월요일, ..., 6=토요일
+  startTime: string // "HH:mm" 형식 (예: "14:00")
+  endTime: string // "HH:mm" 형식 (예: "16:00")
+}
+
 // Session/Course types
 export interface Course {
   id: string
@@ -22,6 +29,7 @@ export interface Course {
   enrolledCount: number
   startDate: string
   endDate: string
+  schedule?: CourseSchedule[] // 주간 시간표
   category?: string
   level?: 'beginner' | 'intermediate' | 'advanced'
   status?: 'draft' | 'published' | 'archived'

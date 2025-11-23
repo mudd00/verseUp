@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { courseService, CreateCourseData } from '@/services/courseService'
 import { ROUTES } from '@/utils/constants'
+import { CourseSchedule } from '@/types'
+import ScheduleInput from '@/components/course/ScheduleInput'
 
 export default function CreateCourse() {
   const navigate = useNavigate()
@@ -18,9 +20,14 @@ export default function CreateCourse() {
     maxStudents: 30,
     startDate: '',
     endDate: '',
+    schedule: [],
     thumbnail: '',
     price: 0,
   })
+
+  const handleScheduleChange = (schedules: CourseSchedule[]) => {
+    setFormData((prev) => ({ ...prev, schedule: schedules }))
+  }
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -195,9 +202,9 @@ export default function CreateCourse() {
           </div>
         </div>
 
-        {/* 기간 및 가격 */}
+        {/* 기간 및 시간표 */}
         <div className="bg-gray-800 p-6 rounded-lg">
-          <h2 className="text-2xl font-semibold mb-4">기간 및 가격</h2>
+          <h2 className="text-2xl font-semibold mb-4">기간 및 시간표</h2>
 
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -230,6 +237,19 @@ export default function CreateCourse() {
               </div>
             </div>
 
+            {/* 강의 시간표 */}
+            <ScheduleInput
+              schedules={formData.schedule || []}
+              onChange={handleScheduleChange}
+            />
+          </div>
+        </div>
+
+        {/* 가격 및 썸네일 */}
+        <div className="bg-gray-800 p-6 rounded-lg">
+          <h2 className="text-2xl font-semibold mb-4">가격 설정</h2>
+
+          <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-2">
                 가격 (원)

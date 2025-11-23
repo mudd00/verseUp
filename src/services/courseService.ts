@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { Course } from '@/types'
+import { Course, CourseSchedule } from '@/types'
 import { useAuthStore } from '@/stores/authStore'
 
 export interface CreateCourseData {
@@ -11,6 +11,7 @@ export interface CreateCourseData {
   maxStudents: number
   startDate: string
   endDate: string
+  schedule?: CourseSchedule[]
   thumbnail?: string
   price?: number
 }
@@ -48,6 +49,7 @@ class CourseService {
         max_students: data.maxStudents,
         start_date: data.startDate,
         end_date: data.endDate,
+        schedule: data.schedule || [],
         thumbnail: data.thumbnail,
         price: data.price || 0,
         status: 'draft',
@@ -164,6 +166,7 @@ class CourseService {
     if (data.maxStudents) updateData.max_students = data.maxStudents
     if (data.startDate) updateData.start_date = data.startDate
     if (data.endDate) updateData.end_date = data.endDate
+    if (data.schedule !== undefined) updateData.schedule = data.schedule
     if (data.thumbnail !== undefined) updateData.thumbnail = data.thumbnail
     if (data.price !== undefined) updateData.price = data.price
     if (data.status) updateData.status = data.status
@@ -240,6 +243,7 @@ class CourseService {
       enrolledCount: data.enrolled_count || 0,
       startDate: data.start_date,
       endDate: data.end_date,
+      schedule: data.schedule || [],
       category: data.category,
       level: data.level,
       status: data.status,
