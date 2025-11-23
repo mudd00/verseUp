@@ -25,7 +25,7 @@ export default function Login() {
       if (signInError) throw signInError
 
       // onAuthStateChange will handle setting the user
-      navigate(ROUTES.DASHBOARD)
+      navigate(ROUTES.HOME)
     } catch (err) {
       setError(err instanceof Error ? err.message : '로그인에 실패했습니다.')
       setLoading(false)
@@ -40,7 +40,7 @@ export default function Login() {
       const { error: signInError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}${ROUTES.DASHBOARD}`,
+          redirectTo: `${window.location.origin}${ROUTES.HOME}`,
         },
       })
 
@@ -78,7 +78,7 @@ export default function Login() {
       if (signInError) throw signInError
 
       // onAuthStateChange will handle setting the user
-      navigate(ROUTES.DASHBOARD)
+      navigate(ROUTES.HOME)
     } catch (err) {
       const errorMessage =
         err instanceof Error
