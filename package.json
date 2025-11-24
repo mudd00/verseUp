@@ -5,14 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:server": "tsx watch server/server.ts",
+    "dev:server": "node server/server.js",
     "dev:both": "concurrently \"npm run dev\" \"npm run dev:server\"",
-    "build": "npm run build:client && npm run build:server",
-    "build:client": "tsc -b && vite build",
-    "build:server": "tsc -p tsconfig.server.json",
+    "build": "npm run build:client",
+    "build:client": "vite build",
     "preview": "vite preview",
-    "start": "node dist/server.js",
-    "lint": "eslint . --ext .ts,.tsx",
+    "start": "node server/server.js",
+    "lint": "eslint . --ext .js,.jsx",
     "format": "prettier --write \"{src,server}/**/*.{ts,tsx,js,jsx,json,css,md}\""
   },
   "dependencies": {
