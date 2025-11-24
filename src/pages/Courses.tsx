@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { courseService } from '@/services/courseService'
 import { Course } from '@/types'
 import { formatSchedule } from '@/components/course/ScheduleInput'
@@ -135,9 +136,12 @@ export default function Courses() {
                 </p>
               </div>
 
-              <button className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded transition">
+              <Link
+                to={`/courses/${course.id}`}
+                className="block w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded transition text-center"
+              >
                 자세히 보기
-              </button>
+              </Link>
             </div>
           ))}
         </div>

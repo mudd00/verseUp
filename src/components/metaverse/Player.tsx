@@ -30,7 +30,7 @@ const Player = forwardRef<THREE.Group, PlayerProps>(({ cameraAngle }, ref) => {
   })
 
   // 물리 업데이트는 Rapier의 beforePhysicsStep에서 처리
-  useBeforePhysicsStep((world) => {
+  useBeforePhysicsStep((_world) => {
     if (!playerRef.current) return
 
     // 카메라 방향 기준 로컬 이동

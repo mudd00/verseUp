@@ -12,7 +12,7 @@ interface MetaverseSceneProps {
 }
 
 export default function MetaverseScene({ onReady }: MetaverseSceneProps) {
-  const playerRef = useRef<THREE.Group>(null)
+  const playerRef = useRef<THREE.Group>(null!)
   const [cameraAngle, setCameraAngle] = useState(0)
 
   return (

@@ -19,7 +19,7 @@ export default function Profile() {
   const [profileSuccess, setProfileSuccess] = useState<string | null>(null)
 
   // Password change state
-  const [currentPassword, setCurrentPassword] = useState('')
+  const [_currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [passwordLoading, setPasswordLoading] = useState(false)

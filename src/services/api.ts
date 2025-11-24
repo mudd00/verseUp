@@ -14,9 +14,14 @@ class ApiService {
     const url = `${this.baseUrl}${endpoint}`
     const token = localStorage.getItem('accessToken')
 
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...options?.headers,
+    }
+
+    // 기존 옵션 헤더를 Record로 병합
+    if (options?.headers) {
+      const optHeaders = options.headers as Record<string, string>
+      Object.assign(headers, optHeaders)
     }
 
     if (token) {

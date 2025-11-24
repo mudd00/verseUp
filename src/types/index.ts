@@ -73,3 +73,14 @@ export interface ChatMessage {
   timestamp: string
   type: 'text' | 'system'
 }
+
+// Enrollment types (수강 신청)
+export interface Enrollment {
+  id: string
+  studentId: string
+  courseId: string
+  course?: Course
+  status: 'active' | 'completed' | 'dropped'
+  enrolledAt: string
+  completedAt?: string
+}

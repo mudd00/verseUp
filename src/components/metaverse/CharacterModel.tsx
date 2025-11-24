@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
 import { useAnimations } from '@react-three/drei'
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - FBXLoader types are not properly exported
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader'
 import { useLoader } from '@react-three/fiber'
 import * as THREE from 'three'
@@ -34,7 +35,7 @@ export default function CharacterModel({ isMoving = false }: CharacterModelProps
     }
 
     // 그림자 설정 (idle 모델만 렌더링하므로 idle에만 적용)
-    idleFbx.traverse((child) => {
+    idleFbx.traverse((child: THREE.Object3D) => {
       if (child instanceof THREE.Mesh) {
         child.castShadow = true
         child.receiveShadow = true

@@ -8,6 +8,7 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Courses from './pages/Courses'
+import CourseDetail from './pages/CourseDetail'
 import CreateCourse from './pages/CreateCourse'
 import EditCourse from './pages/EditCourse'
 import MyCourses from './pages/MyCourses'
@@ -166,6 +167,7 @@ function App() {
             <Route path={ROUTES.LOGIN} element={<Login />} />
             <Route path={ROUTES.REGISTER} element={<Register />} />
             <Route path={ROUTES.COURSES} element={<Courses />} />
+            <Route path={ROUTES.COURSE_DETAIL} element={<CourseDetail />} />
             <Route
               path={ROUTES.CREATE_COURSE}
               element={
