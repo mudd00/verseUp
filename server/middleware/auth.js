@@ -1,4 +1,4 @@
-import { verifySupabaseToken, supabase } from '../utils/supabase.js'
+import { verifySupabaseToken } from '../utils/supabase.js'
 
 export async function authMiddleware(req, res, next) {
   try {
@@ -11,24 +11,10 @@ export async function authMiddleware(req, res, next) {
     const token = authHeader.substring(7)
     const user = await verifySupabaseToken(token)
 
-    // Fetch role from profiles table for accurate role information
-    let role = 'student'
-    if (supabase) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
-
-      if (profile) {
-        role = profile.role
-      }
-    }
-
     req.user = {
       id: user.id,
       email: user.email,
-      role,
+      role: user.user_metadata?.role || 'student',
     }
 
     next()

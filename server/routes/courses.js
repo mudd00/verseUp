@@ -3,10 +3,8 @@ import { authMiddleware } from '../middleware/auth.js'
 
 const router = Router()
 
-// Get all courses
 router.get('/', async (req, res) => {
   try {
-    // TODO: Implement actual database query
     const mockCourses = [
       {
         id: '1',
@@ -29,12 +27,10 @@ router.get('/', async (req, res) => {
   }
 })
 
-// Get course by ID
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params
 
-    // TODO: Implement actual database query
     const mockCourse = {
       id,
       title: 'React 기초',
@@ -55,12 +51,9 @@ router.get('/:id', async (req, res) => {
   }
 })
 
-// Enroll in course (requires auth)
 router.post('/:id/enroll', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params
-
-    // TODO: Implement actual enrollment logic
     res.json({ message: 'Enrolled successfully', courseId: id })
   } catch (error) {
     console.error('Error enrolling:', error)

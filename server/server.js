@@ -19,7 +19,6 @@ const io = new Server(httpServer, {
 
 const PORT = process.env.PORT || 3000
 
-// Middleware
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
@@ -29,28 +28,22 @@ app.use(
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
-// Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
-// API routes
 app.use('/api', apiRoutes)
-
-// Socket.IO setup
 setupSocketHandlers(io)
 
-// Error handling
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   console.error('Error:', err)
   res.status(500).json({ error: 'Internal server error' })
 })
 
-// Start server
 httpServer.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`)
-  console.log(`📡 Socket.IO ready`)
-  console.log(`🔗 CORS enabled for: ${process.env.CORS_ORIGIN || 'http://localhost:5173'}`)
+  console.log(`✅ Server running on http://localhost:${PORT}`)
+  console.log(`🔌 Socket.IO ready`)
+  console.log(`🌐 CORS enabled for: ${process.env.CORS_ORIGIN || 'http://localhost:5173'}`)
 })
 
 export { io }

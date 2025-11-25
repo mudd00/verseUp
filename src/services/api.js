@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '@/utils/constants'
+import { API_BASE_URL } from '@/utils/constants.js'
 
 class ApiService {
   constructor() {
@@ -11,54 +11,38 @@ class ApiService {
 
     const headers = {
       'Content-Type': 'application/json',
-    }
-
-    // 기존 옵션 헤더를 Record로 병합
-    if (options?.headers) {
-      const optHeaders = options.headers
-      Object.assign(headers, optHeaders)
+      ...(options?.headers || {}),
     }
 
     if (token) {
-      headers['Authorization'] = `Bearer ${token}`
+      headers.Authorization = `Bearer ${token}`
     }
 
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-      })
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    })
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      return await response.json()
-    } catch (error) {
-      console.error('API request failed:', error)
-      throw error
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
     }
+
+    return response.json()
   }
 
-  async get(endpoint) {
+  get(endpoint) {
     return this.request(endpoint, { method: 'GET' })
   }
 
-  async post(endpoint, data) {
-    return this.request(endpoint, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    })
+  post(endpoint, data) {
+    return this.request(endpoint, { method: 'POST', body: JSON.stringify(data) })
   }
 
-  async put(endpoint, data) {
-    return this.request(endpoint, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    })
+  put(endpoint, data) {
+    return this.request(endpoint, { method: 'PUT', body: JSON.stringify(data) })
   }
 
-  async delete(endpoint) {
+  delete(endpoint) {
     return this.request(endpoint, { method: 'DELETE' })
   }
 }

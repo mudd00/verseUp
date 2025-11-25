@@ -10,8 +10,7 @@ if (!supabaseUrl || !supabaseServiceKey) {
   console.warn('⚠️  Supabase credentials not configured')
 }
 
-export const supabase =
-  supabaseUrl && supabaseServiceKey ? createClient(supabaseUrl, supabaseServiceKey) : null
+export const supabase = supabaseUrl && supabaseServiceKey ? createClient(supabaseUrl, supabaseServiceKey) : null
 
 export async function verifySupabaseToken(token) {
   if (!supabase) {
@@ -19,7 +18,6 @@ export async function verifySupabaseToken(token) {
   }
 
   const { data, error } = await supabase.auth.getUser(token)
-
   if (error || !data.user) {
     throw new Error('Invalid token')
   }

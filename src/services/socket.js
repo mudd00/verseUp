@@ -1,5 +1,5 @@
 import { io } from 'socket.io-client'
-import { SOCKET_URL } from '@/utils/constants'
+import { SOCKET_URL } from '@/utils/constants.js'
 
 class SocketService {
   constructor() {
@@ -12,9 +12,7 @@ class SocketService {
     }
 
     this.socket = io(SOCKET_URL, {
-      auth: {
-        token,
-      },
+      auth: { token },
       transports: ['websocket'],
     })
 

@@ -7,6 +7,8 @@ export function useKeyboardControls() {
     left: false,
     right: false,
     jump: false,
+    shift: false,
+    log: false,
   })
 
   useEffect(() => {
@@ -14,23 +16,30 @@ export function useKeyboardControls() {
       switch (e.code) {
         case 'KeyW':
         case 'ArrowUp':
-          setKeys(prev => ({ ...prev, forward: true }))
+          setKeys((prev) => ({ ...prev, forward: true }))
           break
         case 'KeyS':
         case 'ArrowDown':
-          setKeys(prev => ({ ...prev, backward: true }))
+          setKeys((prev) => ({ ...prev, backward: true }))
           break
         case 'KeyA':
         case 'ArrowLeft':
-          setKeys(prev => ({ ...prev, left: true }))
+          setKeys((prev) => ({ ...prev, left: true }))
           break
         case 'KeyD':
         case 'ArrowRight':
-          setKeys(prev => ({ ...prev, right: true }))
+          setKeys((prev) => ({ ...prev, right: true }))
           break
         case 'Space':
-          setKeys(prev => ({ ...prev, jump: true }))
+          setKeys((prev) => ({ ...prev, jump: true }))
           e.preventDefault()
+          break
+        case 'ShiftLeft':
+        case 'ShiftRight':
+          setKeys((prev) => ({ ...prev, shift: true }))
+          break
+        case 'KeyC':
+          setKeys((prev) => ({ ...prev, log: true }))
           break
       }
     }
@@ -39,22 +48,29 @@ export function useKeyboardControls() {
       switch (e.code) {
         case 'KeyW':
         case 'ArrowUp':
-          setKeys(prev => ({ ...prev, forward: false }))
+          setKeys((prev) => ({ ...prev, forward: false }))
           break
         case 'KeyS':
         case 'ArrowDown':
-          setKeys(prev => ({ ...prev, backward: false }))
+          setKeys((prev) => ({ ...prev, backward: false }))
           break
         case 'KeyA':
         case 'ArrowLeft':
-          setKeys(prev => ({ ...prev, left: false }))
+          setKeys((prev) => ({ ...prev, left: false }))
           break
         case 'KeyD':
         case 'ArrowRight':
-          setKeys(prev => ({ ...prev, right: false }))
+          setKeys((prev) => ({ ...prev, right: false }))
           break
         case 'Space':
-          setKeys(prev => ({ ...prev, jump: false }))
+          setKeys((prev) => ({ ...prev, jump: false }))
+          break
+        case 'ShiftLeft':
+        case 'ShiftRight':
+          setKeys((prev) => ({ ...prev, shift: false }))
+          break
+        case 'KeyC':
+          setKeys((prev) => ({ ...prev, log: false }))
           break
       }
     }
