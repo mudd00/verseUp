@@ -1,12 +1,11 @@
 import { supabase } from '@/lib/supabase'
-import { Enrollment, Course } from '@/types'
 import { useAuthStore } from '@/stores/authStore'
 
 class EnrollmentService {
   /**
    * 강의 수강 신청
    */
-  async enrollCourse(courseId: string): Promise<Enrollment> {
+  async enrollCourse(courseId) {
     const currentUser = useAuthStore.getState().user
 
     if (!currentUser) {
@@ -65,7 +64,7 @@ class EnrollmentService {
   /**
    * 수강 취소
    */
-  async dropCourse(courseId: string): Promise<void> {
+  async dropCourse(courseId) {
     const currentUser = useAuthStore.getState().user
 
     if (!currentUser) {
@@ -102,7 +101,7 @@ class EnrollmentService {
   /**
    * 내 수강 목록 조회
    */
-  async getMyEnrollments(): Promise<Enrollment[]> {
+  async getMyEnrollments() {
     const currentUser = useAuthStore.getState().user
 
     if (!currentUser) {
@@ -135,7 +134,7 @@ class EnrollmentService {
   /**
    * 특정 강의 수강 여부 확인
    */
-  async isEnrolled(courseId: string): Promise<boolean> {
+  async isEnrolled(courseId) {
     const currentUser = useAuthStore.getState().user
 
     if (!currentUser) {
@@ -156,52 +155,52 @@ class EnrollmentService {
   /**
    * DB 데이터를 Enrollment 타입으로 변환
    */
-  private mapEnrollmentFromDB(data: Record<string, unknown>): Enrollment {
-    const courseData = data.course as Record<string, unknown> | undefined
-    let course: Course | undefined
+  mapEnrollmentFromDB(data) {
+    const courseData = data.course
+    let course
 
     if (courseData) {
-      const instructor = courseData.instructor as Record<string, unknown> | undefined
+      const instructor = courseData.instructor
       course = {
-        id: courseData.id as string,
-        courseCode: courseData.course_code as string,
-        title: courseData.title as string,
-        description: courseData.description as string,
-        instructorId: courseData.instructor_id as string,
+        id: courseData.id,
+        courseCode: courseData.course_code,
+        title: courseData.title,
+        description: courseData.description,
+        instructorId: courseData.instructor_id,
         instructor: instructor
           ? {
-              id: instructor.id as string,
-              name: instructor.name as string,
-              email: instructor.email as string,
-              avatarUrl: instructor.avatar_url as string | undefined,
-              role: 'instructor' as const,
+              id: instructor.id,
+              name: instructor.name,
+              email: instructor.email,
+              avatarUrl: instructor.avatar_url,
+              role: 'instructor',
               createdAt: '',
               updatedAt: '',
             }
           : undefined,
-        thumbnail: courseData.thumbnail as string | undefined,
-        maxStudents: courseData.max_students as number,
-        enrolledCount: (courseData.enrolled_count as number) || 0,
-        startDate: courseData.start_date as string,
-        endDate: courseData.end_date as string,
-        schedule: (courseData.schedule as Course['schedule']) || [],
-        category: courseData.category as string | undefined,
-        level: courseData.level as Course['level'],
-        status: courseData.status as Course['status'],
-        price: courseData.price as number | undefined,
-        createdAt: courseData.created_at as string,
-        updatedAt: courseData.updated_at as string | undefined,
+        thumbnail: courseData.thumbnail,
+        maxStudents: courseData.max_students,
+        enrolledCount: courseData.enrolled_count || 0,
+        startDate: courseData.start_date,
+        endDate: courseData.end_date,
+        schedule: courseData.schedule || [],
+        category: courseData.category,
+        level: courseData.level,
+        status: courseData.status,
+        price: courseData.price,
+        createdAt: courseData.created_at,
+        updatedAt: courseData.updated_at,
       }
     }
 
     return {
-      id: data.id as string,
-      studentId: data.student_id as string,
-      courseId: data.course_id as string,
+      id: data.id,
+      studentId: data.student_id,
+      courseId: data.course_id,
       course,
-      status: data.status as Enrollment['status'],
-      enrolledAt: data.enrolled_at as string,
-      completedAt: data.completed_at as string | undefined,
+      status: data.status,
+      enrolledAt: data.enrolled_at,
+      completedAt: data.completed_at,
     }
   }
 }

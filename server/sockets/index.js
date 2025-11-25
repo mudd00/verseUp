@@ -1,16 +1,13 @@
-import { Server, Socket } from 'socket.io'
-import { SocketUser, ChatMessage } from '../types/index.js'
+const connectedUsers = new Map()
+const rooms = new Map()
 
-const connectedUsers = new Map<string, SocketUser>()
-const rooms = new Map<string, Set<string>>()
-
-export function setupSocketHandlers(io: Server) {
-  io.on('connection', (socket: Socket) => {
+export function setupSocketHandlers(io) {
+  io.on('connection', (socket) => {
     console.log(`✅ Client connected: ${socket.id}`)
 
     // Handle user join
-    socket.on('user:join', (userData: { user: any }) => {
-      const socketUser: SocketUser = {
+    socket.on('user:join', (userData) => {
+      const socketUser = {
         id: userData.user.id,
         socketId: socket.id,
         user: userData.user,
@@ -23,7 +20,7 @@ export function setupSocketHandlers(io: Server) {
     })
 
     // Handle room join
-    socket.on('room:join', (data: { roomId: string }) => {
+    socket.on('room:join', (data) => {
       const { roomId } = data
       const user = connectedUsers.get(socket.id)
 
@@ -58,7 +55,7 @@ export function setupSocketHandlers(io: Server) {
     })
 
     // Handle room leave
-    socket.on('room:leave', (data: { roomId: string }) => {
+    socket.on('room:leave', (data) => {
       const { roomId } = data
       const user = connectedUsers.get(socket.id)
 
@@ -77,7 +74,7 @@ export function setupSocketHandlers(io: Server) {
     })
 
     // Handle chat messages
-    socket.on('chat:message', (data: { roomId: string; message: string }) => {
+    socket.on('chat:message', (data) => {
       const { roomId, message } = data
       const user = connectedUsers.get(socket.id)
 
@@ -86,7 +83,7 @@ export function setupSocketHandlers(io: Server) {
         return
       }
 
-      const chatMessage: ChatMessage = {
+      const chatMessage = {
         id: `${Date.now()}-${socket.id}`,
         userId: user.id,
         userName: user.user.name,
@@ -100,7 +97,7 @@ export function setupSocketHandlers(io: Server) {
     })
 
     // Handle WebRTC signaling
-    socket.on('webrtc:offer', (data: { roomId: string; targetSocketId: string; offer: RTCSessionDescriptionInit }) => {
+    socket.on('webrtc:offer', (data) => {
       const { targetSocketId, offer, roomId } = data
       io.to(targetSocketId).emit('webrtc:offer', {
         fromSocketId: socket.id,
@@ -109,7 +106,7 @@ export function setupSocketHandlers(io: Server) {
       })
     })
 
-    socket.on('webrtc:answer', (data: { targetSocketId: string; answer: RTCSessionDescriptionInit }) => {
+    socket.on('webrtc:answer', (data) => {
       const { targetSocketId, answer } = data
       io.to(targetSocketId).emit('webrtc:answer', {
         fromSocketId: socket.id,
@@ -117,7 +114,7 @@ export function setupSocketHandlers(io: Server) {
       })
     })
 
-    socket.on('webrtc:ice-candidate', (data: { roomId: string; targetSocketId: string; candidate: RTCIceCandidateInit }) => {
+    socket.on('webrtc:ice-candidate', (data) => {
       const { targetSocketId, candidate } = data
       io.to(targetSocketId).emit('webrtc:ice-candidate', {
         fromSocketId: socket.id,

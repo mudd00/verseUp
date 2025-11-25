@@ -20,10 +20,12 @@ const io = new Server(httpServer, {
 const PORT = process.env.PORT || 3000
 
 // Middleware
-app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-  credentials: true,
-}))
+app.use(
+  cors({
+    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    credentials: true,
+  })
+)
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
@@ -39,7 +41,7 @@ app.use('/api', apiRoutes)
 setupSocketHandlers(io)
 
 // Error handling
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err, req, res, next) => {
   console.error('Error:', err)
   res.status(500).json({ error: 'Internal server error' })
 })

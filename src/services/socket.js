@@ -1,10 +1,12 @@
-import { io, Socket } from 'socket.io-client'
+import { io } from 'socket.io-client'
 import { SOCKET_URL } from '@/utils/constants'
 
 class SocketService {
-  private socket: Socket | null = null
+  constructor() {
+    this.socket = null
+  }
 
-  connect(token: string) {
+  connect(token) {
     if (this.socket?.connected) {
       return this.socket
     }
@@ -24,7 +26,7 @@ class SocketService {
       console.log('Socket disconnected')
     })
 
-    this.socket.on('error', (error: Error) => {
+    this.socket.on('error', (error) => {
       console.error('Socket error:', error)
     })
 
@@ -38,7 +40,7 @@ class SocketService {
     }
   }
 
-  emit(event: string, data?: unknown) {
+  emit(event, data) {
     if (this.socket?.connected) {
       this.socket.emit(event, data)
     } else {
@@ -46,19 +48,19 @@ class SocketService {
     }
   }
 
-  on(event: string, callback: (...args: unknown[]) => void) {
+  on(event, callback) {
     if (this.socket) {
       this.socket.on(event, callback)
     }
   }
 
-  off(event: string) {
+  off(event) {
     if (this.socket) {
       this.socket.off(event)
     }
   }
 
-  getSocket(): Socket | null {
+  getSocket() {
     return this.socket
   }
 }

@@ -10,7 +10,7 @@ export function useKeyboardControls() {
   })
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = (e) => {
       switch (e.code) {
         case 'KeyW':
         case 'ArrowUp':
@@ -35,7 +35,7 @@ export function useKeyboardControls() {
       }
     }
 
-    const handleKeyUp = (e: KeyboardEvent) => {
+    const handleKeyUp = (e) => {
       switch (e.code) {
         case 'KeyW':
         case 'ArrowUp':

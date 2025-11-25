@@ -1,30 +1,11 @@
 import { supabase } from '@/lib/supabase'
-import { Course, CourseSchedule } from '@/types'
 import { useAuthStore } from '@/stores/authStore'
-
-export interface CreateCourseData {
-  title: string
-  description: string
-  courseCode?: string
-  category?: string
-  level?: 'beginner' | 'intermediate' | 'advanced'
-  maxStudents: number
-  startDate: string
-  endDate: string
-  schedule?: CourseSchedule[]
-  thumbnail?: string
-  price?: number
-}
-
-export interface UpdateCourseData extends Partial<CreateCourseData> {
-  status?: 'draft' | 'published' | 'archived'
-}
 
 class CourseService {
   /**
    * 새 강의 생성 (강사용)
    */
-  async createCourse(data: CreateCourseData): Promise<Course> {
+  async createCourse(data) {
     // zustand store에서 인증된 사용자 정보 가져오기 (이미 role이 추론됨)
     const currentUser = useAuthStore.getState().user
 
@@ -73,7 +54,7 @@ class CourseService {
   /**
    * 강의 목록 조회 (공개된 강의만)
    */
-  async getCourses(): Promise<Course[]> {
+  async getCourses() {
     const { data, error } = await supabase
       .from('courses')
       .select(
@@ -96,7 +77,7 @@ class CourseService {
   /**
    * 내 강의 목록 조회 (강사용)
    */
-  async getMyCourses(): Promise<Course[]> {
+  async getMyCourses() {
     // zustand store에서 인증된 사용자 정보 가져오기
     const currentUser = useAuthStore.getState().user
 
@@ -126,7 +107,7 @@ class CourseService {
   /**
    * 강의 상세 조회
    */
-  async getCourseById(id: string): Promise<Course> {
+  async getCourseById(id) {
     const { data, error } = await supabase
       .from('courses')
       .select(
@@ -149,7 +130,7 @@ class CourseService {
   /**
    * 강의 업데이트 (강사/관리자용)
    */
-  async updateCourse(id: string, data: UpdateCourseData): Promise<Course> {
+  async updateCourse(id, data) {
     // zustand store에서 인증된 사용자 정보 가져오기
     const currentUser = useAuthStore.getState().user
 
@@ -157,7 +138,7 @@ class CourseService {
       throw new Error('로그인이 필요합니다.')
     }
 
-    const updateData: Record<string, unknown> = {}
+    const updateData = {}
     if (data.title) updateData.title = data.title
     if (data.description) updateData.description = data.description
     if (data.courseCode) updateData.course_code = data.courseCode
@@ -194,7 +175,7 @@ class CourseService {
   /**
    * 강의 삭제 (강사/관리자용)
    */
-  async deleteCourse(id: string): Promise<void> {
+  async deleteCourse(id) {
     // zustand store에서 인증된 사용자 정보 가져오기
     const currentUser = useAuthStore.getState().user
 
@@ -213,14 +194,14 @@ class CourseService {
   /**
    * 강의 공개 (draft → published)
    */
-  async publishCourse(id: string): Promise<Course> {
+  async publishCourse(id) {
     return this.updateCourse(id, { status: 'published' })
   }
 
   /**
    * DB 데이터를 Course 타입으로 변환
    */
-  private mapCourseFromDB(data: any): Course {
+  mapCourseFromDB(data) {
     return {
       id: data.id,
       courseCode: data.course_code,
@@ -233,7 +214,7 @@ class CourseService {
             name: data.instructor.name,
             email: data.instructor.email,
             avatarUrl: data.instructor.avatar_url,
-            role: 'instructor' as const,
+            role: 'instructor',
             createdAt: '',
             updatedAt: '',
           }

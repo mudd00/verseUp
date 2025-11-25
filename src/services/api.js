@@ -1,26 +1,21 @@
 import { API_BASE_URL } from '@/utils/constants'
 
 class ApiService {
-  private baseUrl: string
-
   constructor() {
     this.baseUrl = API_BASE_URL
   }
 
-  private async request<T>(
-    endpoint: string,
-    options?: RequestInit
-  ): Promise<T> {
+  async request(endpoint, options) {
     const url = `${this.baseUrl}${endpoint}`
     const token = localStorage.getItem('accessToken')
 
-    const headers: Record<string, string> = {
+    const headers = {
       'Content-Type': 'application/json',
     }
 
     // 기존 옵션 헤더를 Record로 병합
     if (options?.headers) {
-      const optHeaders = options.headers as Record<string, string>
+      const optHeaders = options.headers
       Object.assign(headers, optHeaders)
     }
 
@@ -45,26 +40,26 @@ class ApiService {
     }
   }
 
-  async get<T>(endpoint: string): Promise<T> {
-    return this.request<T>(endpoint, { method: 'GET' })
+  async get(endpoint) {
+    return this.request(endpoint, { method: 'GET' })
   }
 
-  async post<T>(endpoint: string, data?: unknown): Promise<T> {
-    return this.request<T>(endpoint, {
+  async post(endpoint, data) {
+    return this.request(endpoint, {
       method: 'POST',
       body: JSON.stringify(data),
     })
   }
 
-  async put<T>(endpoint: string, data?: unknown): Promise<T> {
-    return this.request<T>(endpoint, {
+  async put(endpoint, data) {
+    return this.request(endpoint, {
       method: 'PUT',
       body: JSON.stringify(data),
     })
   }
 
-  async delete<T>(endpoint: string): Promise<T> {
-    return this.request<T>(endpoint, { method: 'DELETE' })
+  async delete(endpoint) {
+    return this.request(endpoint, { method: 'DELETE' })
   }
 }
 

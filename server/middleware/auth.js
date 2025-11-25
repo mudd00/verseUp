@@ -1,19 +1,6 @@
-import { Request, Response, NextFunction } from 'express'
 import { verifySupabaseToken, supabase } from '../utils/supabase.js'
 
-export interface AuthRequest extends Request {
-  user?: {
-    id: string
-    email?: string
-    role?: string
-  }
-}
-
-export async function authMiddleware(
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-) {
+export async function authMiddleware(req, res, next) {
   try {
     const authHeader = req.headers.authorization
 

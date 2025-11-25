@@ -1,11 +1,11 @@
 import { Router } from 'express'
-import { authMiddleware, AuthRequest } from '../middleware/auth.js'
+import { authMiddleware } from '../middleware/auth.js'
 import { supabase } from '../utils/supabase.js'
 
 const router = Router()
 
 // Get current user with profile data
-router.get('/me', authMiddleware, async (req: AuthRequest, res) => {
+router.get('/me', authMiddleware, async (req, res) => {
   try {
     if (!supabase || !req.user) {
       return res.status(401).json({ error: 'Not authenticated' })

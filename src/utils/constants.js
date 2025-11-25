@@ -3,7 +3,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:30
 export const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000'
 
 // WebRTC configuration
-export const TURN_SERVER_CONFIG: RTCConfiguration = {
+export const TURN_SERVER_CONFIG = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     // TURN server configuration will be added later
@@ -29,4 +29,4 @@ export const ROUTES = {
   METAVERSE: '/metaverse',
   PROFILE: '/profile',
   ADMIN: '/admin',
-} as const
+}
