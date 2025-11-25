@@ -32,3 +32,6 @@ dist-ssr
 # Build outputs
 build
 coverage
+
+# json
+tsconfig.tsbuildinfo
