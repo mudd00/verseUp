@@ -47,6 +47,12 @@ export default function Header() {
               >
                 메타버스
               </Link>
+              <Link
+                to="/payment/history"
+                className="text-gray-300 hover:text-white transition"
+              >
+                결제내역
+              </Link>
               <div className="flex items-center gap-3">
                 <span className="text-gray-300">{user?.name}</span>
                 <Link
