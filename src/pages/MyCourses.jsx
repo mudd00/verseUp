@@ -37,7 +37,7 @@ export default function MyCourses() {
     }
   }
 
-  const handleToggleStatus = async (courseId, currentStatus?) => {
+  const handleToggleStatus = async (courseId, currentStatus) => {
     try {
       const newStatus = currentStatus === 'published' ? 'draft' : 'published'
       await courseService.updateCourse(courseId, { status: newStatus })
@@ -68,13 +68,13 @@ export default function MyCourses() {
     }
   }
 
-  const getStatusBadge = (status?) => {
+  const getStatusBadge = (status) => {
     const badges = {
       draft: { label: '초안', color: 'bg-gray-600' },
       published: { label: '공개', color: 'bg-green-600' },
       archived: { label: '보관', color: 'bg-yellow-600' },
     }
-    const badge = badges[status as keyof typeof badges] || badges.draft
+    const badge = badges[status] || badges.draft
     return (
       <span className={`px-2 py-1 text-xs rounded-full ${badge.color} text-white`}>
         {badge.label}

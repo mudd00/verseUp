@@ -149,9 +149,9 @@ export default function Profile() {
   }
 
   const tabs = [
-    { id: 'profile' as TabType, label: '프로필 정보', icon: '👤' },
-    { id: 'password' as TabType, label: '비밀번호 변경', icon: '🔒' },
-    { id: 'danger' as TabType, label: '계정 관리', icon: '⚠️' },
+    { id: 'profile', label: '프로필 정보', icon: '👤' },
+    { id: 'password', label: '비밀번호 변경', icon: '🔒' },
+    { id: 'danger', label: '계정 관리', icon: '⚠️' },
   ]
 
   return (

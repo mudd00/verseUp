@@ -5,15 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:server": "tsx watch server/server.ts",
+    "dev:server": "node --watch server/server.js",
     "dev:both": "concurrently \"npm run dev\" \"npm run dev:server\"",
-    "build": "npm run build:client && npm run build:server",
-    "build:client": "tsc -b && vite build",
-    "build:server": "tsc -p tsconfig.server.json",
+    "build": "vite build",
+    "build:client": "vite build",
+    "build:server": "echo 'No TypeScript compilation needed'",
     "preview": "vite preview",
-    "start": "node dist/server.js",
-    "lint": "eslint . --ext .ts,.tsx",
-    "format": "prettier --write \"{src,server}/**/*.{ts,tsx,js,jsx,json,css,md}\""
+    "start": "node server/server.js",
+    "lint": "eslint . --ext .js,.jsx",
+    "format": "prettier --write \"{src,server}/**/*.{js,jsx,json,css,md}\""
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

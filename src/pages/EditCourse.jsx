@@ -7,7 +7,7 @@ import { ROUTES } from '@/utils/constants.js'
 import ScheduleInput from '@/components/course/ScheduleInput.jsx'
 
 export default function EditCourse() {
-  const { id } = useParams<{ id }>()
+  const { id } = useParams()
   const navigate = useNavigate()
   const [isLoading, setIsLoading] = useState(false)
   const [isFetching, setIsFetching] = useState(true)
@@ -18,14 +18,14 @@ export default function EditCourse() {
     description: '',
     courseCode: '',
     category: 'general',
-    level: 'beginner' as 'beginner' | 'intermediate' | 'advanced',
+    level: 'beginner',
     maxStudents: 30,
     startDate: '',
     endDate: '',
-    schedule: [] as CourseSchedule[],
+    schedule: [],
     thumbnail: '',
     price: 0,
-    status: 'draft' as 'draft' | 'published' | 'archived',
+    status: 'draft',
   })
 
   const handleScheduleChange = (schedules) => {
@@ -70,11 +70,7 @@ export default function EditCourse() {
     }
   }
 
-  const handleChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >
-  ) => {
+  const handleChange = (e) => {
     const { name, value } = e.target
     setFormData((prev) => ({
       ...prev,
@@ -107,7 +103,7 @@ export default function EditCourse() {
       }
 
       // 강의 업데이트
-      const updateData: UpdateCourseData = {
+      const updateData = {
         title: formData.title,
         description: formData.description,
         courseCode: formData.courseCode,
