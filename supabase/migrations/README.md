@@ -225,6 +225,10 @@ auth.users → profiles
    - 강의 수강번호 및 추가 필드
    - 기존 courses 테이블에 컬럼 추가
 
+7. **012_fix_enrollment_count_on_drop.sql** 실행 (권장) ⭐ NEW
+   - 수강 취소 시 enrolled_count 자동 감소
+   - 재수강 시 자동 증가
+
 ---
 
 ### 6️⃣ `006_add_course_code.sql` (권장)
@@ -380,6 +384,40 @@ WHERE email = 'student@example.com';
 ```
 
 **주의:** 역할 변경 후 사용자는 재로그인해야 합니다.
+
+---
+
+### 7️⃣ `012_fix_enrollment_count_on_drop.sql` (권장) ⭐ NEW
+**수강 취소 시 enrolled_count 자동 업데이트**
+
+#### 문제점:
+기존 트리거는 **DELETE**에만 반응했지만, 실제 수강 취소는 **UPDATE** (status를 'dropped'로 변경)를 사용합니다.
+이로 인해 수강 취소 시 enrolled_count가 자동으로 감소하지 않는 문제가 있었습니다.
+
+#### 해결 방법:
+새로운 트리거가 다음 상황을 모두 처리합니다:
+1. ✅ **수강 취소** (active → dropped): enrolled_count -1
+2. ✅ **재수강** (dropped → active): enrolled_count +1
+3. ✅ **완전 삭제** (DELETE): enrolled_count -1
+4. ✅ **음수 방지**: GREATEST(0, count) 사용
+
+#### 자동화 기능:
+```sql
+-- 수강 취소 시
+UPDATE enrollments SET status = 'dropped'
+WHERE student_id = 'xxx' AND course_id = 'yyy';
+→ 트리거가 자동으로 courses.enrolled_count - 1
+
+-- 재수강 시
+UPDATE enrollments SET status = 'active'
+WHERE student_id = 'xxx' AND course_id = 'yyy';
+→ 트리거가 자동으로 courses.enrolled_count + 1
+```
+
+#### 주의사항:
+- 이 마이그레이션은 기존 `decrement_course_enrolled_count` 트리거를 교체합니다
+- 프론트엔드에서 수동으로 enrolled_count를 조작할 필요가 없습니다
+- 반드시 Supabase SQL Editor에서 실행하세요
 
 ---
 
