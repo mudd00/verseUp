@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { supabase } from '@/lib/supabase'
 
 export const useAuthStore = create((set) => ({
   user: null,
@@ -10,7 +11,8 @@ export const useAuthStore = create((set) => ({
     set({ user, isAuthenticated: true, isLoading: false })
   },
 
-  logout: () => {
+  logout: async () => {
+    await supabase.auth.signOut()
     localStorage.removeItem('accessToken')
     set({ user: null, isAuthenticated: false, isLoading: false })
   },

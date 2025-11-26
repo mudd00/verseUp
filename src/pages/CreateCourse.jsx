@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { courseService, CreateCourseData } from '@/services/courseService'
-import { ROUTES } from '@/utils/constants'
-import ScheduleInput from '@/components/course/ScheduleInput'
+import { courseService } from '@/services/courseService.js'
+import { ROUTES } from '@/utils/constants.js'
+import ScheduleInput from '@/components/course/ScheduleInput.jsx'
 
 export default function CreateCourse() {
   const navigate = useNavigate()
@@ -24,15 +24,11 @@ export default function CreateCourse() {
     price: 0,
   })
 
-  const handleScheduleChange = (schedules: CourseSchedule[]) => {
+  const handleScheduleChange = (schedules) => {
     setFormData((prev) => ({ ...prev, schedule: schedules }))
   }
 
-  const handleChange = (
-    eChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >
-  ) => {
+  const handleChange = (e) => {
     const { name, value } = e.target
     setFormData((prev) => ({
       ...prev,
@@ -83,28 +79,28 @@ export default function CreateCourse() {
   }
 
   return (
-    
-      
-        새 강의 개설
-        새로운 강의를 생성하고 학생들을 모집하세요
-      
+    <div className="max-w-4xl mx-auto">
+      <div className="mb-8">
+        <h1 className="text-4xl font-bold mb-2">새 강의 개설</h1>
+        <p className="text-gray-400">새로운 강의를 생성하고 학생들을 모집하세요</p>
+      </div>
 
       {error && (
-        
+        <div className="mb-6 p-4 bg-red-900/20 border border-red-500 rounded-lg text-red-400">
           {error}
-        
+        </div>
       )}
 
-      
+      <form onSubmit={handleSubmit} className="space-y-6">
         {/* 기본 정보 */}
-        
-          기본 정보
+        <div className="bg-gray-800 p-6 rounded-lg">
+          <h2 className="text-2xl font-semibold mb-4">기본 정보</h2>
 
-          
-            
-              
-                강의명 *
-              
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                강의명 <span className="text-red-400">*</span>
+              </label>
               <input
                 type="text"
                 name="title"
@@ -114,12 +110,12 @@ export default function CreateCourse() {
                 placeholder="예: React 완벽 가이드"
                 required
               />
-            
+            </div>
 
-            
-              
+            <div>
+              <label className="block text-sm font-medium mb-2">
                 수강번호 (선택사항)
-              
+              </label>
               <input
                 type="text"
                 name="courseCode"
@@ -128,15 +124,15 @@ export default function CreateCourse() {
                 className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
                 placeholder="비워두면 자동 생성됩니다 (예: REA123)"
               />
-              
+              <p className="text-sm text-gray-400 mt-1">
                 비워두면 강의명을 기반으로 자동 생성됩니다
-              
-            
+              </p>
+            </div>
 
-            
-              
-                강의 설명 *
-              
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                강의 설명 <span className="text-red-400">*</span>
+              </label>
               <textarea
                 name="description"
                 value={formData.description}
@@ -145,47 +141,47 @@ export default function CreateCourse() {
                 placeholder="강의에 대한 자세한 설명을 입력하세요"
                 required
               />
-            
+            </div>
 
-            
-              
-                
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">
                   카테고리
-                
+                </label>
                 <select
                   name="category"
                   value={formData.category}
                   onChange={handleChange}
                   className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
                 >
-                  일반
-                  프로그래밍
-                  디자인
-                  비즈니스
-                  수학
-                  과학
-                  언어
-                
-              
+                  <option value="general">일반</option>
+                  <option value="programming">프로그래밍</option>
+                  <option value="design">디자인</option>
+                  <option value="business">비즈니스</option>
+                  <option value="math">수학</option>
+                  <option value="science">과학</option>
+                  <option value="language">언어</option>
+                </select>
+              </div>
 
-              
-                난이도
+              <div>
+                <label className="block text-sm font-medium mb-2">난이도</label>
                 <select
                   name="level"
                   value={formData.level}
                   onChange={handleChange}
                   className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
                 >
-                  초급
-                  중급
-                  고급
-                
-              
+                  <option value="beginner">초급</option>
+                  <option value="intermediate">중급</option>
+                  <option value="advanced">고급</option>
+                </select>
+              </div>
 
-              
-                
+              <div>
+                <label className="block text-sm font-medium mb-2">
                   최대 수강 인원
-                
+                </label>
                 <input
                   type="number"
                   name="maxStudents"
@@ -196,21 +192,21 @@ export default function CreateCourse() {
                   max="500"
                   required
                 />
-              
-            
-          
-        
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* 기간 및 시간표 */}
-        
-          기간 및 시간표
+        <div className="bg-gray-800 p-6 rounded-lg">
+          <h2 className="text-2xl font-semibold mb-4">기간 및 시간표</h2>
 
-          
-            
-              
-                
-                  시작일 *
-                
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  시작일 <span className="text-red-400">*</span>
+                </label>
                 <input
                   type="date"
                   name="startDate"
@@ -219,12 +215,12 @@ export default function CreateCourse() {
                   className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
                   required
                 />
-              
+              </div>
 
-              
-                
-                  종료일 *
-                
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  종료일 <span className="text-red-400">*</span>
+                </label>
                 <input
                   type="date"
                   name="endDate"
@@ -233,26 +229,26 @@ export default function CreateCourse() {
                   className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
                   required
                 />
-              
-            
+              </div>
+            </div>
 
             {/* 강의 시간표 */}
             <ScheduleInput
               schedules={formData.schedule || []}
               onChange={handleScheduleChange}
             />
-          
-        
+          </div>
+        </div>
 
         {/* 가격 및 썸네일 */}
-        
-          가격 설정
+        <div className="bg-gray-800 p-6 rounded-lg">
+          <h2 className="text-2xl font-semibold mb-4">가격 설정</h2>
 
-          
-            
-              
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">
                 가격 (원)
-              
+              </label>
               <input
                 type="number"
                 name="price"
@@ -262,15 +258,15 @@ export default function CreateCourse() {
                 min="0"
                 placeholder="0원 (무료)"
               />
-              
+              <p className="text-sm text-gray-400 mt-1">
                 0원으로 설정하면 무료 강의입니다
-              
-            
+              </p>
+            </div>
 
-            
-              
+            <div>
+              <label className="block text-sm font-medium mb-2">
                 썸네일 URL (선택사항)
-              
+              </label>
               <input
                 type="url"
                 name="thumbnail"
@@ -279,12 +275,12 @@ export default function CreateCourse() {
                 className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
                 placeholder="https://example.com/image.jpg"
               />
-            
-          
-        
+            </div>
+          </div>
+        </div>
 
         {/* 제출 버튼 */}
-        
+        <div className="flex gap-4">
           <button
             type="button"
             onClick={() => navigate(ROUTES.DASHBOARD)}
@@ -292,16 +288,16 @@ export default function CreateCourse() {
             disabled={isLoading}
           >
             취소
-          
+          </button>
           <button
             type="submit"
             className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={isLoading}
           >
             {isLoading ? '생성 중...' : '강의 생성'}
-          
-        
-      
-    
+          </button>
+        </div>
+      </form>
+    </div>
   )
 }

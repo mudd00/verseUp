@@ -5,14 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:server": "node server/server.js",
+    "dev:server": "node --watch server/server.js",
     "dev:both": "concurrently \"npm run dev\" \"npm run dev:server\"",
-    "build": "npm run build:client",
+    "build": "vite build",
     "build:client": "vite build",
+    "build:server": "echo 'No TypeScript compilation needed'",
     "preview": "vite preview",
     "start": "node server/server.js",
     "lint": "eslint . --ext .js,.jsx",
-    "format": "prettier --write \"{src,server}/**/*.{ts,tsx,js,jsx,json,css,md}\""
+    "format": "prettier --write \"{src,server}/**/*.{js,jsx,json,css,md}\""
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
@@ -27,6 +28,7 @@
     "jsonwebtoken": "^9.0.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-hot-toast": "^2.6.0",
     "react-router-dom": "^7.9.6",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",

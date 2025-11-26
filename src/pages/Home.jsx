@@ -1,14 +1,17 @@
 import { Link } from 'react-router-dom'
-import { ROUTES } from '@/utils/constants'
+import { ROUTES } from '@/utils/constants.js'
+import { useAuthStore } from '@/stores/authStore.js'
 
 export default function Home() {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+
   return (
     <div className="min-h-[80vh] flex flex-col items-center justify-center">
       <h1 className="text-7xl font-bold mb-6 bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">
         VerseUp!
       </h1>
       <p className="text-2xl text-gray-300 mb-12 text-center max-w-2xl">
-        하이브리드 실시간 소통형 메타버스 학습 플랫폼
+        편하게 놀고 소통하는 웹 메타버스 학습 플랫폼
       </p>
 
       <div className="flex gap-4">
@@ -19,7 +22,7 @@ export default function Home() {
           강의 둘러보기
         </Link>
         <Link
-          to={ROUTES.REGISTER}
+          to={isAuthenticated ? ROUTES.METAVERSE : ROUTES.LOGIN}
           className="px-8 py-4 bg-purple-600 hover:bg-purple-700 text-white text-lg font-semibold rounded-lg transition"
         >
           시작하기
@@ -30,16 +33,20 @@ export default function Home() {
         <div className="bg-gray-800 p-6 rounded-lg">
           <h3 className="text-xl font-bold mb-3 text-blue-400">실시간 강의</h3>
           <p className="text-gray-400">
-            WebRTC 기반 고품질 음성/영상 스트리밍으로 현장감 있게 강의를 진행하세요.
+            WebRTC 기반 고품질 음성/영상 스트리밍으로 실제 강의실처럼 소통하세요
           </p>
         </div>
         <div className="bg-gray-800 p-6 rounded-lg">
           <h3 className="text-xl font-bold mb-3 text-purple-400">메타버스 공간</h3>
-          <p className="text-gray-400">아바타 커스터마이즈하고 원하는 방에서 친구들과 함께 학습하세요.</p>
+          <p className="text-gray-400">
+            아바타를 커스터마이즈하고 나만의 방에서 친구들과 함께 학습하세요
+          </p>
         </div>
         <div className="bg-gray-800 p-6 rounded-lg">
           <h3 className="text-xl font-bold mb-3 text-pink-400">협업 도구</h3>
-          <p className="text-gray-400">보이스/채팅, 과제 공유 등 다양한 협업 기능을 활용해보세요.</p>
+          <p className="text-gray-400">
+            화이트보드, 채팅, 과제 공유 등 다양한 협업 기능을 활용하세요
+          </p>
         </div>
       </div>
     </div>

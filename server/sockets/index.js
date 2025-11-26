@@ -5,6 +5,7 @@ export function setupSocketHandlers(io) {
   io.on('connection', (socket) => {
     console.log(`✅ Client connected: ${socket.id}`)
 
+    // Handle user join
     socket.on('user:join', (userData) => {
       const socketUser = {
         id: userData.user.id,
@@ -18,6 +19,7 @@ export function setupSocketHandlers(io) {
       socket.emit('user:joined', { success: true })
     })
 
+    // Handle room join
     socket.on('room:join', (data) => {
       const { roomId } = data
       const user = connectedUsers.get(socket.id)
@@ -35,21 +37,24 @@ export function setupSocketHandlers(io) {
       }
       rooms.get(roomId)?.add(socket.id)
 
-      console.log(`📌 User ${user.user.name} joined room: ${roomId}`)
+      console.log(`🚪 User ${user.user.name} joined room: ${roomId}`)
 
+      // Notify others in the room
       socket.to(roomId).emit('room:user-joined', {
         user: user.user,
         socketId: socket.id,
       })
 
+      // Send current room users to the new user
       const roomUsers = Array.from(rooms.get(roomId) || [])
-        .map((id) => connectedUsers.get(id))
+        .map(id => connectedUsers.get(id))
         .filter(Boolean)
-        .map((u) => ({ user: u?.user, socketId: u?.socketId }))
+        .map(u => ({ user: u?.user, socketId: u?.socketId }))
 
       socket.emit('room:users', { users: roomUsers })
     })
 
+    // Handle room leave
     socket.on('room:leave', (data) => {
       const { roomId } = data
       const user = connectedUsers.get(socket.id)
@@ -68,6 +73,7 @@ export function setupSocketHandlers(io) {
       }
     })
 
+    // Handle chat messages
     socket.on('chat:message', (data) => {
       const { roomId, message } = data
       const user = connectedUsers.get(socket.id)
@@ -90,6 +96,7 @@ export function setupSocketHandlers(io) {
       console.log(`💬 Message in ${roomId} from ${user.user.name}: ${message}`)
     })
 
+    // Handle WebRTC signaling
     socket.on('webrtc:offer', (data) => {
       const { targetSocketId, offer, roomId } = data
       io.to(targetSocketId).emit('webrtc:offer', {
@@ -115,6 +122,7 @@ export function setupSocketHandlers(io) {
       })
     })
 
+    // Handle disconnect
     socket.on('disconnect', () => {
       const user = connectedUsers.get(socket.id)
 

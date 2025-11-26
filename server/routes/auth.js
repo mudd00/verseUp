@@ -1,30 +1,42 @@
 import { Router } from 'express'
 import { authMiddleware } from '../middleware/auth.js'
+import { supabase } from '../utils/supabase.js'
 
 const router = Router()
 
-router.get('/me', authMiddleware, (req, res) => {
-  res.json({ user: req.user })
-})
+// Get current user with profile data
+router.get('/me', authMiddleware, async (req, res) => {
+  try {
+    if (!supabase || !req.user) {
+      return res.status(401).json({ error: 'Not authenticated' })
+    }
 
-router.post('/login', (req, res) => {
-  const { email } = req.body
+    // Fetch user profile from database
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', req.user.id)
+      .single()
 
-  const mockUser = {
-    id: '1',
-    email,
-    name: 'Test User',
-    role: 'student',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    if (error || !profile) {
+      return res.status(404).json({ error: 'Profile not found' })
+    }
+
+    res.json({
+      user: {
+        id: profile.id,
+        email: profile.email,
+        name: profile.name,
+        role: profile.role,
+        avatarUrl: profile.avatar_url,
+        createdAt: profile.created_at,
+        updatedAt: profile.updated_at,
+      },
+    })
+  } catch (error) {
+    console.error('Error fetching user profile:', error)
+    res.status(500).json({ error: 'Failed to fetch user profile' })
   }
-
-  const mockToken = 'mock-jwt-token'
-
-  res.json({
-    user: mockUser,
-    token: mockToken,
-  })
 })
 
 export default router

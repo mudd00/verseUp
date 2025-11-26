@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { courseService } from '@/services/courseService'
-import { useAuthStore } from '@/stores/authStore'
-import { ROUTES } from '@/utils/constants'
-import { formatSchedule } from '@/components/course/ScheduleInput'
+import { courseService } from '@/services/courseService.js'
+
+import { useAuthStore } from '@/stores/authStore.js'
+import { ROUTES } from '@/utils/constants.js'
+import { formatSchedule } from '@/components/course/ScheduleInput.jsx'
 import toast from 'react-hot-toast'
 
 export default function MyCourses() {
@@ -16,7 +17,7 @@ export default function MyCourses() {
 
   // 강사가 아니면 대시보드로 리다이렉트
   if (user?.role !== 'instructor' && user?.role !== 'admin') {
-    return 
+    return <Navigate to={ROUTES.DASHBOARD} replace />
   }
 
   useEffect(() => {
@@ -36,7 +37,7 @@ export default function MyCourses() {
     }
   }
 
-  const handleToggleStatus = async (courseId, currentStatus?) => {
+  const handleToggleStatus = async (courseId, currentStatus) => {
     try {
       const newStatus = currentStatus === 'published' ? 'draft' : 'published'
       await courseService.updateCourse(courseId, { status: newStatus })
@@ -67,17 +68,17 @@ export default function MyCourses() {
     }
   }
 
-  const getStatusBadge = (status?) => {
+  const getStatusBadge = (status) => {
     const badges = {
       draft: { label: '초안', color: 'bg-gray-600' },
       published: { label: '공개', color: 'bg-green-600' },
       archived: { label: '보관', color: 'bg-yellow-600' },
     }
-    const badge = badges[status as keyof typeof badges] || badges.draft
+    const badge = badges[status] || badges.draft
     return (
-      
+      <span className={`px-2 py-1 text-xs rounded-full ${badge.color} text-white`}>
         {badge.label}
-      
+      </span>
     )
   }
 
@@ -114,53 +115,53 @@ export default function MyCourses() {
 
   if (isLoading) {
     return (
-      
-        강의 목록을 불러오는 중...
-      
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <p className="text-gray-400">강의 목록을 불러오는 중...</p>
+      </div>
     )
   }
 
   return (
-    
+    <div className="container mx-auto px-4 py-8">
       {/* 헤더 */}
-      
-        
-          내 강의 관리
-          
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold">내 강의 관리</h1>
+          <p className="text-gray-400 mt-2">
             개설한 강의를 관리하고 새로운 강의를 만들어보세요
-          
-        
+          </p>
+        </div>
         <Link
           to={ROUTES.CREATE_COURSE}
           className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition flex items-center gap-2"
         >
-          + 새 강좌 개설
-        
-      
+          <span className="text-xl">+</span> 새 강좌 개설
+        </Link>
+      </div>
 
       {/* 통계 카드 */}
-      
-        
-          전체 강의
-          {stats.total}개
-        
-        
-          공개 중
-          {stats.published}개
-        
-        
-          비공개
-          {stats.draft}개
-        
-        
-          총 수강생
-          {stats.totalStudents}명
-        
-      
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="bg-gray-800 p-4 rounded-lg">
+          <p className="text-gray-400 text-sm">전체 강의</p>
+          <p className="text-2xl font-bold text-white">{stats.total}개</p>
+        </div>
+        <div className="bg-gray-800 p-4 rounded-lg">
+          <p className="text-gray-400 text-sm">공개 중</p>
+          <p className="text-2xl font-bold text-green-400">{stats.published}개</p>
+        </div>
+        <div className="bg-gray-800 p-4 rounded-lg">
+          <p className="text-gray-400 text-sm">비공개</p>
+          <p className="text-2xl font-bold text-gray-400">{stats.draft}개</p>
+        </div>
+        <div className="bg-gray-800 p-4 rounded-lg">
+          <p className="text-gray-400 text-sm">총 수강생</p>
+          <p className="text-2xl font-bold text-blue-400">{stats.totalStudents}명</p>
+        </div>
+      </div>
 
       {/* 필터 및 검색 */}
-      
-        
+      <div className="flex flex-col md:flex-row gap-4 mb-6">
+        <div className="flex gap-2">
           <button
             onClick={() => setFilter('all')}
             className={`px-4 py-2 rounded-lg transition ${
@@ -170,7 +171,7 @@ export default function MyCourses() {
             }`}
           >
             전체 ({stats.total})
-          
+          </button>
           <button
             onClick={() => setFilter('published')}
             className={`px-4 py-2 rounded-lg transition ${
@@ -180,7 +181,7 @@ export default function MyCourses() {
             }`}
           >
             공개 ({stats.published})
-          
+          </button>
           <button
             onClick={() => setFilter('draft')}
             className={`px-4 py-2 rounded-lg transition ${
@@ -190,9 +191,9 @@ export default function MyCourses() {
             }`}
           >
             비공개 ({stats.draft})
-          
-        
-        
+          </button>
+        </div>
+        <div className="flex-1">
           <input
             type="text"
             placeholder="강의명 또는 수강번호로 검색..."
@@ -200,96 +201,96 @@ export default function MyCourses() {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
           />
-        
-      
+        </div>
+      </div>
 
       {/* 에러 메시지 */}
       {error && (
-        
+        <div className="p-4 mb-6 bg-red-900/20 border border-red-500 rounded-lg text-red-400">
           {error}
-        
+        </div>
       )}
 
       {/* 강의 목록 */}
       {filteredCourses.length === 0 ? (
-        
+        <div className="text-center py-16 bg-gray-800 rounded-lg">
           {courses.length === 0 ? (
-            
-              개설된 강의가 없습니다.
+            <>
+              <p className="text-gray-400 mb-4 text-lg">개설된 강의가 없습니다.</p>
               <Link
                 to={ROUTES.CREATE_COURSE}
                 className="inline-block px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
               >
                 첫 강의 만들기
-              
-            
+              </Link>
+            </>
           ) : (
-            검색 결과가 없습니다.
+            <p className="text-gray-400 text-lg">검색 결과가 없습니다.</p>
           )}
-        
+        </div>
       ) : (
-        
+        <div className="space-y-4">
           {filteredCourses.map((course) => (
             <div
               key={course.id}
               className="bg-gray-800 p-6 rounded-lg hover:bg-gray-750 transition"
             >
-              
-                
-                  
-                    {course.title}
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <h3 className="text-xl font-semibold">{course.title}</h3>
                     {getStatusBadge(course.status)}
-                  
-                  
+                  </div>
+                  <p className="text-sm text-gray-400 font-mono mb-2">
                     수강번호: {course.courseCode}
-                  
-                  {course.description}
-                
-              
+                  </p>
+                  <p className="text-gray-400 line-clamp-2 mb-3">{course.description}</p>
+                </div>
+              </div>
 
-              
-                
-                  수강 인원
-                  
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4 text-sm">
+                <div>
+                  <span className="text-gray-500">수강 인원</span>
+                  <p className="text-white font-semibold">
                     {course.enrolledCount} / {course.maxStudents}명
-                  
-                
-                
-                  난이도
-                  
+                  </p>
+                </div>
+                <div>
+                  <span className="text-gray-500">난이도</span>
+                  <p className="text-white font-semibold">
                     {course.level === 'beginner' && '초급'}
                     {course.level === 'intermediate' && '중급'}
                     {course.level === 'advanced' && '고급'}
-                  
-                
-                
-                  가격
-                  
+                  </p>
+                </div>
+                <div>
+                  <span className="text-gray-500">가격</span>
+                  <p className="text-white font-semibold">
                     {course.price === 0 ? '무료' : `${course.price?.toLocaleString()}원`}
-                  
-                
-                
-                  기간
-                  
-                    {formatDate(course.startDate)} ~
+                  </p>
+                </div>
+                <div>
+                  <span className="text-gray-500">기간</span>
+                  <p className="text-white font-semibold text-xs">
+                    {formatDate(course.startDate)} ~<br />
                     {formatDate(course.endDate)}
-                  
-                
-                
-                  강의 시간
-                  
+                  </p>
+                </div>
+                <div>
+                  <span className="text-gray-500">강의 시간</span>
+                  <p className="text-white font-semibold text-xs">
                     {formatSchedule(course.schedule)}
-                  
-                
-              
+                  </p>
+                </div>
+              </div>
 
-              
+              <div className="flex gap-2">
                 <Link
                   to={`${ROUTES.COURSES}/${course.id}/edit`}
                   className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-center rounded transition"
                 >
                   수정
-                
+                </Link>
                 <button
                   onClick={() => handleToggleStatus(course.id, course.status)}
                   className={`flex-1 px-4 py-2 rounded transition ${
@@ -299,18 +300,18 @@ export default function MyCourses() {
                   }`}
                 >
                   {course.status === 'published' ? '비공개로 전환' : '공개하기'}
-                
+                </button>
                 <button
                   onClick={() => handleDelete(course.id, course.title)}
                   className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded transition"
                 >
                   삭제
-                
-              
-            
+                </button>
+              </div>
+            </div>
           ))}
-        
+        </div>
       )}
-    
+    </div>
   )
 }
