@@ -47,6 +47,14 @@ export default function Header() {
               >
                 메타버스
               </Link>
+              {user?.role === 'student' && (
+                <Link
+                  to="/payment/history"
+                  className="text-gray-300 hover:text-white transition"
+                >
+                  결제내역
+                </Link>
+              )}
               <div className="flex items-center gap-3">
                 <span className="text-gray-300">{user?.name}</span>
                 <Link
@@ -59,7 +67,7 @@ export default function Header() {
                   onClick={handleLogout}
                   className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded transition"
                 >
-                  Logout
+                  로그아웃
                 </button>
               </div>
             </>

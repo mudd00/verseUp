@@ -66,6 +66,14 @@ export default function CourseDetail() {
       return
     }
 
+    // 유료 강의인 경우 결제 페이지로 이동
+    if (course.price && course.price > 0) {
+      const paymentUrl = `/payment?courseId=${id}&amount=${course.price}&courseName=${encodeURIComponent(course.title)}`
+      navigate(paymentUrl)
+      return
+    }
+
+    // 무료 강의인 경우 바로 수강 신청
     try {
       setIsEnrolling(true)
       await enrollmentService.enrollCourse(id)

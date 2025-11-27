@@ -199,6 +199,52 @@ class CourseService {
   }
 
   /**
+   * 강사 통계 조회 (강사 대시보드용)
+   */
+  async getInstructorStats() {
+    const currentUser = useAuthStore.getState().user
+
+    if (!currentUser) {
+      throw new Error('로그인이 필요합니다.')
+    }
+
+    // 강사 권한 확인
+    if (currentUser.role !== 'instructor' && currentUser.role !== 'admin') {
+      throw new Error('강사 권한이 필요합니다.')
+    }
+
+    // 내 강의 목록 조회
+    const { data: courses, error: coursesError } = await supabase
+      .from('courses')
+      .select('id, status, enrolled_count, start_date, end_date')
+      .eq('instructor_id', currentUser.id)
+
+    if (coursesError) {
+      console.error('강사 통계 조회 실패:', coursesError)
+      throw new Error('통계 정보를 불러오는데 실패했습니다.')
+    }
+
+    // 통계 계산
+    const totalCourses = courses.length
+    const totalStudents = courses.reduce((sum, course) => sum + (course.enrolled_count || 0), 0)
+
+    // 진행 중인 강의 (현재 날짜 기준으로 start_date <= 현재 <= end_date)
+    const now = new Date()
+    const activeCourses = courses.filter((course) => {
+      if (course.status !== 'published') return false
+      const startDate = new Date(course.start_date)
+      const endDate = new Date(course.end_date)
+      return startDate <= now && now <= endDate
+    }).length
+
+    return {
+      totalCourses,
+      totalStudents,
+      activeCourses,
+    }
+  }
+
+  /**
    * DB 데이터를 Course 타입으로 변환
    */
   mapCourseFromDB(data) {

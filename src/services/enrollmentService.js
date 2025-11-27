@@ -83,19 +83,7 @@ class EnrollmentService {
       throw new Error('수강 취소에 실패했습니다.')
     }
 
-    // 강의의 enrolled_count 감소
-    const { data: course } = await supabase
-      .from('courses')
-      .select('enrolled_count')
-      .eq('id', courseId)
-      .single()
-
-    if (course && course.enrolled_count > 0) {
-      await supabase
-        .from('courses')
-        .update({ enrolled_count: course.enrolled_count - 1 })
-        .eq('id', courseId)
-    }
+    // DB 트리거가 enrolled_count를 자동으로 감소시킴
   }
 
   /**
