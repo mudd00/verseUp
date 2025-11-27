@@ -32,9 +32,45 @@ export default function CreateCourse() {
     const { name, value } = e.target
     setFormData((prev) => ({
       ...prev,
-      [name]:
-        name === 'maxStudents' || name === 'price' ? Number(value) : value,
+      [name]: name === 'maxStudents' ? Number(value) : value,
     }))
+  }
+
+  // 가격 입력 처리 (쉼표 포맷팅)
+  const handlePriceChange = (e) => {
+    const value = e.target.value
+    // 쉼표 제거하고 숫자만 추출
+    const numericValue = value.replace(/,/g, '').replace(/[^0-9]/g, '')
+
+    // 빈 값이면 0으로 설정
+    if (numericValue === '') {
+      setFormData((prev) => ({ ...prev, price: 0 }))
+    } else {
+      setFormData((prev) => ({ ...prev, price: Number(numericValue) }))
+    }
+  }
+
+  // 가격을 쉼표 포맷으로 표시
+  const formatPrice = (price) => {
+    if (price === 0) return ''
+    return price.toLocaleString()
+  }
+
+  // 최대 수강 인원 입력 처리
+  const handleMaxStudentsChange = (e) => {
+    const value = e.target.value
+    // 숫자만 추출
+    const numericValue = value.replace(/[^0-9]/g, '')
+
+    // 빈 값이면 1로 설정 (최소값)
+    if (numericValue === '') {
+      setFormData((prev) => ({ ...prev, maxStudents: 1 }))
+    } else {
+      const num = Number(numericValue)
+      // 20명 초과 시 20으로 제한
+      const limitedNum = Math.min(num, 20)
+      setFormData((prev) => ({ ...prev, maxStudents: limitedNum }))
+    }
   }
 
   const handleSubmit = async (e) => {
@@ -183,15 +219,17 @@ export default function CreateCourse() {
                   최대 수강 인원
                 </label>
                 <input
-                  type="number"
+                  type="text"
                   name="maxStudents"
                   value={formData.maxStudents}
-                  onChange={handleChange}
+                  onChange={handleMaxStudentsChange}
                   className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
-                  min="1"
-                  max="500"
+                  placeholder="최대 20명"
                   required
                 />
+                <p className="text-sm text-gray-400 mt-1">
+                  최대 20명까지 설정 가능합니다
+                </p>
               </div>
             </div>
           </div>
@@ -249,17 +287,23 @@ export default function CreateCourse() {
               <label className="block text-sm font-medium mb-2">
                 가격 (원)
               </label>
-              <input
-                type="number"
-                name="price"
-                value={formData.price}
-                onChange={handleChange}
-                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
-                min="0"
-                placeholder="0원 (무료)"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  name="price"
+                  value={formatPrice(formData.price)}
+                  onChange={handlePriceChange}
+                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
+                  placeholder="0 (무료)"
+                />
+                {formData.price > 0 && (
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                    원
+                  </span>
+                )}
+              </div>
               <p className="text-sm text-gray-400 mt-1">
-                0원으로 설정하면 무료 강의입니다
+                0원으로 설정하면 무료 강의입니다 (예: 50,000)
               </p>
             </div>
 
