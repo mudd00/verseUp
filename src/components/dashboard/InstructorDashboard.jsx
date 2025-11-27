@@ -1,9 +1,39 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore.js'
+import { courseService } from '@/services/courseService.js'
 import { ROUTES } from '@/utils/constants.js'
 
 export default function InstructorDashboard() {
   const { user } = useAuthStore()
+  const [courses, setCourses] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    loadCourses()
+  }, [])
+
+  const loadCourses = async () => {
+    try {
+      setIsLoading(true)
+      const data = await courseService.getMyCourses()
+      setCourses(data)
+    } catch (err) {
+      console.error('강의 목록 로드 실패:', err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // 통계 계산
+  const totalCourses = courses.length
+  const totalStudents = courses.reduce((sum, course) => sum + (course.enrolledCount || 0), 0)
+  const activeCourses = courses.filter(course => {
+    const now = new Date()
+    const startDate = new Date(course.startDate)
+    const endDate = new Date(course.endDate)
+    return startDate <= now && now <= endDate && course.status === 'active'
+  }).length
 
   return (
     <div>
@@ -25,17 +55,23 @@ export default function InstructorDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-gray-800 p-6 rounded-lg">
           <h3 className="text-lg font-semibold mb-2">내 강의</h3>
-          <p className="text-3xl font-bold text-blue-400">0</p>
+          <p className="text-3xl font-bold text-blue-400">
+            {isLoading ? '...' : totalCourses}
+          </p>
           <p className="text-sm text-gray-400 mt-2">개설한 강의 수</p>
         </div>
         <div className="bg-gray-800 p-6 rounded-lg">
           <h3 className="text-lg font-semibold mb-2">총 수강인원</h3>
-          <p className="text-3xl font-bold text-green-400">0명</p>
+          <p className="text-3xl font-bold text-green-400">
+            {isLoading ? '...' : `${totalStudents}명`}
+          </p>
           <p className="text-sm text-gray-400 mt-2">전체 강의 기준</p>
         </div>
         <div className="bg-gray-800 p-6 rounded-lg">
           <h3 className="text-lg font-semibold mb-2">진행 중인 강의</h3>
-          <p className="text-3xl font-bold text-purple-400">0</p>
+          <p className="text-3xl font-bold text-purple-400">
+            {isLoading ? '...' : activeCourses}
+          </p>
           <p className="text-sm text-gray-400 mt-2">활성 강의</p>
         </div>
       </div>
@@ -55,15 +91,55 @@ export default function InstructorDashboard() {
             전체 보기 →
           </Link>
         </div>
-        <p className="text-gray-400 mb-4">
-          강의 목록 관리, 공개/비공개 설정, 수정 및 삭제는 "내 강의 관리" 페이지에서 할 수 있습니다.
-        </p>
-        <Link
-          to={ROUTES.MY_COURSES}
-          className="inline-block px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition"
-        >
-          내 강의 관리로 이동
-        </Link>
+
+        {isLoading ? (
+          <p className="text-gray-400">로딩 중...</p>
+        ) : courses.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-gray-400 mb-4">개설한 강의가 없습니다.</p>
+            <Link
+              to={ROUTES.CREATE_COURSE}
+              className="inline-block px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg transition"
+            >
+              첫 강의 개설하기
+            </Link>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+              {courses.slice(0, 3).map((course) => (
+                <div
+                  key={course.id}
+                  className="p-4 bg-gray-700 rounded-lg hover:bg-gray-600 transition flex flex-col"
+                >
+                  <Link
+                    to={`/courses/${course.id}`}
+                    className="text-lg font-semibold hover:text-blue-400 transition mb-2"
+                  >
+                    {course.title}
+                  </Link>
+                  <p className="text-sm text-gray-400 mb-3 flex-1">
+                    수강 인원: {course.enrolledCount} / {course.maxStudents}명
+                  </p>
+                  <Link
+                    to={`/courses/${course.id}/edit`}
+                    className="w-full text-center px-3 py-2 text-sm bg-gray-600 hover:bg-gray-500 rounded transition"
+                  >
+                    수정
+                  </Link>
+                </div>
+              ))}
+            </div>
+            {courses.length > 3 && (
+              <Link
+                to={ROUTES.MY_COURSES}
+                className="block text-center py-2 text-blue-400 hover:text-blue-300 transition"
+              >
+                {courses.length - 3}개 강의 더 보기 →
+              </Link>
+            )}
+          </>
+        )}
       </div>
 
       <div className="mt-8 bg-gray-800 p-6 rounded-lg">

@@ -17,6 +17,9 @@ export default function CourseDetail() {
   const [isEnrolled, setIsEnrolled] = useState(false)
   const [isEnrolling, setIsEnrolling] = useState(false)
   const [error, setError] = useState(null)
+  const [enrollmentId, setEnrollmentId] = useState(null)
+  const [refundModalData, setRefundModalData] = useState(null)
+  const [isRefunding, setIsRefunding] = useState(false)
 
   useEffect(() => {
     if (id) {
@@ -47,6 +50,15 @@ export default function CourseDetail() {
     try {
       const enrolled = await enrollmentService.isEnrolled(id)
       setIsEnrolled(enrolled)
+
+      // 수강 중이면 enrollmentId도 조회
+      if (enrolled) {
+        const enrollments = await enrollmentService.getMyEnrollments()
+        const currentEnrollment = enrollments.find(e => e.courseId === id)
+        if (currentEnrollment) {
+          setEnrollmentId(currentEnrollment.id)
+        }
+      }
     } catch (err) {
       console.error('수강 여부 확인 실패:', err)
     }
@@ -90,19 +102,41 @@ export default function CourseDetail() {
   }
 
   const handleDrop = async () => {
-    if (!id) return
+    if (!id || !course || !enrollmentId) return
+
+    // 환불 정책 계산
+    const policy = enrollmentService.calculateRefundPolicy(course.startDate)
+
+    // 환불 모달 열기
+    setRefundModalData({
+      enrollment: {
+        id: enrollmentId,
+        course: course,
+      },
+      policy,
+    })
+  }
+
+  // 환불 처리
+  const handleRefund = async () => {
+    if (!refundModalData || !enrollmentId) return
 
     try {
-      setIsEnrolling(true)
-      await enrollmentService.dropCourse(id)
+      setIsRefunding(true)
+      await enrollmentService.refundEnrollment(enrollmentId)
+
+      toast.success('환불이 완료되었습니다.')
+      setRefundModalData(null)
       setIsEnrolled(false)
-      toast.success('수강이 취소되었습니다.')
+      setEnrollmentId(null)
+
+      // 강의 정보 새로고침 (enrolled_count 업데이트)
       await loadCourse()
-    } catch (err) {
-      const message = err instanceof Error ? err.message : '수강 취소에 실패했습니다.'
-      toast.error(message)
+    } catch (error) {
+      console.error('환불 실패:', error)
+      toast.error(error.message || '환불에 실패했습니다.')
     } finally {
-      setIsEnrolling(false)
+      setIsRefunding(false)
     }
   }
 
@@ -295,7 +329,7 @@ export default function CourseDetail() {
                   disabled={isEnrolling}
                   className="w-full px-6 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-600 text-red-400 rounded-lg transition disabled:opacity-50"
                 >
-                  {isEnrolling ? '처리 중...' : '수강 취소'}
+                  {isEnrolling ? '처리 중...' : '수강 취소 및 환불'}
                 </button>
               </div>
             ) : (
@@ -327,6 +361,80 @@ export default function CourseDetail() {
           </div>
         </div>
       </div>
+
+      {/* 환불 확인 모달 */}
+      {refundModalData && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-lg max-w-md w-full p-6">
+            <h3 className="text-xl font-bold mb-4">수강 취소 및 환불</h3>
+
+            <div className="mb-6">
+              <p className="text-gray-300 mb-2">
+                <span className="font-semibold">강의:</span>{' '}
+                {refundModalData.enrollment.course?.title}
+              </p>
+              <p className="text-gray-300 mb-4">
+                <span className="font-semibold">가격:</span>{' '}
+                ₩{refundModalData.enrollment.course?.price?.toLocaleString()}
+              </p>
+
+              <div className="bg-blue-900/30 border border-blue-600 rounded-lg p-4 mb-4">
+                <p className="text-blue-400 font-semibold mb-2">환불 정책</p>
+                <p className="text-sm text-gray-300 mb-1">
+                  {refundModalData.policy.policyDescription}
+                </p>
+                <p className="text-sm text-gray-400">
+                  강의 시작까지 {Math.abs(refundModalData.policy.daysUntilStart)}일{' '}
+                  {refundModalData.policy.daysUntilStart >= 0 ? '남음' : '지남'}
+                </p>
+              </div>
+
+              {refundModalData.policy.canRefund ? (
+                <div className="bg-green-900/30 border border-green-600 rounded-lg p-4">
+                  <p className="text-green-400 font-semibold mb-1">환불 예상 금액</p>
+                  <p className="text-2xl font-bold text-green-400">
+                    ₩
+                    {Math.floor(
+                      ((refundModalData.enrollment.course?.price || 0) *
+                        refundModalData.policy.refundRate) /
+                        100
+                    ).toLocaleString()}
+                  </p>
+                  <p className="text-sm text-gray-400 mt-1">
+                    (환불율 {refundModalData.policy.refundRate}%)
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-red-900/30 border border-red-600 rounded-lg p-4">
+                  <p className="text-red-400 font-semibold">환불 불가</p>
+                  <p className="text-sm text-gray-300 mt-1">
+                    강의가 이미 시작되어 환불이 불가능합니다.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setRefundModalData(null)}
+                className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded transition"
+                disabled={isRefunding}
+              >
+                취소
+              </button>
+              {refundModalData.policy.canRefund && (
+                <button
+                  onClick={handleRefund}
+                  className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isRefunding}
+                >
+                  {isRefunding ? '처리 중...' : '환불 신청'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

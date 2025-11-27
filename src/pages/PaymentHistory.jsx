@@ -7,10 +7,13 @@ import toast from 'react-hot-toast'
 export default function PaymentHistory() {
   const navigate = useNavigate()
   const [payments, setPayments] = useState([])
+  const [refunds, setRefunds] = useState([])
   const [isLoading, setIsLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState('payments') // 'payments' | 'refunds'
 
   useEffect(() => {
     loadPayments()
+    loadRefunds()
   }, [])
 
   const loadPayments = async () => {
@@ -23,6 +26,15 @@ export default function PaymentHistory() {
       toast.error('결제 내역을 불러오는데 실패했습니다.')
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const loadRefunds = async () => {
+    try {
+      const response = await apiService.get('/api/payments/refunds')
+      setRefunds(response.refunds || [])
+    } catch (error) {
+      console.error('환불 내역 조회 실패:', error)
     }
   }
 
@@ -41,6 +53,7 @@ export default function PaymentHistory() {
       completed: { label: '완료', color: 'bg-green-600' },
       pending: { label: '대기', color: 'bg-yellow-600' },
       cancelled: { label: '취소', color: 'bg-red-600' },
+      failed: { label: '실패', color: 'bg-red-700' },
     }
     const badge = badges[status] || badges.completed
     return (
@@ -61,21 +74,48 @@ export default function PaymentHistory() {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">결제 내역</h1>
-        <p className="text-gray-400">모든 결제 내역을 확인할 수 있습니다.</p>
+        <h1 className="text-3xl font-bold mb-2">결제 및 환불 내역</h1>
+        <p className="text-gray-400">모든 결제 및 환불 내역을 확인할 수 있습니다.</p>
       </div>
 
-      {payments.length === 0 ? (
-        <div className="bg-gray-800 p-12 rounded-lg text-center">
-          <p className="text-gray-400 mb-4">결제 내역이 없습니다.</p>
-          <button
-            onClick={() => navigate(ROUTES.COURSES)}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition"
-          >
-            강의 둘러보기
-          </button>
-        </div>
-      ) : (
+      {/* 탭 메뉴 */}
+      <div className="flex gap-4 mb-6 border-b border-gray-700">
+        <button
+          onClick={() => setActiveTab('payments')}
+          className={`px-4 py-2 font-semibold transition ${
+            activeTab === 'payments'
+              ? 'text-blue-400 border-b-2 border-blue-400'
+              : 'text-gray-400 hover:text-gray-300'
+          }`}
+        >
+          결제 내역 ({payments.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('refunds')}
+          className={`px-4 py-2 font-semibold transition ${
+            activeTab === 'refunds'
+              ? 'text-blue-400 border-b-2 border-blue-400'
+              : 'text-gray-400 hover:text-gray-300'
+          }`}
+        >
+          환불 내역 ({refunds.length})
+        </button>
+      </div>
+
+      {/* 결제 내역 탭 */}
+      {activeTab === 'payments' && (
+        <>
+          {payments.length === 0 ? (
+            <div className="bg-gray-800 p-12 rounded-lg text-center">
+              <p className="text-gray-400 mb-4">결제 내역이 없습니다.</p>
+              <button
+                onClick={() => navigate(ROUTES.COURSES)}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition"
+              >
+                강의 둘러보기
+              </button>
+            </div>
+          ) : (
         <div className="bg-gray-800 rounded-lg overflow-hidden">
           <table className="w-full">
             <thead className="bg-gray-700">
@@ -123,6 +163,62 @@ export default function PaymentHistory() {
             </tbody>
           </table>
         </div>
+          )}
+        </>
+      )}
+
+      {/* 환불 내역 탭 */}
+      {activeTab === 'refunds' && (
+        <>
+          {refunds.length === 0 ? (
+            <div className="bg-gray-800 p-12 rounded-lg text-center">
+              <p className="text-gray-400">환불 내역이 없습니다.</p>
+            </div>
+          ) : (
+            <div className="bg-gray-800 rounded-lg overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-700">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">주문번호</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">강의명</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">원금액</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">환불금액</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">환불율</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">환불정책</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">상태</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">환불일시</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-700">
+                  {refunds.map((refund) => (
+                    <tr key={refund.refundId} className="hover:bg-gray-700/50 transition">
+                      <td className="px-6 py-4 text-sm font-mono text-gray-400">
+                        {refund.orderId}
+                      </td>
+                      <td className="px-6 py-4 text-sm">{refund.courseTitle || refund.orderName || '-'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-400">
+                        ₩{refund.originalAmount?.toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-semibold text-green-400">
+                        ₩{refund.refundAmount?.toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-blue-400">
+                        {refund.refundRate}%
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-400">
+                        {refund.policyApplied}
+                      </td>
+                      <td className="px-6 py-4 text-sm">{getStatusBadge(refund.status)}</td>
+                      <td className="px-6 py-4 text-sm text-gray-400">
+                        {formatDate(refund.completedAt || refund.requestedAt)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
       {/* 안내 메시지 */}
