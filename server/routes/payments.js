@@ -183,6 +183,55 @@ router.post('/confirm', authMiddleware, async (req, res) => {
 })
 
 /**
+ * 내 환불 내역 조회
+ * GET /api/payments/refunds
+ * 주의: /:orderId 라우트보다 먼저 선언되어야 함
+ */
+router.get('/refunds', authMiddleware, async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.json({ refunds: [] })
+    }
+
+    const { data: refunds, error } = await supabase
+      .from('refunds')
+      .select(
+        `
+        *,
+        payment:payments(order_id, order_name),
+        course:courses(title)
+      `
+      )
+      .eq('user_id', req.user.id)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('환불 내역 조회 오류:', error)
+      return res.status(500).json({ error: '환불 내역 조회에 실패했습니다.' })
+    }
+
+    const formattedRefunds = refunds.map((refund) => ({
+      refundId: refund.id,
+      orderId: refund.payment?.order_id,
+      orderName: refund.payment?.order_name,
+      courseTitle: refund.course?.title,
+      originalAmount: refund.original_amount,
+      refundAmount: refund.refund_amount,
+      refundRate: refund.refund_rate,
+      status: refund.status,
+      policyApplied: refund.policy_applied,
+      requestedAt: refund.requested_at,
+      completedAt: refund.completed_at,
+    }))
+
+    res.json({ refunds: formattedRefunds })
+  } catch (error) {
+    console.error('환불 내역 조회 오류:', error)
+    res.status(500).json({ error: '환불 내역 조회에 실패했습니다.' })
+  }
+})
+
+/**
  * 결제 내역 조회
  * GET /api/payments/:orderId
  */
@@ -466,54 +515,6 @@ router.post('/refund', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('환불 처리 오류:', error)
     res.status(500).json({ error: '환불 처리 중 오류가 발생했습니다.' })
-  }
-})
-
-/**
- * 내 환불 내역 조회
- * GET /api/payments/refunds
- */
-router.get('/refunds', authMiddleware, async (req, res) => {
-  try {
-    if (!supabase) {
-      return res.json({ refunds: [] })
-    }
-
-    const { data: refunds, error } = await supabase
-      .from('refunds')
-      .select(
-        `
-        *,
-        payment:payments(order_id, order_name),
-        course:courses(title)
-      `
-      )
-      .eq('user_id', req.user.id)
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      console.error('환불 내역 조회 오류:', error)
-      return res.status(500).json({ error: '환불 내역 조회에 실패했습니다.' })
-    }
-
-    const formattedRefunds = refunds.map((refund) => ({
-      refundId: refund.id,
-      orderId: refund.payment?.order_id,
-      orderName: refund.payment?.order_name,
-      courseTitle: refund.course?.title,
-      originalAmount: refund.original_amount,
-      refundAmount: refund.refund_amount,
-      refundRate: refund.refund_rate,
-      status: refund.status,
-      policyApplied: refund.policy_applied,
-      requestedAt: refund.requested_at,
-      completedAt: refund.completed_at,
-    }))
-
-    res.json({ refunds: formattedRefunds })
-  } catch (error) {
-    console.error('환불 내역 조회 오류:', error)
-    res.status(500).json({ error: '환불 내역 조회에 실패했습니다.' })
   }
 })
 

@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { apiService } from '@/services/api'
 
 class EnrollmentService {
   /**
@@ -132,25 +133,11 @@ class EnrollmentService {
     }
 
     try {
-      const response = await fetch('/api/payments/refund', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({ enrollmentId }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.message || data.error || '환불 처리에 실패했습니다.')
-      }
-
+      const data = await apiService.post('/api/payments/refund', { enrollmentId })
       return data
     } catch (error) {
       console.error('환불 요청 실패:', error)
-      throw error
+      throw new Error(error.message || '환불 처리에 실패했습니다.')
     }
   }
 
