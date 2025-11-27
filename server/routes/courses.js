@@ -68,4 +68,17 @@ router.post('/:id/enroll', authMiddleware, async (req, res) => {
   }
 })
 
+// Drop course (requires auth)
+router.post('/:id/drop', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params
+
+    // TODO: Implement actual drop logic
+    res.json({ message: 'Dropped successfully', courseId: id })
+  } catch (error) {
+    console.error('Error dropping course:', error)
+    res.status(500).json({ error: 'Failed to drop course' })
+  }
+})
+
 export default router
