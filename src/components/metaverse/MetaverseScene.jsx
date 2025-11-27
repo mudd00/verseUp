@@ -9,35 +9,87 @@ import * as THREE from 'three'
 
 export default function MetaverseScene({ onReady }) {
   const playerRef = useRef(null)
+  const playerBodyRef = useRef(null)
   const [currentMap, setCurrentMap] = useState('main')
   const [playerPosition, setPlayerPosition] = useState({ x: 0, y: 0, z: 0 })
   const [portalInfo, setPortalInfo] = useState({ isNear: false, targetMap: null, label: null })
+  const [doorInfo, setDoorInfo] = useState({ isNear: false, doorId: null, label: null })
   const [resetTrigger, setResetTrigger] = useState(0)
+  const [cameraAngle, setCameraAngle] = useState(0)
 
   const handlePositionChange = useCallback((position) => {
     setPlayerPosition(position)
+  }, [])
+
+  const handleCameraRotate = useCallback((angle) => {
+    setCameraAngle(angle)
   }, [])
 
   const handleMapChange = useCallback((targetMap) => {
     setCurrentMap(targetMap)
     setResetTrigger((prev) => prev + 1) // 플레이어 위치 리셋 트리거
     setPortalInfo({ isNear: false, targetMap: null, label: null }) // 포탈 UI 숨기기
+    setDoorInfo({ isNear: false, doorId: null, label: null }) // 문 UI 숨기기
   }, [])
 
   const handlePortalNearChange = useCallback((info) => {
     setPortalInfo(info)
   }, [])
 
+  const handleDoorNearChange = useCallback((info) => {
+    setDoorInfo(info)
+  }, [])
+
+  const handleDoorEnter = useCallback((doorId) => {
+    if (!playerBodyRef.current) return
+
+    // 입장(_enter)과 퇴장(_exit) 구분
+    if (doorId.endsWith('_enter')) {
+      // 문 안으로 들어가기
+      const baseDoorId = doorId.replace('_enter', '')
+      const enterDestinations = {
+        door1: [-53.06, 1.5, -22],  // 교실 1 안쪽
+        door2: [-69.25, 1.5, -22],  // 교실 2 안쪽
+      }
+      const destination = enterDestinations[baseDoorId]
+      if (destination) {
+        playerBodyRef.current.setTranslation({ x: destination[0], y: destination[1], z: destination[2] }, true)
+        setDoorInfo({ isNear: false, doorId: null, label: null })
+        console.log(`${baseDoorId} 입장 ->`, destination)
+      }
+    } else if (doorId.endsWith('_exit')) {
+      // 문 밖으로 나가기
+      const baseDoorId = doorId.replace('_exit', '')
+      const exitDestinations = {
+        door1: [-52.88, 1.5, -20],  // 교실 1 문 밖 (임시, 조정 필요)
+        door2: [-67.69, 1.5, -20],  // 교실 2 문 밖 (임시, 조정 필요)
+      }
+      const destination = exitDestinations[baseDoorId]
+      if (destination) {
+        playerBodyRef.current.setTranslation({ x: destination[0], y: destination[1], z: destination[2] }, true)
+        setDoorInfo({ isNear: false, doorId: null, label: null })
+        console.log(`${baseDoorId} 퇴장 ->`, destination)
+      }
+    }
+  }, [])
+
   // F키 상호작용 리스너
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.code === 'KeyF' && portalInfo.isNear) {
-        handleMapChange(portalInfo.targetMap)
+      if (e.code === 'KeyF') {
+        // 포탈 우선 처리
+        if (portalInfo.isNear) {
+          handleMapChange(portalInfo.targetMap)
+        }
+        // 문 처리
+        else if (doorInfo.isNear) {
+          handleDoorEnter(doorInfo.doorId)
+        }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [portalInfo, handleMapChange])
+  }, [portalInfo, doorInfo, handleMapChange, handleDoorEnter])
 
   return (
     <div className="w-full h-screen">
@@ -64,11 +116,18 @@ export default function MetaverseScene({ onReady }) {
             currentMap={currentMap}
             onMapChange={handleMapChange}
             onPortalNearChange={handlePortalNearChange}
+            onDoorNearChange={handleDoorNearChange}
           />
-          <Player ref={playerRef} onPositionChange={handlePositionChange} />
+          <Player
+            ref={playerRef}
+            bodyRef={playerBodyRef}
+            currentMap={currentMap}
+            cameraAngle={cameraAngle}
+            onPositionChange={handlePositionChange}
+          />
         </Physics>
 
-        <ThirdPersonCamera target={playerRef} />
+        <ThirdPersonCamera target={playerRef} onCameraRotate={handleCameraRotate} />
       </Canvas>
 
       {/* 플레이어 위치 표시 */}
@@ -127,6 +186,44 @@ export default function MetaverseScene({ onReady }) {
               fontWeight: 'bold'
             }}>F</span>
             키를 눌러 이동
+          </div>
+        </div>
+      )}
+
+      {/* 문 상호작용 안내 */}
+      {doorInfo.isNear && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '100px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(0, 0, 0, 0.8)',
+            color: '#fff',
+            padding: '15px 30px',
+            borderRadius: '12px',
+            fontFamily: 'sans-serif',
+            fontSize: '18px',
+            zIndex: 9999,
+            pointerEvents: 'none',
+            textAlign: 'center',
+            border: '2px solid #10b981',
+            boxShadow: '0 0 20px rgba(16, 185, 129, 0.5)',
+          }}
+        >
+          <div style={{ marginBottom: '8px', fontWeight: 'bold', color: '#6ee7b7' }}>
+            {doorInfo.label}
+          </div>
+          <div style={{ fontSize: '14px', color: '#ccc' }}>
+            <span style={{
+              display: 'inline-block',
+              background: '#10b981',
+              padding: '2px 8px',
+              borderRadius: '4px',
+              marginRight: '8px',
+              fontWeight: 'bold'
+            }}>F</span>
+            키를 눌러 입장
           </div>
         </div>
       )}

@@ -8,7 +8,7 @@ const SMOOTH_FACTOR_XZ = 5 // 수평 이동 부드러움
 const SMOOTH_FACTOR_Y = 2 // 수직 이동 부드러움 (흔들림 감소)
 const MOUSE_SENSITIVITY = 0.002
 
-export default function ThirdPersonCamera({ target }) {
+export default function ThirdPersonCamera({ target, onCameraRotate }) {
   const { camera, gl } = useThree()
   const currentPosition = useRef(new THREE.Vector3())
   const smoothTargetY = useRef(0) // Y축 별도 스무딩
@@ -69,6 +69,11 @@ export default function ThirdPersonCamera({ target }) {
 
     // lookAt도 부드러운 Y 사용
     camera.lookAt(targetPosition.x, smoothTargetY.current, targetPosition.z)
+
+    // 카메라 회전 각도를 Player에 전달
+    if (onCameraRotate) {
+      onCameraRotate(azimuthAngle.current)
+    }
   })
 
   return null

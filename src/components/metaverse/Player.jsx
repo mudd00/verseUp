@@ -1,13 +1,18 @@
 import { useFrame } from '@react-three/fiber'
 import { CapsuleCollider, RigidBody } from '@react-three/rapier'
-import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, useImperativeHandle, useRef, useState, useEffect } from 'react'
 import * as THREE from 'three'
 import { useKeyboardControls } from './useKeyboardControls.js'
 import CharacterModel from './CharacterModel.jsx'
 
 const WALK_SPEED = 8
 const RUN_SPEED = 18
-const START_POS = [0, 2, 0]
+
+// 맵별 시작 위치
+const START_POSITIONS = {
+  main: [-1.91, 0.04, 32.55],    // 메인 맵 시작 위치
+  school: [-1.32, 2, -14.63],              // 학교 맵 시작 위치
+}
 
 // 3DCommunity 방식: scale 2 기준 캡슐 args=[2, 1.3], position=[0, 3.2, 0]
 // VerseUp scale 0.8 기준으로 비례 조정 (ratio = 0.4)
@@ -19,7 +24,8 @@ const CAPSULE_Y_OFFSET = 1.28
 const STEP_UP_SPEED = 4 // 계단 오를 때 상승 속도 (중력 -20 기준)
 const BLOCKED_THRESHOLD = 0.45 // 이 비율 이하로 움직이면 막힌 것으로 판단
 
-const Player = forwardRef(({ onPositionChange }, ref) => {
+const Player = forwardRef(({ currentMap = 'main', cameraAngle = 0, onPositionChange, bodyRef: externalBodyRef }, ref) => {
+  const START_POS = START_POSITIONS[currentMap] || START_POSITIONS.main
   const bodyRef = useRef(null)
   const characterRef = useRef(null)
   const currentRotationRef = useRef(new THREE.Quaternion())
@@ -30,15 +36,23 @@ const Player = forwardRef(({ onPositionChange }, ref) => {
 
   useImperativeHandle(ref, () => characterRef.current)
 
+  // 외부 bodyRef에도 연결
+  useEffect(() => {
+    if (externalBodyRef) {
+      externalBodyRef.current = bodyRef.current
+    }
+  }, [externalBodyRef])
+
   useFrame(() => {
     const body = bodyRef.current
     if (!body) return
 
+    // 카메라 기준 방향 벡터 (로컬 좌표계)
     const direction = new THREE.Vector3()
-    if (forward) direction.z -= 1
-    if (backward) direction.z += 1
-    if (left) direction.x -= 1
-    if (right) direction.x += 1
+    if (forward) direction.z -= 1  // 카메라 앞
+    if (backward) direction.z += 1 // 카메라 뒤
+    if (left) direction.x -= 1     // 카메라 왼쪽
+    if (right) direction.x += 1    // 카메라 오른쪽
 
     const wantsToMove = direction.lengthSq() > 0
     const speed = shift ? RUN_SPEED : WALK_SPEED
@@ -48,8 +62,13 @@ const Player = forwardRef(({ onPositionChange }, ref) => {
     if (wantsToMove) {
       direction.normalize()
 
-      // 이동 방향에 맞게 캐릭터가 바라보도록 각도 계산
-      const targetAngle = Math.atan2(direction.x, direction.z)
+      // 카메라 각도만큼 방향 벡터를 회전 (Y축 기준)
+      const rotatedDirection = new THREE.Vector3()
+      rotatedDirection.x = direction.x * Math.cos(cameraAngle) + direction.z * Math.sin(cameraAngle)
+      rotatedDirection.z = direction.z * Math.cos(cameraAngle) - direction.x * Math.sin(cameraAngle)
+
+      // 캐릭터가 이동 방향을 바라보도록 각도 계산
+      const targetAngle = Math.atan2(rotatedDirection.x, rotatedDirection.z)
       const targetQuaternion = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle)
       currentRotationRef.current.slerp(targetQuaternion, 0.25)
 
@@ -76,12 +95,12 @@ const Player = forwardRef(({ onPositionChange }, ref) => {
         yVel = Math.max(linvel.y, STEP_UP_SPEED)
       }
 
-      // 속도 설정
+      // 속도 설정 (회전된 방향으로 이동)
       body.setLinvel(
         {
-          x: direction.x * speed,
+          x: rotatedDirection.x * speed,
           y: yVel,
-          z: direction.z * speed,
+          z: rotatedDirection.z * speed,
         },
         true
       )
