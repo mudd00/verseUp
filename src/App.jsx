@@ -14,6 +14,10 @@ import EditCourse from './pages/EditCourse.jsx'
 import MyCourses from './pages/MyCourses.jsx'
 import Profile from './pages/Profile.jsx'
 import Metaverse from './pages/Metaverse.jsx'
+import Payment from './pages/Payment.jsx'
+import PaymentSuccess from './pages/PaymentSuccess.jsx'
+import PaymentFail from './pages/PaymentFail.jsx'
+import PaymentHistory from './pages/PaymentHistory.jsx'
 import { useAuthStore } from './stores/authStore.js'
 import { supabase } from './lib/supabase.js'
 import { ROUTES } from './utils/constants.js'
@@ -205,6 +209,25 @@ function App() {
               element={
                 <PrivateRoute>
                   <Profile />
+                </PrivateRoute>
+              }
+            />
+            {/* Payment Routes */}
+            <Route
+              path="/payment"
+              element={
+                <PrivateRoute>
+                  <Payment />
+                </PrivateRoute>
+              }
+            />
+            <Route path="/payment/success" element={<PaymentSuccess />} />
+            <Route path="/payment/fail" element={<PaymentFail />} />
+            <Route
+              path="/payment/history"
+              element={
+                <PrivateRoute>
+                  <PaymentHistory />
                 </PrivateRoute>
               }
             />
