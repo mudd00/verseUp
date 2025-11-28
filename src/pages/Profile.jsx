@@ -157,8 +157,10 @@ export default function Profile() {
       const response = await apiService.delete('/auth/account')
       console.log('Account deletion response:', response)
 
-      // Clear local session without calling Supabase signOut (user is already deleted)
-      await logout(true) // Skip Supabase signOut to avoid 403 error
+      // Logout to clear session in all tabs
+      // Note: This will trigger a 403 error because user is already deleted,
+      // but it's necessary to sync logout across all tabs via Supabase's storage events
+      await logout()
       navigate(ROUTES.HOME)
     } catch (err) {
       console.error('Account deletion error:', err)
