@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore.js'
 import { supabase } from '@/lib/supabase.js'
+import { apiService } from '@/services/api.js'
 import { ROUTES } from '@/utils/constants.js'
 
 
@@ -17,6 +18,14 @@ export default function Profile() {
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileError, setProfileError] = useState(null)
   const [profileSuccess, setProfileSuccess] = useState(null)
+
+  // Update form fields when user data changes
+  useEffect(() => {
+    if (user) {
+      setName(user.name || '')
+      setAvatarUrl(user.avatarUrl || '')
+    }
+  }, [user])
 
   // Password change state
   const [_currentPassword, setCurrentPassword] = useState('')
@@ -55,6 +64,19 @@ export default function Profile() {
         .eq('id', user?.id)
 
       if (updateError) throw updateError
+
+      // Update auth user metadata to keep it in sync
+      const { error: authError } = await supabase.auth.updateUser({
+        data: {
+          name: name.trim(),
+          avatarUrl: avatarUrl.trim() || null,
+        },
+      })
+
+      if (authError) {
+        console.error('Failed to update auth metadata:', authError)
+        // Don't throw - profiles table is already updated
+      }
 
       // Update local user state
       if (user) {
@@ -131,18 +153,17 @@ export default function Profile() {
     try {
       setDeleteLoading(true)
 
-      // Delete user account (this will cascade delete profile due to ON DELETE CASCADE)
-      const { error } = await supabase.rpc('delete_user')
+      // Delete user account via backend API (this will cascade delete profile and all related data)
+      const response = await apiService.delete('/auth/account')
+      console.log('Account deletion response:', response)
 
-      if (error) throw error
-
-      // Logout and redirect to home
-      await logout()
+      // Clear local session without calling Supabase signOut (user is already deleted)
+      await logout(true) // Skip Supabase signOut to avoid 403 error
       navigate(ROUTES.HOME)
     } catch (err) {
-      setDeleteError(
-        err instanceof Error ? err.message : '회원 탈퇴에 실패했습니다. 관리자에게 문의해주세요.'
-      )
+      console.error('Account deletion error:', err)
+      const errorMessage = err?.message || '회원 탈퇴에 실패했습니다. 관리자에게 문의해주세요.'
+      setDeleteError(errorMessage)
     } finally {
       setDeleteLoading(false)
     }

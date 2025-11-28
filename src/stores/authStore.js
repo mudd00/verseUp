@@ -11,8 +11,15 @@ export const useAuthStore = create((set) => ({
     set({ user, isAuthenticated: true, isLoading: false })
   },
 
-  logout: async () => {
-    await supabase.auth.signOut()
+  logout: async (skipSupabaseSignOut = false) => {
+    if (!skipSupabaseSignOut) {
+      try {
+        await supabase.auth.signOut()
+      } catch (error) {
+        // Ignore signOut errors (e.g., when user is already deleted)
+        console.log('SignOut error (ignored):', error.message)
+      }
+    }
     localStorage.removeItem('accessToken')
     set({ user: null, isAuthenticated: false, isLoading: false })
   },
