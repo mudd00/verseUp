@@ -37,7 +37,7 @@ export default function PaymentSuccess() {
       setIsProcessing(true)
 
       // 백엔드에서 결제 승인 및 검증
-      const response = await apiService.post('/api/payments/confirm', {
+      const response = await apiService.post('/payments/confirm', {
         orderId,
         paymentKey,
         amount: parseInt(amount),

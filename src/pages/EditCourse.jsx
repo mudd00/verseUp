@@ -3,12 +3,15 @@ import { useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { courseService } from '@/services/courseService.js'
 import { ROUTES } from '@/utils/constants.js'
+import { useAuthStore } from '@/stores/authStore.js'
 
 import ScheduleInput from '@/components/course/ScheduleInput.jsx'
+import CourseMaterials from '@/components/course/CourseMaterials.jsx'
 
 export default function EditCourse() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const user = useAuthStore((state) => state.user)
   const [isLoading, setIsLoading] = useState(false)
   const [isFetching, setIsFetching] = useState(true)
   const [error, setError] = useState(null)
@@ -431,6 +434,11 @@ export default function EditCourse() {
           </button>
         </div>
       </form>
+
+      {/* 강의 자료 관리 */}
+      <div className="mt-8">
+        <CourseMaterials courseId={id} isInstructor={user?.role === 'instructor'} />
+      </div>
     </div>
   )
 }

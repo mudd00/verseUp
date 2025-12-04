@@ -133,7 +133,7 @@ class EnrollmentService {
     }
 
     try {
-      const data = await apiService.post('/api/payments/refund', { enrollmentId })
+      const data = await apiService.post('/payments/refund', { enrollmentId })
       return data
     } catch (error) {
       console.error('환불 요청 실패:', error)
