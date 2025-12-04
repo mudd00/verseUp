@@ -97,13 +97,15 @@ function App() {
         setLoading(false)
       })
 
-    // Listen for auth changes (only for SIGN_IN and SIGN_OUT)
+    // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (ignore) return
 
-      // Only handle SIGNED_IN and SIGNED_OUT events, ignore others
+      console.log('Auth state change:', event, session?.user?.id)
+
+      // Handle SIGNED_IN event
       if (event === 'SIGNED_IN' && session?.user) {
         // email 기반으로 role 추론 (fallback)
         const inferRoleFromEmail = (email) => {
@@ -126,7 +128,8 @@ function App() {
           updatedAt: session.user.updated_at || session.user.created_at,
         }
         login(user, session.access_token)
-      } else if (event === 'SIGNED_OUT') {
+      } else if (event === 'SIGNED_OUT' || event === 'USER_DELETED' || !session) {
+        // Handle logout, user deletion, or session expiration
         setUser(null)
         localStorage.removeItem('accessToken')
       }

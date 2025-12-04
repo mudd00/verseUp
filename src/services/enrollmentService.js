@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { apiService } from '@/services/api'
 
 class EnrollmentService {
   /**
@@ -62,7 +63,8 @@ class EnrollmentService {
   }
 
   /**
-   * 수강 취소
+   * 수강 취소 (더 이상 사용 안 함 - refundEnrollment 사용)
+   * @deprecated - 환불 정책이 적용된 refundEnrollment를 사용하세요
    */
   async dropCourse(courseId) {
     const currentUser = useAuthStore.getState().user
@@ -82,8 +84,61 @@ class EnrollmentService {
       console.error('수강 취소 실패:', error)
       throw new Error('수강 취소에 실패했습니다.')
     }
+  }
 
-    // DB 트리거가 enrolled_count를 자동으로 감소시킴
+  /**
+   * 환불 정책 계산
+   * @param {string} startDate - 강의 시작일
+   * @returns {object} - { canRefund, refundRate, policyDescription }
+   */
+  calculateRefundPolicy(startDate) {
+    const now = new Date()
+    const courseStartDate = new Date(startDate)
+    const daysUntilStart = Math.ceil((courseStartDate - now) / (1000 * 60 * 60 * 24))
+
+    if (daysUntilStart >= 7) {
+      return {
+        canRefund: true,
+        refundRate: 100,
+        policyDescription: '강의 시작 7일 전 - 100% 환불',
+        daysUntilStart,
+      }
+    } else if (daysUntilStart >= 0) {
+      return {
+        canRefund: true,
+        refundRate: 70,
+        policyDescription: '강의 시작 7일 이내 - 70% 환불',
+        daysUntilStart,
+      }
+    } else {
+      return {
+        canRefund: false,
+        refundRate: 0,
+        policyDescription: '강의 시작 후 - 환불 불가',
+        daysUntilStart,
+      }
+    }
+  }
+
+  /**
+   * 수강 취소 및 환불 요청
+   * @param {string} enrollmentId - 수강 신청 ID
+   * @returns {Promise<object>} - 환불 결과
+   */
+  async refundEnrollment(enrollmentId) {
+    const currentUser = useAuthStore.getState().user
+
+    if (!currentUser) {
+      throw new Error('로그인이 필요합니다.')
+    }
+
+    try {
+      const data = await apiService.post('/api/payments/refund', { enrollmentId })
+      return data
+    } catch (error) {
+      console.error('환불 요청 실패:', error)
+      throw new Error(error.message || '환불 처리에 실패했습니다.')
+    }
   }
 
   /**
