@@ -146,7 +146,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Toaster
-          position="top-right"
+          position="top-center"
           toastOptions={{
             duration: 4000,
             style: {

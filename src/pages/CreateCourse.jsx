@@ -16,7 +16,7 @@ export default function CreateCourse() {
     courseCode: '',
     category: 'general',
     level: 'beginner',
-    maxStudents: 30,
+    maxStudents: 20,
     startDate: '',
     endDate: '',
     schedule: [],
