@@ -32,9 +32,85 @@ const Player = forwardRef(({ currentMap = 'main', cameraAngle = 0, onPositionCha
   const { forward, backward, left, right, shift } = useKeyboardControls()
 
   const [isMoving, setIsMoving] = useState(false)
+  const [isSitting, setIsSitting] = useState(false)
   const lastMovingRef = useRef(false)
+  const sittingPositionRef = useRef(null)
+  const sittingRotationRef = useRef(null)
 
-  useImperativeHandle(ref, () => characterRef.current)
+  useImperativeHandle(ref, () => {
+    const character = characterRef.current
+    if (!character) return null
+
+    // Three.js Group 메서드들을 유지하면서 커스텀 메서드 추가
+    return Object.assign(character, {
+      sit: (position, type) => {
+        if (!bodyRef.current) return
+        setIsSitting(true)
+        sittingPositionRef.current = position
+
+        // type에 따라 바라보는 방향 설정
+        let targetRotation
+        if (type === 'sit') {
+          // 의자: +X 방향 (오른쪽)
+          targetRotation = new THREE.Quaternion().setFromAxisAngle(
+            new THREE.Vector3(0, 1, 0),
+            Math.PI / 2  // 90도
+          )
+        } else if (type === 'stand') {
+          // 교탁: -X 방향 (왼쪽)
+          targetRotation = new THREE.Quaternion().setFromAxisAngle(
+            new THREE.Vector3(0, 1, 0),
+            -Math.PI / 2  // -90도
+          )
+        } else {
+          // 기본: 현재 회전 유지
+          targetRotation = bodyRef.current.rotation()
+        }
+
+        sittingRotationRef.current = targetRotation
+        currentRotationRef.current.copy(targetRotation)
+
+        // RigidBody를 kinematic으로 변경 (물리 충돌 무시)
+        bodyRef.current.setBodyType(1, true) // 1 = KinematicPositionBased
+        // 앉는 위치로 텔레포트
+        bodyRef.current.setTranslation({ x: position[0], y: position[1], z: position[2] }, true)
+        bodyRef.current.setRotation(
+          {
+            x: targetRotation.x,
+            y: targetRotation.y,
+            z: targetRotation.z,
+            w: targetRotation.w,
+          },
+          true
+        )
+        bodyRef.current.setLinvel({ x: 0, y: 0, z: 0 }, true)
+        bodyRef.current.setAngvel({ x: 0, y: 0, z: 0 }, true)
+        console.log(`💺 ${type === 'sit' ? '앉기' : '서기'} 활성화:`, position, '방향:', type === 'sit' ? '+X' : '-X')
+      },
+      stand: () => {
+        if (!bodyRef.current) return
+
+        // 의자 앞으로 이동 (끼지 않도록)
+        const currentPos = bodyRef.current.translation()
+        bodyRef.current.setTranslation(
+          {
+            x: currentPos.x,
+            y: currentPos.y,
+            z: currentPos.z + 0.8  // 앞으로 0.8 이동
+          },
+          true
+        )
+
+        // RigidBody를 다시 dynamic으로 변경
+        bodyRef.current.setBodyType(0, true) // 0 = Dynamic
+        setIsSitting(false)
+        sittingPositionRef.current = null
+        sittingRotationRef.current = null
+        console.log('🚶 일어서기 - 의자 옆으로 이동')
+      },
+      isSitting: () => isSitting,
+    })
+  }, [isSitting])
 
   // 외부 bodyRef에도 연결
   useEffect(() => {
@@ -47,6 +123,40 @@ const Player = forwardRef(({ currentMap = 'main', cameraAngle = 0, onPositionCha
     const body = bodyRef.current
     if (!body) return
 
+    const linvel = body.linvel()
+    const pos = body.translation()
+
+    // 앉아있을 때는 이동 불가, 위치 및 회전 고정
+    if (isSitting && sittingPositionRef.current && sittingRotationRef.current) {
+      body.setLinvel({ x: 0, y: 0, z: 0 }, true)
+      body.setAngvel({ x: 0, y: 0, z: 0 }, true) // 각속도도 0으로
+      body.setTranslation(
+        {
+          x: sittingPositionRef.current[0],
+          y: sittingPositionRef.current[1],
+          z: sittingPositionRef.current[2],
+        },
+        true
+      )
+      // 회전도 고정
+      body.setRotation(
+        {
+          x: sittingRotationRef.current.x,
+          y: sittingRotationRef.current.y,
+          z: sittingRotationRef.current.z,
+          w: sittingRotationRef.current.w,
+        },
+        true
+      )
+      setIsMoving(false)
+      lastMovingRef.current = false
+
+      if (onPositionChange) {
+        onPositionChange({ x: pos.x, y: pos.y, z: pos.z })
+      }
+      return
+    }
+
     // 카메라 기준 방향 벡터 (로컬 좌표계)
     const direction = new THREE.Vector3()
     if (forward) direction.z -= 1  // 카메라 앞
@@ -56,8 +166,6 @@ const Player = forwardRef(({ currentMap = 'main', cameraAngle = 0, onPositionCha
 
     const wantsToMove = direction.lengthSq() > 0
     const speed = shift ? RUN_SPEED : WALK_SPEED
-    const linvel = body.linvel()
-    const pos = body.translation()
 
     if (wantsToMove) {
       direction.normalize()
@@ -106,6 +214,7 @@ const Player = forwardRef(({ currentMap = 'main', cameraAngle = 0, onPositionCha
       )
     } else {
       body.setLinvel({ x: 0, y: linvel.y, z: 0 }, true)
+      body.setAngvel({ x: 0, y: 0, z: 0 }, true) // 각속도도 0으로 (회전 멈춤)
     }
 
     if (wantsToMove !== lastMovingRef.current) {
@@ -138,7 +247,7 @@ const Player = forwardRef(({ currentMap = 'main', cameraAngle = 0, onPositionCha
         restitution={0}
       />
       <group ref={characterRef}>
-        <CharacterModel isMoving={isMoving} />
+        <CharacterModel isMoving={isMoving} isSitting={isSitting} />
       </group>
     </RigidBody>
   )
