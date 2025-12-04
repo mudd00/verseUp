@@ -5,6 +5,7 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import MapModel from './MapModel.jsx'
 import Player from './Player.jsx'
 import ThirdPersonCamera from './ThirdPersonCamera.jsx'
+import Screen from './Screen.jsx'
 import * as THREE from 'three'
 
 export default function MetaverseScene({ onReady }) {
@@ -14,8 +15,13 @@ export default function MetaverseScene({ onReady }) {
   const [playerPosition, setPlayerPosition] = useState({ x: 0, y: 0, z: 0 })
   const [portalInfo, setPortalInfo] = useState({ isNear: false, targetMap: null, label: null })
   const [doorInfo, setDoorInfo] = useState({ isNear: false, doorId: null, label: null })
+  const [objectInfo, setObjectInfo] = useState({ isNear: false, objectId: null, label: null, type: null, position: null })
   const [resetTrigger, setResetTrigger] = useState(0)
   const [cameraAngle, setCameraAngle] = useState(0)
+  const [isSitting, setIsSitting] = useState(false)
+  const [isAtDesk, setIsAtDesk] = useState(false) // 교탁에 서 있는지
+  const [screenStream, setScreenStream] = useState(null) // 화면 공유 스트림
+  const [screenPosition, setScreenPosition] = useState(null) // 스크린 위치
 
   const handlePositionChange = useCallback((position) => {
     setPlayerPosition(position)
@@ -32,12 +38,69 @@ export default function MetaverseScene({ onReady }) {
     setDoorInfo({ isNear: false, doorId: null, label: null }) // 문 UI 숨기기
   }, [])
 
+  const handleScreenShare = useCallback(async () => {
+    if (screenStream) {
+      // 화면 공유 종료
+      screenStream.getTracks().forEach(track => track.stop())
+      setScreenStream(null)
+      console.log('📺 화면 공유 종료')
+    } else {
+      // 화면 공유 시작
+      try {
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: { width: 1920, height: 1080 },
+          audio: false
+        })
+        setScreenStream(stream)
+        console.log('📺 화면 공유 시작')
+
+        // 화면 공유가 중단되면 (사용자가 브라우저에서 중지)
+        stream.getVideoTracks()[0].onended = () => {
+          setScreenStream(null)
+          console.log('📺 화면 공유 중단됨')
+        }
+      } catch (err) {
+        console.error('화면 공유 실패:', err)
+        alert('화면 공유를 시작할 수 없습니다.')
+      }
+    }
+  }, [screenStream])
+
   const handlePortalNearChange = useCallback((info) => {
     setPortalInfo(info)
   }, [])
 
   const handleDoorNearChange = useCallback((info) => {
     setDoorInfo(info)
+  }, [])
+
+  const handleObjectNearChange = useCallback((info) => {
+    setObjectInfo(info)
+  }, [])
+
+  const handleScreenPositionChange = useCallback((position) => {
+    setScreenPosition(position)
+    console.log('📺 스크린 위치 업데이트:', position)
+  }, [])
+
+  const handleObjectInteract = useCallback((objectId, type, position) => {
+    if (!playerRef.current) return
+
+    console.log(`상호작용:`, objectId, type, position)
+
+    if (type === 'sit') {
+      console.log('💺 의자에 앉기')
+      playerRef.current.sit(position, 'sit')
+      setIsSitting(true)
+      setIsAtDesk(false)
+    } else if (type === 'stand') {
+      console.log('🎓 교탁에 서기')
+      playerRef.current.sit(position, 'stand')
+      setIsSitting(true)
+      setIsAtDesk(true) // 교탁에 섬
+    }
+
+    setObjectInfo({ isNear: false, objectId: null, label: null, type: null, position: null })
   }, [])
 
   const handleDoorEnter = useCallback((doorId) => {
@@ -77,6 +140,20 @@ export default function MetaverseScene({ onReady }) {
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.code === 'KeyF') {
+        // 앉아있을 때는 일어서기
+        if (isSitting && playerRef.current) {
+          playerRef.current.stand()
+          setIsSitting(false)
+          setIsAtDesk(false)
+          // 화면 공유 중이었다면 종료
+          if (screenStream) {
+            screenStream.getTracks().forEach(track => track.stop())
+            setScreenStream(null)
+          }
+          console.log('일어서기 완료')
+          return
+        }
+
         // 포탈 우선 처리
         if (portalInfo.isNear) {
           handleMapChange(portalInfo.targetMap)
@@ -85,11 +162,15 @@ export default function MetaverseScene({ onReady }) {
         else if (doorInfo.isNear) {
           handleDoorEnter(doorInfo.doorId)
         }
+        // 상호작용 객체 처리 (의자, 교탁 등)
+        else if (objectInfo.isNear) {
+          handleObjectInteract(objectInfo.objectId, objectInfo.type, objectInfo.position)
+        }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [portalInfo, doorInfo, handleMapChange, handleDoorEnter])
+  }, [portalInfo, doorInfo, objectInfo, isSitting, handleMapChange, handleDoorEnter, handleObjectInteract])
 
   return (
     <div className="w-full h-screen">
@@ -117,6 +198,8 @@ export default function MetaverseScene({ onReady }) {
             onMapChange={handleMapChange}
             onPortalNearChange={handlePortalNearChange}
             onDoorNearChange={handleDoorNearChange}
+            onObjectNearChange={handleObjectNearChange}
+            onScreenPositionChange={handleScreenPositionChange}
           />
           <Player
             ref={playerRef}
@@ -128,6 +211,15 @@ export default function MetaverseScene({ onReady }) {
         </Physics>
 
         <ThirdPersonCamera target={playerRef} onCameraRotate={handleCameraRotate} />
+
+        {/* 학교 맵에서만 스크린 표시 */}
+        {currentMap === 'school' && screenPosition && (
+          <Screen
+            position={screenPosition}
+            size={[8, 4.5]}
+            videoStream={screenStream}
+          />
+        )}
       </Canvas>
 
       {/* 플레이어 위치 표시 */}
@@ -226,6 +318,113 @@ export default function MetaverseScene({ onReady }) {
             키를 눌러 입장
           </div>
         </div>
+      )}
+
+      {/* 상호작용 객체 안내 (의자, 교탁 등) */}
+      {objectInfo.isNear && !isSitting && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '100px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(0, 0, 0, 0.8)',
+            color: '#fff',
+            padding: '15px 30px',
+            borderRadius: '12px',
+            fontFamily: 'sans-serif',
+            fontSize: '18px',
+            zIndex: 9999,
+            pointerEvents: 'none',
+            textAlign: 'center',
+            border: `2px solid ${objectInfo.type === 'sit' ? '#f59e0b' : '#3b82f6'}`,
+            boxShadow: `0 0 20px ${objectInfo.type === 'sit' ? 'rgba(245, 158, 11, 0.5)' : 'rgba(59, 130, 246, 0.5)'}`,
+          }}
+        >
+          <div style={{ marginBottom: '8px', fontWeight: 'bold', color: objectInfo.type === 'sit' ? '#fbbf24' : '#60a5fa' }}>
+            {objectInfo.label}
+          </div>
+          <div style={{ fontSize: '14px', color: '#ccc' }}>
+            <span style={{
+              display: 'inline-block',
+              background: objectInfo.type === 'sit' ? '#f59e0b' : '#3b82f6',
+              padding: '2px 8px',
+              borderRadius: '4px',
+              marginRight: '8px',
+              fontWeight: 'bold'
+            }}>F</span>
+            키를 눌러 상호작용
+          </div>
+        </div>
+      )}
+
+      {/* 앉아있을 때 일어서기 안내 */}
+      {isSitting && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '100px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(0, 0, 0, 0.8)',
+            color: '#fff',
+            padding: '15px 30px',
+            borderRadius: '12px',
+            fontFamily: 'sans-serif',
+            fontSize: '18px',
+            zIndex: 9999,
+            pointerEvents: 'none',
+            textAlign: 'center',
+            border: '2px solid #ef4444',
+            boxShadow: '0 0 20px rgba(239, 68, 68, 0.5)',
+          }}
+        >
+          <div style={{ marginBottom: '8px', fontWeight: 'bold', color: '#fca5a5' }}>
+            앉아있는 상태
+          </div>
+          <div style={{ fontSize: '14px', color: '#ccc' }}>
+            <span style={{
+              display: 'inline-block',
+              background: '#ef4444',
+              padding: '2px 8px',
+              borderRadius: '4px',
+              marginRight: '8px',
+              fontWeight: 'bold'
+            }}>F</span>
+            키를 눌러 일어서기
+          </div>
+        </div>
+      )}
+
+      {/* 교탁에 섰을 때 화면 공유 버튼 */}
+      {isAtDesk && (
+        <button
+          onClick={handleScreenShare}
+          style={{
+            position: 'absolute',
+            top: '20px',
+            right: '20px',
+            background: screenStream ? '#ef4444' : '#3b82f6',
+            color: '#fff',
+            padding: '12px 24px',
+            borderRadius: '8px',
+            border: 'none',
+            fontSize: '16px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            zIndex: 9999,
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.transform = 'scale(1.05)'
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.transform = 'scale(1)'
+          }}
+        >
+          {screenStream ? '📺 화면 공유 종료' : '📺 화면 공유 시작'}
+        </button>
       )}
     </div>
   )

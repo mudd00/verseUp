@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import ErrorBoundary from './ErrorBoundary'
 import Portal from './Portal'
 import Door from './Door'
+import InteractiveObject from './InteractiveObject'
 
 // 맵별 설정
 const MAP_CONFIG = {
@@ -48,40 +49,79 @@ function LoadingPlaceholder() {
   )
 }
 
-function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNearChange }) {
+function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNearChange, onObjectNearChange, onScreenPositionChange }) {
   const config = MAP_CONFIG[currentMap] || MAP_CONFIG.main
   const { scene } = useGLTF(config.path)
   const [doorPositions, setDoorPositions] = useState([])
+  const [interactiveObjects, setInteractiveObjects] = useState([])
+  const [screenPosition, setScreenPosition] = useState(null)
 
   // 3DCommunity 방식: useMemo로 씬 복제, 그림자 설정, 위치 조정을 모두 처리
   // (useEffect에서 하면 콜라이더와 메시 위치가 불일치함)
   const clonedScene = useMemo(() => {
     const cloned = scene.clone()
     const foundDoors = []
+    const foundObjects = []
 
-    // 그림자 설정 및 문 요소 찾기
+    // 그림자 설정 및 상호작용 요소 찾기
     cloned.traverse((child) => {
       if (child.isMesh) {
         child.castShadow = true
         child.receiveShadow = true
 
-        // classroom 맵에서 문 요소 찾기
-        if (currentMap === 'school' && (child.name === 'PUERTA_1_StingrayPBS9_0' || child.name === 'PUERTA_4_StingrayPBS9_0')) {
-          const worldPos = new THREE.Vector3()
-          child.getWorldPosition(worldPos)
-          const doorId = child.name === 'PUERTA_1_StingrayPBS9_0' ? 'door1' : 'door2'
-          foundDoors.push({
-            name: child.name,
-            position: [worldPos.x, worldPos.y, worldPos.z],
-            doorId: doorId,
-          })
-          console.log(`🚪 문 발견:`, {
-            name: child.name,
-            doorId: doorId,
-            원본위치: worldPos,
-            position: child.position,
-            rotation: child.rotation,
-          })
+        if (currentMap === 'school') {
+          // 문 요소 찾기
+          if (child.name === 'PUERTA_1_StingrayPBS9_0' || child.name === 'PUERTA_4_StingrayPBS9_0') {
+            const worldPos = new THREE.Vector3()
+            child.getWorldPosition(worldPos)
+            const doorId = child.name === 'PUERTA_1_StingrayPBS9_0' ? 'door1' : 'door2'
+            foundDoors.push({
+              name: child.name,
+              position: [worldPos.x, worldPos.y, worldPos.z],
+              doorId: doorId,
+            })
+          }
+          // 의자 요소 찾기 (ASIENTO로 시작)
+          else if (child.name.startsWith('ASIENTO')) {
+            const worldPos = new THREE.Vector3()
+            child.getWorldPosition(worldPos)
+            foundObjects.push({
+              name: child.name,
+              position: [worldPos.x, worldPos.y, worldPos.z],
+              sittingPosition: [worldPos.x, worldPos.y + 0.8, worldPos.z + 0], // Y축 +0.8 (더 높게), Z축 +0.2 (앞으로)
+              objectId: `chair_${child.name}`,
+              type: 'sit',
+              label: '의자에 앉기 (F)',
+            })
+            console.log(`💺 의자 발견:`, child.name, worldPos)
+          }
+          // 교탁 요소 찾기
+          else if (child.name === 'METAL_PROF_StingrayPBS6_0') {
+            const worldPos = new THREE.Vector3()
+            child.getWorldPosition(worldPos)
+            foundObjects.push({
+              name: child.name,
+              position: [worldPos.x, worldPos.y, worldPos.z],
+              objectId: 'desk',
+              type: 'stand',
+              label: '교탁에 서기 (F)',
+            })
+            console.log(`🎓 교탁 발견:`, child.name, worldPos)
+          }
+          // 스크린 요소 찾기 (칠판)
+          else if (child.name === 'VERDE_GRANDE_StingrayPBS7_0') {
+            const worldPos = new THREE.Vector3()
+            child.getWorldPosition(worldPos)
+            // 스크린 위치를 저장 (나중에 스케일 적용)
+            foundObjects.push({
+              name: child.name,
+              position: [worldPos.x, worldPos.y, worldPos.z],
+              objectId: 'screen',
+              type: 'screen',
+              isScreen: true, // 스크린임을 표시
+            })
+            console.log(`📺 스크린 요소 발견:`, child.name, worldPos)
+          }
         }
       }
     })
@@ -118,8 +158,49 @@ function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNe
       setDoorPositions(foundDoors)
     }
 
+    // 상호작용 객체 위치도 스케일과 오프셋 적용
+    if (foundObjects.length > 0) {
+      console.log(`📦 상호작용 객체 발견: ${foundObjects.length}개`)
+      foundObjects.forEach(obj => {
+        const originalPos = [...obj.position]
+        obj.position[0] *= appliedScale
+        obj.position[1] = obj.position[1] * appliedScale + yOffset
+        obj.position[2] *= appliedScale
+
+        // sittingPosition도 스케일 적용 (의자만)
+        if (obj.sittingPosition) {
+          obj.sittingPosition[0] *= appliedScale
+          obj.sittingPosition[1] = obj.sittingPosition[1] * appliedScale + yOffset
+          obj.sittingPosition[2] *= appliedScale
+        }
+
+        console.log(`${obj.objectId} 최종 위치:`, {
+          원본: originalPos,
+          스케일후: obj.position,
+          앉는위치: obj.sittingPosition,
+        })
+      })
+
+      // 스크린 위치 추출 및 전달
+      const screenObj = foundObjects.find(obj => obj.isScreen)
+      if (screenObj) {
+        setScreenPosition(screenObj.position)
+        console.log(`📺 스크린 최종 위치:`, screenObj.position)
+      }
+
+      // 스크린 제외하고 상호작용 객체만 저장
+      setInteractiveObjects(foundObjects.filter(obj => !obj.isScreen))
+    }
+
     return cloned
   }, [scene, currentMap])
+
+  // 스크린 위치가 변경되면 콜백 호출
+  useEffect(() => {
+    if (screenPosition && onScreenPositionChange) {
+      onScreenPositionChange(screenPosition)
+    }
+  }, [screenPosition, onScreenPositionChange])
 
   return (
     <>
@@ -177,11 +258,42 @@ function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNe
           </group>
         )
       })}
+
+      {/* 상호작용 객체들 (의자, 교탁) */}
+      {interactiveObjects.map((obj) => {
+        const adjustedPosition = [...obj.position]
+
+        // 객체별 위치 조정 (원하는 대로 수정 가능)
+        if (obj.type === 'sit') {
+          // 의자 위치 조정
+          // adjustedPosition[0] += 0  // X축: 양수 = 오른쪽, 음수 = 왼쪽
+          // adjustedPosition[1] += 0  // Y축: 양수 = 위, 음수 = 아래
+          // adjustedPosition[2] += 0  // Z축: 양수 = 앞, 음수 = 뒤
+        } else if (obj.type === 'stand') {
+          // 교탁 위치를 직접 지정
+          adjustedPosition[0] = -52.17
+          adjustedPosition[1] = 1.87
+          adjustedPosition[2] = -28.20
+        }
+
+        return (
+          <InteractiveObject
+            key={obj.objectId}
+            position={adjustedPosition}
+            sittingPosition={obj.sittingPosition} // 실제 앉는 위치 전달
+            size={obj.type === 'sit' ? [0.8, 1.5, 0.8] : [1.5, 2, 1.5]} // 의자는 작게, 교탁은 크게
+            objectId={obj.objectId}
+            label={obj.label}
+            type={obj.type}
+            onNearChange={onObjectNearChange}
+          />
+        )
+      })}
     </>
   )
 }
 
-export default function MapModel({ currentMap, onMapChange, onPortalNearChange, onDoorNearChange }) {
+export default function MapModel({ currentMap, onMapChange, onPortalNearChange, onDoorNearChange, onObjectNearChange, onScreenPositionChange }) {
   return (
     <ErrorBoundary fallback={<DefaultFloor />}>
       <Suspense fallback={<LoadingPlaceholder />}>
@@ -190,6 +302,8 @@ export default function MapModel({ currentMap, onMapChange, onPortalNearChange, 
           onMapChange={onMapChange}
           onPortalNearChange={onPortalNearChange}
           onDoorNearChange={onDoorNearChange}
+          onObjectNearChange={onObjectNearChange}
+          onScreenPositionChange={onScreenPositionChange}
         />
       </Suspense>
     </ErrorBoundary>
