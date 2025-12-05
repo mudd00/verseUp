@@ -306,6 +306,63 @@ class CourseService {
   }
 
   /**
+   * 강의 자료 업로드
+   */
+  async uploadMaterial(courseId, materialData) {
+    const currentUser = useAuthStore.getState().user
+
+    if (!currentUser) {
+      throw new Error('로그인이 필요합니다.')
+    }
+
+    // Generate unique file path
+    const fileExt = materialData.file.name.split('.').pop()
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
+    const filePath = `${courseId}/${fileName}`
+
+    // Upload file to Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('course-materials')
+      .upload(filePath, materialData.file, {
+        cacheControl: '3600',
+        upsert: false,
+      })
+
+    if (uploadError) {
+      console.error('Upload error:', uploadError)
+      throw new Error('파일 업로드에 실패했습니다.')
+    }
+
+    // Get public URL
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from('course-materials').getPublicUrl(filePath)
+
+    // Save metadata to database
+    const { data: material, error } = await supabase
+      .from('course_materials')
+      .insert({
+        course_id: courseId,
+        title: materialData.title,
+        description: materialData.description,
+        file_url: publicUrl,
+        file_name: materialData.file_name,
+        file_size: materialData.file_size,
+        file_type: materialData.file_type,
+        uploaded_by: currentUser.id,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('자료 메타데이터 저장 실패:', error)
+      throw new Error('자료 정보 저장에 실패했습니다.')
+    }
+
+    return material
+  }
+
+  /**
    * DB 데이터를 Course 타입으로 변환
    */
   mapCourseFromDB(data) {

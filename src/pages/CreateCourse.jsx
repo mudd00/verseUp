@@ -4,11 +4,13 @@ import toast from 'react-hot-toast'
 import { courseService } from '@/services/courseService.js'
 import { ROUTES } from '@/utils/constants.js'
 import ScheduleInput from '@/components/course/ScheduleInput.jsx'
+import CourseMaterialsUpload from '@/components/course/CourseMaterialsUpload.jsx'
 
 export default function CreateCourse() {
   const navigate = useNavigate()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [materials, setMaterials] = useState([])
 
   const [formData, setFormData] = useState({
     title: '',
@@ -94,6 +96,17 @@ export default function CreateCourse() {
 
       // 강의 생성
       const course = await courseService.createCourse(formData)
+
+      // 자료가 있으면 업로드
+      if (materials.length > 0) {
+        toast.loading('강의 자료 업로드 중...', { id: 'upload' })
+
+        for (const material of materials) {
+          await courseService.uploadMaterial(course.id, material)
+        }
+
+        toast.success('강의 자료가 업로드되었습니다', { id: 'upload' })
+      }
 
       // 성공 토스트
       toast.success(
@@ -342,6 +355,14 @@ export default function CreateCourse() {
           </button>
         </div>
       </form>
+
+      {/* 강의 자료 관리 */}
+      <div className="mt-8">
+        <CourseMaterialsUpload
+          materials={materials}
+          onMaterialsChange={setMaterials}
+        />
+      </div>
     </div>
   )
 }
