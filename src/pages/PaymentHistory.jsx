@@ -19,7 +19,7 @@ export default function PaymentHistory() {
   const loadPayments = async () => {
     try {
       setIsLoading(true)
-      const response = await apiService.get('/api/payments')
+      const response = await apiService.get('/payments')
       setPayments(response.payments || [])
     } catch (error) {
       console.error('결제 내역 조회 실패:', error)
@@ -31,7 +31,7 @@ export default function PaymentHistory() {
 
   const loadRefunds = async () => {
     try {
-      const response = await apiService.get('/api/payments/refunds')
+      const response = await apiService.get('/payments/refunds')
       setRefunds(response.refunds || [])
     } catch (error) {
       console.error('환불 내역 조회 실패:', error)

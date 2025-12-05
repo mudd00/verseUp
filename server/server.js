@@ -8,6 +8,19 @@ import apiRoutes from './routes/index.js'
 
 dotenv.config()
 
+// 환경 변수 검증
+const requiredEnvVars = ['SUPABASE_URL', 'SUPABASE_SERVICE_KEY', 'JWT_SECRET']
+const missingEnvVars = requiredEnvVars.filter((varName) => !process.env[varName])
+
+if (missingEnvVars.length > 0) {
+  console.error('❌ Missing required environment variables:')
+  missingEnvVars.forEach((varName) => {
+    console.error(`   - ${varName}`)
+  })
+  console.error('\n💡 Please check your .env file and ensure all required variables are set.')
+  process.exit(1)
+}
+
 const app = express()
 const httpServer = createServer(app)
 const io = new Server(httpServer, {

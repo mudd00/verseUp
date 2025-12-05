@@ -4,7 +4,7 @@ import toast from 'react-hot-toast'
 import { courseService } from '@/services/courseService.js'
 import { enrollmentService } from '@/services/enrollmentService.js'
 import { useAuthStore } from '@/stores/authStore.js'
-import { formatSchedule } from '@/components/course/ScheduleInput.jsx'
+import { formatSchedule } from '@/utils/scheduleFormatter.js'
 import { ROUTES } from '@/utils/constants.js'
 
 export default function CourseDetail() {

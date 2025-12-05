@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { courseService } from '@/services/courseService.js'
-import { formatSchedule } from '@/components/course/ScheduleInput.jsx'
+import { formatSchedule } from '@/utils/scheduleFormatter.js'
 
 export default function Courses() {
   const [courses, setCourses] = useState([])

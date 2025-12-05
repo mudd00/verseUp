@@ -4,7 +4,7 @@ import { courseService } from '@/services/courseService.js'
 
 import { useAuthStore } from '@/stores/authStore.js'
 import { ROUTES } from '@/utils/constants.js'
-import { formatSchedule } from '@/components/course/ScheduleInput.jsx'
+import { formatSchedule } from '@/utils/scheduleFormatter.js'
 import toast from 'react-hot-toast'
 
 export default function MyCourses() {
@@ -15,14 +15,14 @@ export default function MyCourses() {
   const [filter, setFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
 
+  useEffect(() => {
+    loadMyCourses()
+  }, [])
+
   // 강사가 아니면 대시보드로 리다이렉트
   if (user?.role !== 'instructor' && user?.role !== 'admin') {
     return <Navigate to={ROUTES.DASHBOARD} replace />
   }
-
-  useEffect(() => {
-    loadMyCourses()
-  }, [])
 
   const loadMyCourses = async () => {
     try {
