@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { authMiddleware } from '../middleware/auth.js'
+import { authMiddleware, requireInstructor } from '../middleware/auth.js'
 import { supabase } from '../utils/supabase.js'
 
 const router = Router()
@@ -33,70 +33,77 @@ router.get('/courses/:courseId/materials', authMiddleware, async (req, res) => {
 })
 
 // Upload a material (metadata only - file upload happens on client)
-router.post('/courses/:courseId/materials', authMiddleware, async (req, res) => {
-  try {
-    const { courseId } = req.params
-    const { title, description, file_url, file_name, file_size, file_type } =
-      req.body
+// 강사 또는 관리자만 업로드 가능
+router.post(
+  '/courses/:courseId/materials',
+  authMiddleware,
+  requireInstructor,
+  async (req, res) => {
+    try {
+      const { courseId } = req.params
+      const { title, description, file_url, file_name, file_size, file_type } = req.body
 
-    if (!supabase) {
-      return res.status(503).json({ error: 'Database service unavailable' })
+      if (!supabase) {
+        return res.status(503).json({ error: 'Database service unavailable' })
+      }
+
+      // Validate required fields
+      if (!title || !file_url || !file_name || !file_size || !file_type) {
+        return res.status(400).json({ error: 'Missing required fields' })
+      }
+
+      // Verify user is the instructor of this course (관리자는 모든 강의에 업로드 가능)
+      if (req.user.role !== 'admin') {
+        const { data: course, error: courseError } = await supabase
+          .from('courses')
+          .select('instructor_id')
+          .eq('id', courseId)
+          .single()
+
+        if (courseError || !course) {
+          return res.status(404).json({ error: 'Course not found' })
+        }
+
+        if (course.instructor_id !== req.user.id) {
+          return res.status(403).json({ error: 'Only the course instructor can upload materials' })
+        }
+      }
+
+      // Insert material metadata
+      const { data: material, error: insertError } = await supabase
+        .from('course_materials')
+        .insert({
+          course_id: courseId,
+          title,
+          description: description || null,
+          file_url,
+          file_name,
+          file_size,
+          file_type,
+          uploaded_by: req.user.id,
+        })
+        .select()
+        .single()
+
+      if (insertError) {
+        console.error('Error inserting material:', insertError)
+        return res.status(500).json({ error: 'Failed to save material' })
+      }
+
+      res.status(201).json({ material })
+    } catch (error) {
+      console.error('Error in POST /courses/:courseId/materials:', error)
+      res.status(500).json({ error: 'Internal server error' })
     }
-
-    // Validate required fields
-    if (!title || !file_url || !file_name || !file_size || !file_type) {
-      return res.status(400).json({ error: 'Missing required fields' })
-    }
-
-    // Verify user is the instructor of this course
-    const { data: course, error: courseError } = await supabase
-      .from('courses')
-      .select('instructor_id')
-      .eq('id', courseId)
-      .single()
-
-    if (courseError || !course) {
-      return res.status(404).json({ error: 'Course not found' })
-    }
-
-    if (course.instructor_id !== req.user.id) {
-      return res
-        .status(403)
-        .json({ error: 'Only the instructor can upload materials' })
-    }
-
-    // Insert material metadata
-    const { data: material, error: insertError } = await supabase
-      .from('course_materials')
-      .insert({
-        course_id: courseId,
-        title,
-        description: description || null,
-        file_url,
-        file_name,
-        file_size,
-        file_type,
-        uploaded_by: req.user.id,
-      })
-      .select()
-      .single()
-
-    if (insertError) {
-      console.error('Error inserting material:', insertError)
-      return res.status(500).json({ error: 'Failed to save material' })
-    }
-
-    res.status(201).json({ material })
-  } catch (error) {
-    console.error('Error in POST /courses/:courseId/materials:', error)
-    res.status(500).json({ error: 'Internal server error' })
   }
-})
+)
 
 // Delete a material
+// 강사 또는 관리자만 삭제 가능
 router.delete(
   '/courses/:courseId/materials/:materialId',
   authMiddleware,
+  requireInstructor,
   async (req, res) => {
     try {
       const { courseId, materialId } = req.params
@@ -117,10 +124,9 @@ router.delete(
         return res.status(404).json({ error: 'Material not found' })
       }
 
-      if (material.courses.instructor_id !== req.user.id) {
-        return res
-          .status(403)
-          .json({ error: 'Only the instructor can delete materials' })
+      // 관리자는 모든 자료 삭제 가능, 강사는 본인 강의만
+      if (req.user.role !== 'admin' && material.courses.instructor_id !== req.user.id) {
+        return res.status(403).json({ error: 'Only the course instructor can delete materials' })
       }
 
       // Extract file path from URL

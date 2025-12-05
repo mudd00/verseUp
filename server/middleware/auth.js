@@ -37,3 +37,35 @@ export async function authMiddleware(req, res, next) {
     res.status(401).json({ error: 'Invalid token' })
   }
 }
+
+/**
+ * Role 기반 권한 확인 미들웨어
+ * @param {...string} allowedRoles - 허용된 role 목록
+ * @returns {Function} Express 미들웨어
+ */
+export function requireRole(...allowedRoles) {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' })
+    }
+
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: `이 작업은 ${allowedRoles.join(' 또는 ')} 권한이 필요합니다.`,
+      })
+    }
+
+    next()
+  }
+}
+
+/**
+ * 강사 또는 관리자 권한 확인 미들웨어
+ */
+export const requireInstructor = requireRole('instructor', 'admin')
+
+/**
+ * 관리자 권한 확인 미들웨어
+ */
+export const requireAdmin = requireRole('admin')

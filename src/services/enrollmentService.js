@@ -4,7 +4,8 @@ import { apiService } from '@/services/api'
 
 class EnrollmentService {
   /**
-   * 강의 수강 신청
+   * 강의 수강 신청 (무료 강의용)
+   * 유료 강의는 결제 프로세스를 통해 자동으로 수강 신청됨
    */
   async enrollCourse(courseId) {
     const currentUser = useAuthStore.getState().user
@@ -13,76 +14,18 @@ class EnrollmentService {
       throw new Error('로그인이 필요합니다.')
     }
 
-    // 이미 수강 중인지 확인
-    const { data: existing } = await supabase
-      .from('enrollments')
-      .select('*')
-      .eq('student_id', currentUser.id)
-      .eq('course_id', courseId)
-      .eq('status', 'active')
-      .single()
+    try {
+      // 백엔드 API 사용 (Race condition 방지)
+      const response = await apiService.post(`/courses/${courseId}/enroll`)
 
-    if (existing) {
-      throw new Error('이미 수강 중인 강의입니다.')
-    }
+      if (response.enrollment) {
+        return this.mapEnrollmentFromDB(response.enrollment)
+      }
 
-    // 강의 정원 확인
-    const { data: course, error: courseError } = await supabase
-      .from('courses')
-      .select('max_students, enrolled_count')
-      .eq('id', courseId)
-      .single()
-
-    if (courseError || !course) {
-      throw new Error('강의 정보를 찾을 수 없습니다.')
-    }
-
-    if (course.enrolled_count >= course.max_students) {
-      throw new Error('수강 정원이 초과되었습니다.')
-    }
-
-    // 수강 신청 생성
-    const { data: enrollment, error } = await supabase
-      .from('enrollments')
-      .insert({
-        student_id: currentUser.id,
-        course_id: courseId,
-        status: 'active',
-        enrolled_at: new Date().toISOString(),
-      })
-      .select('*')
-      .single()
-
-    if (error) {
+      return response
+    } catch (error) {
       console.error('수강 신청 실패:', error)
-      throw new Error('수강 신청에 실패했습니다.')
-    }
-
-    // DB 트리거가 enrolled_count를 자동으로 증가시킴
-    return this.mapEnrollmentFromDB(enrollment)
-  }
-
-  /**
-   * 수강 취소 (더 이상 사용 안 함 - refundEnrollment 사용)
-   * @deprecated - 환불 정책이 적용된 refundEnrollment를 사용하세요
-   */
-  async dropCourse(courseId) {
-    const currentUser = useAuthStore.getState().user
-
-    if (!currentUser) {
-      throw new Error('로그인이 필요합니다.')
-    }
-
-    const { error } = await supabase
-      .from('enrollments')
-      .update({ status: 'dropped' })
-      .eq('student_id', currentUser.id)
-      .eq('course_id', courseId)
-      .eq('status', 'active')
-
-    if (error) {
-      console.error('수강 취소 실패:', error)
-      throw new Error('수강 취소에 실패했습니다.')
+      throw new Error(error.message || '수강 신청에 실패했습니다.')
     }
   }
 

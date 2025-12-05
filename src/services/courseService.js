@@ -18,12 +18,51 @@ class CourseService {
       throw new Error('강사 권한이 필요합니다.')
     }
 
+    // course_code 처리
+    let courseCode = data.courseCode
+
+    if (courseCode) {
+      // 사용자가 입력한 경우 중복 검사
+      const { data: existing, error: checkError } = await supabase
+        .from('courses')
+        .select('id')
+        .eq('course_code', courseCode)
+        .maybeSingle()
+
+      if (checkError) {
+        console.error('수강번호 중복 검사 실패:', checkError)
+        throw new Error('수강번호 확인에 실패했습니다.')
+      }
+
+      if (existing) {
+        throw new Error('이미 사용 중인 수강번호입니다. 다른 번호를 입력해주세요.')
+      }
+    } else {
+      // 비워두면 자동 생성 (형식: COURSE-YYYYMMDD-랜덤4자리)
+      const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+      const random = Math.random().toString(36).substring(2, 6).toUpperCase()
+      courseCode = `COURSE-${date}-${random}`
+
+      // 생성된 코드 중복 확인 (만약을 위해)
+      const { data: existingGenerated } = await supabase
+        .from('courses')
+        .select('id')
+        .eq('course_code', courseCode)
+        .maybeSingle()
+
+      // 중복이면 재시도
+      if (existingGenerated) {
+        const random2 = Math.random().toString(36).substring(2, 6).toUpperCase()
+        courseCode = `COURSE-${date}-${random2}`
+      }
+    }
+
     const { data: course, error } = await supabase
       .from('courses')
       .insert({
         title: data.title,
         description: data.description,
-        course_code: data.courseCode,
+        course_code: courseCode,
         category: data.category || 'general',
         level: data.level || 'beginner',
         instructor_id: currentUser.id,
@@ -45,6 +84,12 @@ class CourseService {
 
     if (error) {
       console.error('강의 생성 실패:', error)
+
+      // 중복 키 오류 처리
+      if (error.code === '23505') {
+        throw new Error('수강번호가 중복되었습니다. 다시 시도해주세요.')
+      }
+
       throw new Error('강의 생성에 실패했습니다.')
     }
 
@@ -181,6 +226,22 @@ class CourseService {
 
     if (!currentUser) {
       throw new Error('로그인이 필요합니다.')
+    }
+
+    // 수강생 확인
+    const { data: course, error: fetchError } = await supabase
+      .from('courses')
+      .select('enrolled_count')
+      .eq('id', id)
+      .single()
+
+    if (fetchError) {
+      console.error('강의 조회 실패:', fetchError)
+      throw new Error('강의 정보를 가져오는데 실패했습니다.')
+    }
+
+    if (course && course.enrolled_count > 0) {
+      throw new Error('수강 중인 학생이 있어 삭제할 수 없습니다. 먼저 모든 수강생의 수강을 취소해주세요.')
     }
 
     const { error } = await supabase.from('courses').delete().eq('id', id)

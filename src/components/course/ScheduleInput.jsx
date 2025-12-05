@@ -116,15 +116,3 @@ export default function ScheduleInput({ schedules, onChange }) {
   )
 }
 
-// 시간표를 문자열로 포맷팅하는 헬퍼 함수
-export function formatSchedule(schedules) {
-  if (!schedules || schedules.length === 0) {
-    return '미정'
-  }
-
-  return schedules
-    .map(
-      (s) => `${DAY_NAMES[s.dayOfWeek]} ${s.startTime}~${s.endTime}`
-    )
-    .join(', ')
-}

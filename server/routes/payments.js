@@ -99,6 +99,7 @@ router.post('/confirm', authMiddleware, async (req, res) => {
 
     // 수강 신청 처리
     let enrollmentId = null
+    let enrollmentFailed = false
     if (courseId && req.user?.id && supabase) {
       try {
         // 기존 수강 신청 확인 (모든 상태)
@@ -111,55 +112,119 @@ router.post('/confirm', authMiddleware, async (req, res) => {
 
         if (checkError && checkError.code !== 'PGRST116') {
           console.error('수강 신청 확인 오류:', checkError)
+          enrollmentFailed = true
         }
 
-        if (existingEnrollment) {
-          if (existingEnrollment.status === 'active') {
-            console.log('✅ 이미 수강 중인 강의입니다:', courseId)
-            enrollmentId = existingEnrollment.id
+        if (!enrollmentFailed) {
+          if (existingEnrollment) {
+            if (existingEnrollment.status === 'active') {
+              console.log('✅ 이미 수강 중인 강의입니다:', courseId)
+              enrollmentId = existingEnrollment.id
+            } else {
+              // dropped 상태를 active로 변경
+              const { data: updated, error: updateError } = await supabase
+                .from('enrollments')
+                .update({
+                  status: 'active',
+                  enrolled_at: new Date().toISOString(),
+                  payment_id: savedPayment?.id,
+                })
+                .eq('id', existingEnrollment.id)
+                .select()
+                .single()
+
+              if (updateError) {
+                console.error('❌ 수강 신청 재활성화 실패:', updateError)
+                enrollmentFailed = true
+              } else {
+                console.log('✅ 수강 신청 재활성화 완료:', updated.id)
+                enrollmentId = updated.id
+              }
+            }
           } else {
-            // dropped 상태를 active로 변경
-            const { data: updated, error: updateError } = await supabase
+            // 새로운 수강 신청
+            const { data: enrollment, error: enrollError } = await supabase
               .from('enrollments')
-              .update({
+              .insert({
+                student_id: req.user.id,
+                course_id: courseId,
                 status: 'active',
                 enrolled_at: new Date().toISOString(),
                 payment_id: savedPayment?.id,
               })
-              .eq('id', existingEnrollment.id)
               .select()
               .single()
 
-            if (updateError) {
-              console.error('수강 신청 재활성화 실패:', updateError)
+            if (enrollError) {
+              console.error('❌ 수강 신청 실패:', enrollError)
+              enrollmentFailed = true
             } else {
-              console.log('✅ 수강 신청 재활성화 완료:', updated.id)
-              enrollmentId = updated.id
+              console.log('✅ 수강 신청 완료 (enrolled_count는 트리거가 자동 처리):', enrollment.id)
+              enrollmentId = enrollment.id
             }
-          }
-        } else {
-          // 새로운 수강 신청
-          const { data: enrollment, error: enrollError } = await supabase
-            .from('enrollments')
-            .insert({
-              student_id: req.user.id,
-              course_id: courseId,
-              status: 'active',
-              enrolled_at: new Date().toISOString(),
-              payment_id: savedPayment?.id,
-            })
-            .select()
-            .single()
-
-          if (enrollError) {
-            console.error('수강 신청 실패:', enrollError)
-          } else {
-            console.log('✅ 수강 신청 완료 (enrolled_count는 트리거가 자동 처리):', enrollment.id)
-            enrollmentId = enrollment.id
           }
         }
       } catch (err) {
-        console.error('수강 신청 오류:', err)
+        console.error('❌ 수강 신청 오류:', err)
+        enrollmentFailed = true
+      }
+    }
+
+    // 수강 신청 실패 시 자동 환불 처리
+    if (enrollmentFailed && savedPayment?.id) {
+      console.log('⚠️ 수강 신청 실패로 인한 자동 환불 시작...')
+      try {
+        // Toss Payments API로 전액 환불 요청
+        const refundResponse = await fetch(
+          `https://api.tosspayments.com/v1/payments/${paymentKey}/cancel`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Basic ${encodedKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              cancelReason: '수강 신청 처리 실패로 인한 자동 환불',
+            }),
+          }
+        )
+
+        const refundData = await refundResponse.json()
+
+        if (refundResponse.ok) {
+          console.log('✅ 자동 환불 완료:', refundData)
+
+          // refunds 테이블에 저장
+          if (supabase) {
+            await supabase.from('refunds').insert({
+              payment_id: savedPayment.id,
+              user_id: req.user.id,
+              refund_amount: tossData.totalAmount,
+              refund_reason: '수강 신청 처리 실패로 인한 자동 환불',
+              status: 'completed',
+              refunded_at: new Date().toISOString(),
+            })
+          }
+
+          return res.status(500).json({
+            error: '수강 신청 처리에 실패하여 결제가 자동으로 환불되었습니다. 잠시 후 다시 시도해주세요.',
+            refunded: true,
+          })
+        } else {
+          console.error('❌ 자동 환불 실패:', refundData)
+          return res.status(500).json({
+            error: '수강 신청 및 환불 처리에 실패했습니다. 고객센터에 문의해주세요.',
+            paymentKey,
+            orderId,
+          })
+        }
+      } catch (refundError) {
+        console.error('❌ 자동 환불 오류:', refundError)
+        return res.status(500).json({
+          error: '수강 신청 처리에 실패했습니다. 고객센터에 문의해주세요.',
+          paymentKey,
+          orderId,
+        })
       }
     }
 
@@ -390,14 +455,49 @@ router.post('/refund', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: '수강 신청 정보를 찾을 수 없습니다.' })
     }
 
-    // 2. 결제 정보 확인
-    if (!enrollment.payment) {
-      return res.status(400).json({ error: '결제 정보를 찾을 수 없습니다.' })
+    // 2. 무료 강의 처리 (결제 정보 없음)
+    if (!enrollment.payment || enrollment.course.price === 0) {
+      console.log('무료 강의 수강 취소 처리:', enrollmentId)
+
+      // 수강 신청 상태를 dropped로 변경
+      const { error: updateError } = await supabase
+        .from('enrollments')
+        .update({ status: 'dropped' })
+        .eq('id', enrollmentId)
+
+      if (updateError) {
+        console.error('수강 취소 실패:', updateError)
+        return res.status(500).json({ error: '수강 취소에 실패했습니다.' })
+      }
+
+      // DB 트리거가 enrolled_count를 자동으로 감소시킴
+      console.log('✅ 무료 강의 수강 취소 완료')
+
+      return res.json({
+        success: true,
+        message: '수강 신청이 취소되었습니다.',
+        isFree: true,
+      })
     }
 
     // 3. 이미 환불된 결제인지 확인
     if (enrollment.payment.is_refunded) {
       return res.status(400).json({ error: '이미 환불된 결제입니다.' })
+    }
+
+    // 3-1. 중복 환불 요청 확인 (refunds 테이블 체크)
+    const { data: existingRefund, error: refundCheckError } = await supabase
+      .from('refunds')
+      .select('id')
+      .eq('enrollment_id', enrollmentId)
+      .maybeSingle()
+
+    if (refundCheckError) {
+      console.error('환불 내역 확인 오류:', refundCheckError)
+    }
+
+    if (existingRefund) {
+      return res.status(400).json({ error: '이미 환불 처리된 수강 신청입니다.' })
     }
 
     // 4. 환불율 계산
