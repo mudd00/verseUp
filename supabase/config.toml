@@ -1,0 +1,85 @@
+# Supabase Local Development Configuration
+# https://supabase.com/docs/guides/local-development
+
+# 프로젝트 ID (실제 Supabase 프로젝트 ID로 변경하세요)
+# Supabase Dashboard > Project Settings > General 에서 확인 가능
+project_id = "tkqutgocnykkcsttuqec"
+
+[api]
+enabled = true
+# 로컬 개발 포트
+port = 54321
+# 공개 API 스키마
+schemas = ["public", "graphql_public"]
+# 추가 검색 경로
+extra_search_path = ["public", "extensions"]
+# 최대 행 수
+max_rows = 1000
+
+[db]
+# Postgres 버전 (Supabase가 사용하는 버전)
+major_version = 17
+# 로컬 개발 포트
+port = 54322
+
+[db.pooler]
+enabled = false
+port = 54329
+pool_mode = "transaction"
+default_pool_size = 20
+max_client_conn = 100
+
+[realtime]
+enabled = true
+# IP 버전
+ip_version = "IPv4"
+
+[studio]
+enabled = true
+# Supabase Studio 로컬 포트
+port = 54323
+# Public URL
+api_url = "http://localhost"
+
+[inbucket]
+enabled = true
+# Email testing 포트
+port = 54324
+# SMTP 포트
+smtp_port = 54325
+pop3_port = 54326
+
+[storage]
+enabled = true
+# 스토리지 파일 크기 제한 (바이트)
+file_size_limit = "50MiB"
+
+[auth]
+enabled = true
+# JWT 시크릿 (로컬 개발용)
+# 프로덕션에서는 환경 변수 사용
+jwt_secret = "super-secret-jwt-token-with-at-least-32-characters-long"
+# JWT 만료 시간 (초)
+jwt_expiry = 3600
+# 사이트 URL
+site_url = "http://localhost:5173"
+# 추가 리다이렉트 URL
+additional_redirect_urls = ["http://localhost:3000", "http://localhost:5173"]
+# 이메일 확인 비활성화 (로컬 개발용)
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+
+# External OAuth providers
+# Supabase Dashboard > Authentication > Providers 에서 설정
+[auth.external.google]
+enabled = false
+client_id = ""
+secret = ""
+redirect_uri = "http://localhost:54321/auth/v1/callback"
+
+[edge_runtime]
+enabled = false
