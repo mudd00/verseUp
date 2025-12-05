@@ -49,12 +49,11 @@ function LoadingPlaceholder() {
   )
 }
 
-function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNearChange, onObjectNearChange, onScreenPositionChange }) {
+function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNearChange, onObjectNearChange }) {
   const config = MAP_CONFIG[currentMap] || MAP_CONFIG.main
   const { scene } = useGLTF(config.path)
   const [doorPositions, setDoorPositions] = useState([])
   const [interactiveObjects, setInteractiveObjects] = useState([])
-  const [screenPosition, setScreenPosition] = useState(null)
 
   // 3DCommunity 방식: useMemo로 씬 복제, 그림자 설정, 위치 조정을 모두 처리
   // (useEffect에서 하면 콜라이더와 메시 위치가 불일치함)
@@ -107,20 +106,6 @@ function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNe
               label: '교탁에 서기 (F)',
             })
             console.log(`🎓 교탁 발견:`, child.name, worldPos)
-          }
-          // 스크린 요소 찾기 (칠판)
-          else if (child.name === 'VERDE_GRANDE_StingrayPBS7_0') {
-            const worldPos = new THREE.Vector3()
-            child.getWorldPosition(worldPos)
-            // 스크린 위치를 저장 (나중에 스케일 적용)
-            foundObjects.push({
-              name: child.name,
-              position: [worldPos.x, worldPos.y, worldPos.z],
-              objectId: 'screen',
-              type: 'screen',
-              isScreen: true, // 스크린임을 표시
-            })
-            console.log(`📺 스크린 요소 발견:`, child.name, worldPos)
           }
         }
       }
@@ -180,27 +165,11 @@ function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNe
           앉는위치: obj.sittingPosition,
         })
       })
-
-      // 스크린 위치 추출 및 전달
-      const screenObj = foundObjects.find(obj => obj.isScreen)
-      if (screenObj) {
-        setScreenPosition(screenObj.position)
-        console.log(`📺 스크린 최종 위치:`, screenObj.position)
-      }
-
-      // 스크린 제외하고 상호작용 객체만 저장
-      setInteractiveObjects(foundObjects.filter(obj => !obj.isScreen))
+      setInteractiveObjects(foundObjects)
     }
 
     return cloned
   }, [scene, currentMap])
-
-  // 스크린 위치가 변경되면 콜백 호출
-  useEffect(() => {
-    if (screenPosition && onScreenPositionChange) {
-      onScreenPositionChange(screenPosition)
-    }
-  }, [screenPosition, onScreenPositionChange])
 
   return (
     <>
@@ -293,7 +262,7 @@ function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNe
   )
 }
 
-export default function MapModel({ currentMap, onMapChange, onPortalNearChange, onDoorNearChange, onObjectNearChange, onScreenPositionChange }) {
+export default function MapModel({ currentMap, onMapChange, onPortalNearChange, onDoorNearChange, onObjectNearChange }) {
   return (
     <ErrorBoundary fallback={<DefaultFloor />}>
       <Suspense fallback={<LoadingPlaceholder />}>
@@ -303,7 +272,6 @@ export default function MapModel({ currentMap, onMapChange, onPortalNearChange, 
           onPortalNearChange={onPortalNearChange}
           onDoorNearChange={onDoorNearChange}
           onObjectNearChange={onObjectNearChange}
-          onScreenPositionChange={onScreenPositionChange}
         />
       </Suspense>
     </ErrorBoundary>

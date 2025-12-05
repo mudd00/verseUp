@@ -1,5 +1,6 @@
 const connectedUsers = new Map()
 const rooms = new Map()
+const screenSharing = new Map() // roomId -> { teacherId, teacherSocketId, teacherName }
 
 export function setupSocketHandlers(io) {
   io.on('connection', (socket) => {
@@ -122,6 +123,90 @@ export function setupSocketHandlers(io) {
       })
     })
 
+    // Handle screen sharing start
+    socket.on('screenshare:start', (data) => {
+      const { roomId } = data
+      const user = connectedUsers.get(socket.id)
+
+      if (!user) {
+        socket.emit('error', { message: 'User not authenticated' })
+        return
+      }
+
+      // Store screen sharing info
+      screenSharing.set(roomId, {
+        teacherId: user.id,
+        teacherSocketId: socket.id,
+        teacherName: user.user.name,
+      })
+
+      console.log(`📺 ${user.user.name} started screen sharing in room ${roomId}`)
+
+      // Check room membership
+      const roomSockets = Array.from(rooms.get(roomId) || [])
+      console.log(`📺 Room ${roomId} has ${roomSockets.length} members:`, roomSockets)
+
+      // Notify all users in the room (including sender)
+      const eventData = {
+        teacherId: user.id,
+        teacherSocketId: socket.id,
+        teacherName: user.user.name,
+      }
+      console.log(`📺 Broadcasting screenshare:started to room ${roomId}:`, eventData)
+      io.to(roomId).emit('screenshare:started', eventData)
+
+      console.log(`📺 Broadcast complete`)
+    })
+
+    // Handle screen sharing stop
+    socket.on('screenshare:stop', (data) => {
+      const { roomId } = data
+      const user = connectedUsers.get(socket.id)
+
+      if (!user) {
+        socket.emit('error', { message: 'User not authenticated' })
+        return
+      }
+
+      screenSharing.delete(roomId)
+      console.log(`📺 ${user.user.name} stopped screen sharing in room ${roomId}`)
+
+      // Notify all users in the room
+      io.to(roomId).emit('screenshare:stopped', {
+        teacherId: user.id,
+        teacherSocketId: socket.id,
+      })
+    })
+
+    // Handle screen sharing offer (teacher -> student)
+    socket.on('screenshare:offer', (data) => {
+      const { targetSocketId, offer } = data
+      io.to(targetSocketId).emit('screenshare:offer', {
+        fromSocketId: socket.id,
+        offer,
+      })
+      console.log(`📺 Screen share offer sent from ${socket.id} to ${targetSocketId}`)
+    })
+
+    // Handle screen sharing answer (student -> teacher)
+    socket.on('screenshare:answer', (data) => {
+      const { targetSocketId, answer } = data
+      io.to(targetSocketId).emit('screenshare:answer', {
+        fromSocketId: socket.id,
+        answer,
+      })
+      console.log(`📺 Screen share answer sent from ${socket.id} to ${targetSocketId}`)
+    })
+
+    // Handle screen sharing ICE candidates
+    socket.on('screenshare:ice-candidate', (data) => {
+      const { targetSocketId, candidate } = data
+      io.to(targetSocketId).emit('screenshare:ice-candidate', {
+        fromSocketId: socket.id,
+        candidate,
+      })
+    })
+
     // Handle disconnect
     socket.on('disconnect', () => {
       const user = connectedUsers.get(socket.id)
@@ -132,6 +217,17 @@ export function setupSocketHandlers(io) {
           userId: user.id,
           socketId: socket.id,
         })
+
+        // If user was screen sharing, stop it
+        const sharingInfo = screenSharing.get(user.roomId)
+        if (sharingInfo && sharingInfo.teacherSocketId === socket.id) {
+          screenSharing.delete(user.roomId)
+          socket.to(user.roomId).emit('screenshare:stopped', {
+            teacherId: user.id,
+            teacherSocketId: socket.id,
+          })
+          console.log(`📺 Screen sharing stopped due to disconnect: ${user.user.name}`)
+        }
       }
 
       connectedUsers.delete(socket.id)

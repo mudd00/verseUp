@@ -28,6 +28,13 @@ class SocketService {
       console.error('Socket error:', error)
     })
 
+    // Debug: Log all incoming events
+    this.socket.onAny((eventName, ...args) => {
+      if (eventName.startsWith('screenshare:')) {
+        console.log(`🔔 [SOCKET EVENT] ${eventName}:`, ...args)
+      }
+    })
+
     return this.socket
   }
 
@@ -52,9 +59,15 @@ class SocketService {
     }
   }
 
-  off(event) {
+  off(event, callback) {
     if (this.socket) {
-      this.socket.off(event)
+      if (callback) {
+        // 특정 핸들러만 제거
+        this.socket.off(event, callback)
+      } else {
+        // 모든 핸들러 제거
+        this.socket.off(event)
+      }
     }
   }
 
