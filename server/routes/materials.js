@@ -5,12 +5,47 @@ import { supabase } from '../utils/supabase.js'
 const router = Router()
 
 // Get all materials for a course
+// 수강 중인 학생 또는 강사만 조회 가능
 router.get('/courses/:courseId/materials', authMiddleware, async (req, res) => {
   try {
     const { courseId } = req.params
+    const userId = req.user.id
 
     if (!supabase) {
       return res.status(503).json({ error: 'Database service unavailable' })
+    }
+
+    // Check if user is enrolled or is the instructor (admin can see all)
+    if (req.user.role !== 'admin') {
+      const { data: course, error: courseError } = await supabase
+        .from('courses')
+        .select('instructor_id')
+        .eq('id', courseId)
+        .single()
+
+      if (courseError || !course) {
+        return res.status(404).json({ error: 'Course not found' })
+      }
+
+      // If not the instructor, check enrollment
+      if (course.instructor_id !== userId) {
+        const { data: enrollment, error: enrollmentError } = await supabase
+          .from('enrollments')
+          .select('id')
+          .eq('course_id', courseId)
+          .eq('student_id', userId)
+          .eq('status', 'active')
+          .maybeSingle()
+
+        if (enrollmentError) {
+          console.error('Error checking enrollment:', enrollmentError)
+          return res.status(500).json({ error: 'Failed to verify enrollment' })
+        }
+
+        if (!enrollment) {
+          return res.status(403).json({ error: 'Only enrolled students can view course materials' })
+        }
+      }
     }
 
     // Fetch materials from database

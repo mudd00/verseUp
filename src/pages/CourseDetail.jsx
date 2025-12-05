@@ -6,6 +6,7 @@ import { enrollmentService } from '@/services/enrollmentService.js'
 import { useAuthStore } from '@/stores/authStore.js'
 import { formatSchedule } from '@/utils/scheduleFormatter.js'
 import { ROUTES } from '@/utils/constants.js'
+import { apiService } from '@/services/api.js'
 
 export default function CourseDetail() {
   const { id } = useParams()
@@ -20,6 +21,8 @@ export default function CourseDetail() {
   const [enrollmentId, setEnrollmentId] = useState(null)
   const [refundModalData, setRefundModalData] = useState(null)
   const [isRefunding, setIsRefunding] = useState(false)
+  const [materials, setMaterials] = useState([])
+  const [isLoadingMaterials, setIsLoadingMaterials] = useState(false)
 
   useEffect(() => {
     if (id) {
@@ -28,6 +31,13 @@ export default function CourseDetail() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
+
+  useEffect(() => {
+    if (isEnrolled && id) {
+      loadMaterials()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEnrolled, id])
 
   const loadCourse = async () => {
     if (!id) return
@@ -62,6 +72,27 @@ export default function CourseDetail() {
     } catch (err) {
       console.error('수강 여부 확인 실패:', err)
     }
+  }
+
+  const loadMaterials = async () => {
+    if (!id) return
+
+    try {
+      setIsLoadingMaterials(true)
+      const response = await apiService.get(`/courses/${id}/materials`)
+      setMaterials(response.materials || [])
+    } catch (err) {
+      console.error('자료 조회 실패:', err)
+      toast.error('자료를 불러오는데 실패했습니다.')
+    } finally {
+      setIsLoadingMaterials(false)
+    }
+  }
+
+  const handleDownload = (material) => {
+    // 새 창에서 파일 URL 열기 (다운로드)
+    window.open(material.file_url, '_blank')
+    toast.success(`${material.title} 다운로드를 시작합니다.`)
   }
 
   const handleEnroll = async () => {
@@ -274,6 +305,49 @@ export default function CourseDetail() {
               <p className="text-gray-400">시간표가 설정되지 않았습니다.</p>
             )}
           </div>
+
+          {/* 강의 자료 - 수강 중인 학생만 볼 수 있음 */}
+          {isEnrolled && (
+            <div className="bg-gray-800 p-6 rounded-lg">
+              <h2 className="text-xl font-semibold mb-4">강의 자료</h2>
+              {isLoadingMaterials ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                </div>
+              ) : materials.length > 0 ? (
+                <ul className="space-y-3">
+                  {materials.map((material) => (
+                    <li
+                      key={material.id}
+                      className="flex items-start justify-between gap-4 p-4 bg-gray-700 rounded-lg hover:bg-gray-650 transition-colors"
+                    >
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-white mb-1">{material.title}</h3>
+                        {material.description && (
+                          <p className="text-sm text-gray-400 mb-2">{material.description}</p>
+                        )}
+                        <div className="flex items-center gap-3 text-xs text-gray-500">
+                          <span>{material.file_type?.toUpperCase()}</span>
+                          {material.file_size && (
+                            <span>{(material.file_size / 1024 / 1024).toFixed(2)} MB</span>
+                          )}
+                          <span>{new Date(material.created_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDownload(material)}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap"
+                      >
+                        다운로드
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-gray-400">등록된 자료가 없습니다.</p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 사이드바 - 수강 신청 정보 */}
