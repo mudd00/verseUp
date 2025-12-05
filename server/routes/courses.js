@@ -168,10 +168,51 @@ router.post('/:id/enroll', authMiddleware, async (req, res) => {
 // Drop course (requires auth)
 router.post('/:id/drop', authMiddleware, async (req, res) => {
   try {
-    const { id } = req.params
+    const courseId = req.params.id
+    const userId = req.user.id
 
-    // TODO: Implement actual drop logic
-    res.json({ message: 'Dropped successfully', courseId: id })
+    if (!supabase) {
+      return res.status(503).json({ error: 'Database service unavailable' })
+    }
+
+    // 1. 현재 수강 중인지 확인
+    const { data: enrollment, error: checkError } = await supabase
+      .from('enrollments')
+      .select('id, status')
+      .eq('course_id', courseId)
+      .eq('student_id', userId)
+      .eq('status', 'active')
+      .maybeSingle()
+
+    if (checkError) {
+      console.error('수강 신청 확인 실패:', checkError)
+      return res.status(500).json({ error: '수강 취소 확인에 실패했습니다.' })
+    }
+
+    if (!enrollment) {
+      return res.status(400).json({ error: '수강 중인 강의가 아닙니다.' })
+    }
+
+    // 2. 수강 취소 (status를 dropped로 변경)
+    const { data: updated, error: updateError } = await supabase
+      .from('enrollments')
+      .update({
+        status: 'dropped',
+      })
+      .eq('id', enrollment.id)
+      .select()
+      .single()
+
+    if (updateError) {
+      console.error('수강 취소 실패:', updateError)
+      return res.status(500).json({ error: '수강 취소에 실패했습니다.' })
+    }
+
+    res.json({
+      message: '수강 취소가 완료되었습니다.',
+      enrollment: updated,
+      courseId,
+    })
   } catch (error) {
     console.error('Error dropping course:', error)
     res.status(500).json({ error: 'Failed to drop course' })
