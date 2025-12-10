@@ -56,6 +56,9 @@ class SocketService {
   on(event, callback) {
     if (this.socket) {
       this.socket.on(event, callback)
+      if (event.startsWith('screenshare:')) {
+        console.log(`📌 [SOCKET] Handler registered for: ${event}`)
+      }
     }
   }
 
@@ -64,9 +67,15 @@ class SocketService {
       if (callback) {
         // 특정 핸들러만 제거
         this.socket.off(event, callback)
+        if (event.startsWith('screenshare:')) {
+          console.log(`📌 [SOCKET] Handler removed for: ${event} (specific)`)
+        }
       } else {
         // 모든 핸들러 제거
         this.socket.off(event)
+        if (event.startsWith('screenshare:')) {
+          console.log(`📌 [SOCKET] All handlers removed for: ${event}`)
+        }
       }
     }
   }

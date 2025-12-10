@@ -109,8 +109,9 @@ const Player = forwardRef(({ currentMap = 'main', cameraAngle = 0, onPositionCha
         console.log('🚶 일어서기 - 의자 옆으로 이동')
       },
       isSitting: () => isSitting,
+      isMoving: () => isMoving,
     })
-  }, [isSitting])
+  }, [isSitting, isMoving])
 
   // 외부 bodyRef에도 연결
   useEffect(() => {

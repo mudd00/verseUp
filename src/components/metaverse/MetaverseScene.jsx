@@ -4,10 +4,12 @@ import { Physics } from '@react-three/rapier'
 import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import MapModel from './MapModel.jsx'
 import Player from './Player.jsx'
+import OtherPlayer from './OtherPlayer.jsx'
 import ThirdPersonCamera from './ThirdPersonCamera.jsx'
 import ScreenShareOverlay from './ScreenShareOverlay.jsx'
 import { useScreenShare } from '../../hooks/useScreenShare'
 import { useScreenReceive } from '../../hooks/useScreenReceive'
+import { useVoiceChat } from '../../hooks/useVoiceChat'
 import { useAuthStore } from '../../stores/authStore'
 import { socketService } from '../../services/socket'
 import * as THREE from 'three'
@@ -28,6 +30,9 @@ export default function MetaverseScene({ onReady }) {
   const [roomId] = useState('metaverse-classroom-1') // 임시 방 ID
   const [students, setStudents] = useState([]) // 방의 학생 목록
   const [isViewingScreen, setIsViewingScreen] = useState(false) // 학생이 화면을 보고 있는지
+  const [otherPlayers, setOtherPlayers] = useState(new Map()) // 다른 플레이어들 (socketId -> player data)
+  const lastPositionSentRef = useRef({ x: 0, y: 0, z: 0 })
+  const positionSendIntervalRef = useRef(null)
 
   // 사용자 역할 확인 (테스트용 URL 파라미터 지원)
   const urlParams = new URLSearchParams(window.location.search)
@@ -53,6 +58,31 @@ export default function MetaverseScene({ onReady }) {
   const screenShare = useScreenShare(roomId, students, isInstructor)
   const screenReceive = useScreenReceive(roomId, !isInstructor)
 
+  // 음성 채팅 훅 (교실에 있을 때만 활성화, students 사용)
+  const voiceChat = useVoiceChat(roomId, students, currentMap === 'school')
+
+  // 디버깅: voiceChat 상태 모니터링
+  useEffect(() => {
+    console.log('🎤 [VoiceChat Debug]', {
+      isMicOn: voiceChat.isMicOn,
+      connections: voiceChat.connections.size,
+      students: students.length,
+      studentNames: students.map(s => s.user?.name),
+      isInstructor,
+      currentMap,
+    })
+  }, [voiceChat.isMicOn, voiceChat.connections.size, students.length, isInstructor, currentMap])
+
+  // 디버깅: screenReceive 값 변경 모니터링
+  useEffect(() => {
+    console.log('[MetaverseScene] screenReceive updated:', {
+      hasTeacherInfo: !!screenReceive?.teacherInfo,
+      teacherInfo: screenReceive?.teacherInfo,
+      hasTeacherStream: !!screenReceive?.teacherStream,
+      isReceiving: screenReceive?.isReceiving
+    })
+  }, [screenReceive?.teacherInfo, screenReceive?.teacherStream, screenReceive?.isReceiving])
+
   // 강사가 화면 공유를 중지하면 학생의 뷰 상태 리셋
   useEffect(() => {
     if (!isInstructor && !screenReceive?.teacherInfo) {
@@ -62,7 +92,29 @@ export default function MetaverseScene({ onReady }) {
 
   const handlePositionChange = useCallback((position) => {
     setPlayerPosition(position)
-  }, [])
+
+    // 위치가 일정 거리 이상 변했을 때만 전송 (최적화)
+    const distance = Math.sqrt(
+      Math.pow(position.x - lastPositionSentRef.current.x, 2) +
+      Math.pow(position.y - lastPositionSentRef.current.y, 2) +
+      Math.pow(position.z - lastPositionSentRef.current.z, 2)
+    )
+
+    if (distance > 0.1 && currentMap === 'school' && effectiveUser) {
+      lastPositionSentRef.current = position
+
+      const body = playerBodyRef.current
+      const rotation = body ? body.rotation() : { y: 0 }
+      const rotationY = Math.atan2(2 * (rotation.w * rotation.y + rotation.x * rotation.z), 1 - 2 * (rotation.y * rotation.y + rotation.z * rotation.z))
+
+      socketService.emit('player:move', {
+        roomId,
+        position: [position.x, position.y, position.z],
+        rotation: rotationY,
+        animation: playerRef.current?.isMoving?.() ? 'walk' : 'idle',
+      })
+    }
+  }, [currentMap, effectiveUser, roomId])
 
   const handleCameraRotate = useCallback((angle) => {
     setCameraAngle(angle)
@@ -77,49 +129,120 @@ export default function MetaverseScene({ onReady }) {
 
   // Socket 연결 초기화
   useEffect(() => {
-    // 토큰이 없어도 연결 시도 (테스트 모드용)
-    socketService.connect(null)
-    console.log('🔌 Initializing socket connection...')
+    console.log('🔌 [MetaverseScene] Initializing socket connection...')
+    const socket = socketService.connect(null)
+    console.log('🔌 [MetaverseScene] Socket instance:', socket)
+    console.log('🔌 [MetaverseScene] Socket connected:', socket?.connected)
+
+    // 연결 상태 확인
+    const checkConnection = setInterval(() => {
+      const currentSocket = socketService.getSocket()
+      if (currentSocket?.connected) {
+        console.log('✅ [MetaverseScene] Socket is now connected:', currentSocket.id)
+        clearInterval(checkConnection)
+      } else {
+        console.warn('⏳ [MetaverseScene] Socket still not connected, retrying...')
+      }
+    }, 1000)
+
+    // 5초 후 타임아웃
+    setTimeout(() => {
+      clearInterval(checkConnection)
+      const currentSocket = socketService.getSocket()
+      if (!currentSocket?.connected) {
+        console.error('❌ [MetaverseScene] Socket connection timeout')
+      }
+    }, 5000)
 
     return () => {
+      clearInterval(checkConnection)
       // 컴포넌트 언마운트 시 연결 해제는 하지 않음 (다른 곳에서도 사용 가능)
     }
   }, [])
 
+  // 다른 플레이어 위치 업데이트 수신
+  useEffect(() => {
+    if (currentMap !== 'school') return
+
+    const handlePlayerMoved = ({ socketId, userId, user, position, rotation, animation }) => {
+      setOtherPlayers(prev => {
+        const newMap = new Map(prev)
+        newMap.set(socketId, { socketId, userId, user, position, rotation, animation })
+        return newMap
+      })
+    }
+
+    socketService.on('player:moved', handlePlayerMoved)
+    console.log('👥 [Multiplayer] Listening for player:moved events')
+
+    return () => {
+      socketService.off('player:moved', handlePlayerMoved)
+      console.log('👥 [Multiplayer] Stopped listening for player:moved')
+    }
+  }, [currentMap])
+
   // Socket.IO 방 참가 및 사용자 목록 관리
   useEffect(() => {
+    console.log('🔍 [Room Join Effect] Checking conditions:', {
+      hasEffectiveUser: !!effectiveUser,
+      effectiveUser,
+      currentMap,
+      isSchoolMap: currentMap === 'school',
+      roomId,
+      socketConnected: socketService.getSocket()?.connected
+    })
+
     if (effectiveUser && currentMap === 'school') {
-      console.log('🚪 Joining room:', roomId, 'as', effectiveUser.name)
+      const socket = socketService.getSocket()
+      if (!socket?.connected) {
+        console.error('❌ [Room Join] Socket not connected, cannot join room')
+        return
+      }
+
+      console.log('🚪 [Room Join] Joining room:', roomId, 'as', effectiveUser.name)
 
       // 사용자 정보와 함께 소켓 연결
       socketService.emit('user:join', { user: effectiveUser })
+      console.log('📤 [Room Join] Emitted user:join')
 
       // 방 참가
       socketService.emit('room:join', { roomId })
+      console.log('📤 [Room Join] Emitted room:join')
 
       // 방 사용자 목록 수신
       const handleRoomUsers = ({ users }) => {
+        console.log('📚 [Room Join] Received room:users event:', users)
         setStudents(users.filter(u => u.user?.id !== effectiveUser.id)) // 본인 제외
-        console.log('📚 Room users:', users.length, 'total -', users.map(u => u.user?.name))
+        console.log('📚 [Room Join] Room users:', users.length, 'total -', users.map(u => u.user?.name))
+        console.log('📚 [Room Join] Students (excluding me):', users.filter(u => u.user?.id !== effectiveUser.id).map(u => u.user?.name))
       }
 
       // 새 사용자 입장
       const handleUserJoined = ({ user: newUser, socketId }) => {
+        console.log('👋 [Room Join] Received room:user-joined:', newUser.name, socketId)
         if (newUser.id !== effectiveUser.id) {
           setStudents(prev => [...prev, { user: newUser, socketId }])
-          console.log('👋 User joined:', newUser.name)
+          console.log('👋 [Room Join] User added to students:', newUser.name)
         }
       }
 
       // 사용자 퇴장
       const handleUserLeft = ({ socketId }) => {
+        console.log('👋 [Room Join] Received room:user-left:', socketId)
         setStudents(prev => prev.filter(s => s.socketId !== socketId))
-        console.log('👋 User left:', socketId)
+        setOtherPlayers(prev => {
+          const newMap = new Map(prev)
+          newMap.delete(socketId)
+          return newMap
+        })
+        console.log('👋 [Room Join] User removed from students and otherPlayers')
       }
 
+      console.log('📌 [Room Join] Registering room event handlers')
       socketService.on('room:users', handleRoomUsers)
       socketService.on('room:user-joined', handleUserJoined)
       socketService.on('room:user-left', handleUserLeft)
+      console.log('✅ [Room Join] Room event handlers registered')
 
       return () => {
         socketService.off('room:users', handleRoomUsers)
@@ -296,20 +419,125 @@ export default function MetaverseScene({ onReady }) {
             cameraAngle={cameraAngle}
             onPositionChange={handlePositionChange}
           />
+          {/* 다른 플레이어들 렌더링 */}
+          {Array.from(otherPlayers.values()).map((player) => (
+            <OtherPlayer
+              key={player.socketId}
+              socketId={player.socketId}
+              user={player.user}
+              position={player.position}
+              rotation={player.rotation}
+              animation={player.animation}
+            />
+          ))}
         </Physics>
 
         <ThirdPersonCamera target={playerRef} onCameraRotate={handleCameraRotate} />
       </Canvas>
 
-      {/* 학생용: 공유 화면 보기 버튼 */}
-      {!isInstructor && screenReceive?.teacherInfo && !isViewingScreen && (
+      {/* 마이크 버튼 (항상 표시, 학교 맵에서만 사용 가능) */}
+      <button
+        onClick={() => {
+          // 학교 맵이 아닐 때
+          if (currentMap !== 'school') {
+            alert('학교 맵에서만 음성 채팅을 사용할 수 있습니다.')
+            return
+          }
+
+          // 마이크 토글
+          if (voiceChat.isMicOn) {
+            voiceChat.turnOffMic()
+          } else {
+            voiceChat.turnOnMic()
+          }
+        }}
+        style={{
+          position: 'absolute',
+          top: '20px',
+          left: '20px',
+          background: voiceChat.isMicOn ? '#ef4444' : currentMap !== 'school' ? '#4b5563' : '#6b7280',
+          color: '#fff',
+          padding: '12px 24px',
+          borderRadius: '8px',
+          border: 'none',
+          fontSize: '16px',
+          fontWeight: 'bold',
+          cursor: 'pointer',
+          zIndex: 9999,
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
+          transition: 'all 0.2s',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          opacity: currentMap !== 'school' ? 0.5 : 1,
+        }}
+        onMouseEnter={(e) => {
+          e.target.style.transform = 'scale(1.05)'
+        }}
+        onMouseLeave={(e) => {
+          e.target.style.transform = 'scale(1)'
+        }}
+      >
+        <div style={{
+          width: '8px',
+          height: '8px',
+          background: voiceChat.isMicOn ? '#22c55e' : '#9ca3af',
+          borderRadius: '50%',
+          animation: voiceChat.isMicOn ? 'pulse 2s infinite' : 'none',
+        }}></div>
+        {voiceChat.isMicOn ? '🎤 마이크 끄기' : '🎤 마이크 켜기'}
+        {voiceChat.isMicOn && voiceChat.connections.size > 0 && (
+          <span style={{
+            background: 'rgba(0, 0, 0, 0.3)',
+            padding: '2px 8px',
+            borderRadius: '12px',
+            fontSize: '12px',
+          }}>
+            {voiceChat.connections.size}명 연결됨
+          </span>
+        )}
+      </button>
+
+      {/* 음성 채팅 에러 표시 */}
+      {voiceChat.error && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '80px',
+            left: '20px',
+            background: '#ef4444',
+            color: '#fff',
+            padding: '12px 20px',
+            borderRadius: '8px',
+            zIndex: 9999,
+            maxWidth: '300px',
+            fontSize: '14px',
+          }}
+        >
+          {voiceChat.error}
+        </div>
+      )}
+
+      {/* 학생용: 공유 화면 보기 버튼 (의자에 앉았을 때만 표시) */}
+      {!isInstructor && isSitting && !isViewingScreen && (
         <button
-          onClick={() => setIsViewingScreen(true)}
+          onClick={() => {
+            console.log('[DEBUG] 버튼 클릭:', {
+              hasTeacherInfo: !!screenReceive?.teacherInfo,
+              teacherInfo: screenReceive?.teacherInfo,
+              hasStream: !!screenReceive?.teacherStream
+            })
+            if (screenReceive?.teacherInfo) {
+              setIsViewingScreen(true)
+            } else {
+              alert('강사가 아직 화면 공유를 시작하지 않았습니다.')
+            }
+          }}
           style={{
             position: 'absolute',
             top: '20px',
             right: '20px',
-            background: '#10b981',
+            background: screenReceive?.teacherInfo ? '#10b981' : '#6b7280',
             color: '#fff',
             padding: '12px 24px',
             borderRadius: '8px',
@@ -334,11 +562,12 @@ export default function MetaverseScene({ onReady }) {
           <div style={{
             width: '8px',
             height: '8px',
-            background: '#ef4444',
+            background: screenReceive?.teacherInfo ? '#ef4444' : '#9ca3af',
             borderRadius: '50%',
-            animation: 'pulse 2s infinite',
+            animation: screenReceive?.teacherInfo ? 'pulse 2s infinite' : 'none',
           }}></div>
-          📺 {screenReceive.teacherInfo?.teacherName || '강사'}님의 화면 보기
+          📺 {screenReceive?.teacherInfo?.teacherName || '강사'}님의 화면 보기
+          {!screenReceive?.teacherInfo && ' (대기 중...)'}
         </button>
       )}
 
@@ -405,6 +634,14 @@ export default function MetaverseScene({ onReady }) {
                   Stream Received: {screenReceive?.teacherStream ? '✅' : '❌'}
                 </div>
               </>
+            )}
+            <div style={{ color: voiceChat.isMicOn ? '#10b981' : '#ef4444' }}>
+              Mic: {voiceChat.isMicOn ? '✅' : '❌'}
+            </div>
+            {voiceChat.isMicOn && (
+              <div style={{ color: '#a78bfa', fontSize: '11px' }}>
+                Voice Connections: {voiceChat.connections.size}
+              </div>
             )}
           </div>
         </div>

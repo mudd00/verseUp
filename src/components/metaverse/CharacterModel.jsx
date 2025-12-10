@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useMemo } from 'react'
 import { useGLTF, useAnimations } from '@react-three/drei'
+import { SkeletonUtils } from 'three-stdlib'
 import * as THREE from 'three'
 
 const IDLE = 'Idle'
@@ -10,16 +11,24 @@ const SITDOWN = 'SitDown'
 export default function CharacterModel({ isMoving = false, isSitting = false }) {
   const group = useRef(null)
   const { scene, animations } = useGLTF('/models/BaseCharacter.gltf')
+
+  // IMPORTANT: Clone the scene for each instance to avoid conflicts
+  const clonedScene = useMemo(() => {
+    const cloned = SkeletonUtils.clone(scene)
+    console.log('🎭 CharacterModel cloned')
+    return cloned
+  }, [scene])
+
   const { actions } = useAnimations(animations, group)
 
   useEffect(() => {
-    scene.traverse((child) => {
+    clonedScene.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         child.castShadow = true
         child.receiveShadow = true
       }
     })
-  }, [scene])
+  }, [clonedScene])
 
   useEffect(() => {
     // 사용 가능한 모든 애니메이션 출력
@@ -65,7 +74,7 @@ export default function CharacterModel({ isMoving = false, isSitting = false }) 
 
   return (
     <group ref={group} scale={0.8}>
-      <primitive object={scene} />
+      <primitive object={clonedScene} />
     </group>
   )
 }

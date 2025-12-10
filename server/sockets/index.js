@@ -207,6 +207,58 @@ export function setupSocketHandlers(io) {
       })
     })
 
+    // Handle player position updates
+    socket.on('player:move', (data) => {
+      const { roomId, position, rotation, animation } = data
+      const user = connectedUsers.get(socket.id)
+
+      if (!user || user.roomId !== roomId) {
+        return
+      }
+
+      // Update user position
+      user.position = position
+      user.rotation = rotation
+      user.animation = animation
+
+      // Broadcast to other users in the room
+      socket.to(roomId).emit('player:moved', {
+        socketId: socket.id,
+        userId: user.id,
+        user: user.user,
+        position,
+        rotation,
+        animation,
+      })
+    })
+
+    // Handle voice chat signaling
+    socket.on('voice:offer', (data) => {
+      const { targetSocketId, offer } = data
+      io.to(targetSocketId).emit('voice:offer', {
+        fromSocketId: socket.id,
+        offer,
+      })
+      console.log(`🎤 Voice offer sent from ${socket.id} to ${targetSocketId}`)
+    })
+
+    socket.on('voice:answer', (data) => {
+      const { targetSocketId, answer } = data
+      io.to(targetSocketId).emit('voice:answer', {
+        fromSocketId: socket.id,
+        answer,
+      })
+      console.log(`🎤 Voice answer sent from ${socket.id} to ${targetSocketId}`)
+    })
+
+    socket.on('voice:ice-candidate', (data) => {
+      const { targetSocketId, candidate } = data
+      io.to(targetSocketId).emit('voice:ice-candidate', {
+        fromSocketId: socket.id,
+        candidate,
+      })
+    })
+
     // Handle disconnect
     socket.on('disconnect', () => {
       const user = connectedUsers.get(socket.id)
