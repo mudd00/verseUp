@@ -63,26 +63,33 @@ export function useScreenReceive(roomId, enabled = true) {
     setIsReceiving(false)
   }, [])
 
+  // 화면 공유 시작 알림 핸들러 (useCallback으로 안정적인 참조 유지)
+  const handleScreenShareStarted = useCallback((data) => {
+    console.log(`📺 🎉 [useScreenReceive] RECEIVED screenshare:started`, data)
+    const { teacherId, teacherSocketId, teacherName } = data
+    setTeacherInfo({ teacherId, teacherSocketId, teacherName })
+    console.log('📺 [useScreenReceive] teacherInfo set to:', { teacherId, teacherSocketId, teacherName })
+  }, [])
+
   // 화면 공유 시작 알림 수신
   useEffect(() => {
     if (!enabled) {
-      console.log('⚠️ useScreenReceive disabled, not listening for screenshare:started')
+      console.log('⚠️ [useScreenReceive] disabled, not listening for screenshare:started')
       return
     }
 
-    console.log('👂 Listening for screenshare:started events...')
-
-    const handleScreenShareStarted = ({ teacherId, teacherSocketId, teacherName }) => {
-      console.log(`📺 🎉 RECEIVED screenshare:started from ${teacherName}`, { teacherId, teacherSocketId })
-      setTeacherInfo({ teacherId, teacherSocketId, teacherName })
-    }
+    console.log('👂 [useScreenReceive] Effect running - Listening for screenshare:started events...')
+    console.log('👂 [useScreenReceive] enabled:', enabled, 'roomId:', roomId)
 
     socketService.on('screenshare:started', handleScreenShareStarted)
+    console.log('✅ [useScreenReceive] Handler registered for screenshare:started')
+
     return () => {
-      console.log('🔇 Stopped listening for screenshare:started')
+      console.log('🧹 [useScreenReceive] Cleanup: Removing handler for screenshare:started')
       socketService.off('screenshare:started', handleScreenShareStarted)
+      console.log('✅ [useScreenReceive] Handler removed')
     }
-  }, [enabled])
+  }, [enabled, handleScreenShareStarted])
 
   // 화면 공유 중지 알림 수신
   useEffect(() => {
