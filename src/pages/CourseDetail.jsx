@@ -283,9 +283,84 @@ export default function CourseDetail() {
             <p className="text-gray-300 whitespace-pre-wrap">{course.description}</p>
           </div>
 
+          {/* 강의실 및 시간표 정보 */}
           <div className="bg-gray-800 p-6 rounded-lg">
-            <h2 className="text-xl font-semibold mb-4">강의 시간표</h2>
-            {course.schedule && course.schedule.length > 0 ? (
+            <h2 className="text-xl font-semibold mb-4">강의실 및 시간표</h2>
+
+            {course.classroom || course.timeSlot ? (
+              <div className="space-y-4">
+                {/* 강의실 정보 */}
+                {course.classroom && (
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-20 text-sm text-gray-400">강의실</div>
+                    <div className="flex-1">
+                      <p className="text-gray-300 font-semibold">{course.classroom.name}</p>
+                      {course.classroom.description && (
+                        <p className="text-sm text-gray-400 mt-1">{course.classroom.description}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 수업 시간 */}
+                {course.timeSlot && (
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-20 text-sm text-gray-400">수업 시간</div>
+                    <div className="flex-1">
+                      <div className="inline-flex items-center gap-2 bg-gray-700 px-4 py-2 rounded-lg">
+                        <span className="text-blue-400 font-semibold">
+                          {['일', '월', '화', '수', '목', '금', '토'][course.timeSlot.day_of_week]}요일
+                        </span>
+                        <span className="text-gray-400">|</span>
+                        <span className="text-gray-300">
+                          {course.timeSlot.start_time?.substring(0, 5)} ~ {course.timeSlot.end_time?.substring(0, 5)}
+                        </span>
+                      </div>
+                      {course.weeks && (
+                        <p className="text-sm text-gray-400 mt-2">
+                          총 {course.weeks}주 과정 (매주 같은 시간 진행)
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 전체 스케줄 정보 */}
+                {course.schedules && course.schedules.length > 0 && (
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-20 text-sm text-gray-400">스케줄</div>
+                    <div className="flex-1">
+                      <div className="bg-gray-700/50 rounded-lg p-4 max-h-48 overflow-y-auto">
+                        <ul className="space-y-2">
+                          {course.schedules
+                            .sort((a, b) => a.week_number - b.week_number)
+                            .map((schedule) => (
+                              <li key={schedule.id} className="flex items-center gap-3 text-sm">
+                                <span className="text-gray-400 w-12">
+                                  {schedule.week_number}주차
+                                </span>
+                                <span className="text-gray-300">
+                                  {new Date(schedule.session_date).toLocaleDateString('ko-KR', {
+                                    month: 'long',
+                                    day: 'numeric',
+                                  })}
+                                </span>
+                                <span className="text-gray-400 text-xs">
+                                  ({schedule.start_time?.substring(0, 5)} ~ {schedule.end_time?.substring(0, 5)})
+                                </span>
+                                {schedule.status === 'completed' && (
+                                  <span className="text-green-400 text-xs">✓ 완료</span>
+                                )}
+                              </li>
+                            ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : course.schedule && course.schedule.length > 0 ? (
+              // 구 시스템 호환성 (기존 schedule 필드)
               <ul className="space-y-2">
                 {course.schedule.map((schedule, index) => {
                   const dayNames = ['일', '월', '화', '수', '목', '금', '토']
@@ -370,7 +445,14 @@ export default function CourseDetail() {
 
               <div>
                 <p className="text-sm text-gray-400">강의 시간</p>
-                <p className="text-gray-300">{formatSchedule(course.schedule)}</p>
+                {course.timeSlot ? (
+                  <p className="text-gray-300">
+                    {['일', '월', '화', '수', '목', '금', '토'][course.timeSlot.day_of_week]}요일{' '}
+                    {course.timeSlot.start_time?.substring(0, 5)} ~ {course.timeSlot.end_time?.substring(0, 5)}
+                  </p>
+                ) : (
+                  <p className="text-gray-300">{formatSchedule(course.schedule)}</p>
+                )}
               </div>
 
               <div>

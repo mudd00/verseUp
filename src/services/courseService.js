@@ -52,7 +52,9 @@ class CourseService {
       .select(
         `
         *,
-        instructor:profiles!instructor_id(id, name, email, avatar_url)
+        instructor:profiles!instructor_id(id, name, email, avatar_url),
+        classroom:classrooms(id, name, description, capacity),
+        time_slot:time_slots(id, day_of_week, start_time, end_time, slot_order)
       `
       )
       .eq('status', 'published')
@@ -82,7 +84,9 @@ class CourseService {
       .select(
         `
         *,
-        instructor:profiles!instructor_id(id, name, email, avatar_url)
+        instructor:profiles!instructor_id(id, name, email, avatar_url),
+        classroom:classrooms(id, name, description, capacity),
+        time_slot:time_slots(id, day_of_week, start_time, end_time, slot_order)
       `
       )
       .eq('instructor_id', currentUser.id)
@@ -105,7 +109,10 @@ class CourseService {
       .select(
         `
         *,
-        instructor:profiles!instructor_id(id, name, email, avatar_url)
+        instructor:profiles!instructor_id(id, name, email, avatar_url),
+        classroom:classrooms(id, name, description, capacity),
+        time_slot:time_slots(id, day_of_week, start_time, end_time, slot_order),
+        schedules:course_schedules(id, week_number, session_date, start_time, end_time, status)
       `
       )
       .eq('id', id)
@@ -336,6 +343,10 @@ class CourseService {
       startDate: data.start_date,
       endDate: data.end_date,
       schedule: data.schedule || [],
+      classroom: data.classroom,
+      timeSlot: data.time_slot,
+      schedules: data.schedules,
+      weeks: data.weeks,
       category: data.category,
       level: data.level,
       status: data.status,

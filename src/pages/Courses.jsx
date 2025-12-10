@@ -129,7 +129,20 @@ export default function Courses() {
 
               <div className="text-sm text-gray-500 mb-4 space-y-1">
                 <p>기간: {formatDate(course.startDate)} ~ {formatDate(course.endDate)}</p>
-                <p>시간: {formatSchedule(course.schedule)}</p>
+                {course.classroom && (
+                  <p className="flex items-center gap-1">
+                    <span>강의실:</span>
+                    <span className="text-blue-400">{course.classroom.name}</span>
+                  </p>
+                )}
+                {course.timeSlot ? (
+                  <p>
+                    시간: {['일', '월', '화', '수', '목', '금', '토'][course.timeSlot.day_of_week]}요일{' '}
+                    {course.timeSlot.start_time?.substring(0, 5)} ~ {course.timeSlot.end_time?.substring(0, 5)}
+                  </p>
+                ) : (
+                  <p>시간: {formatSchedule(course.schedule)}</p>
+                )}
                 <p>
                   수강 인원: {course.enrolledCount} / {course.maxStudents}명
                 </p>
