@@ -22,7 +22,7 @@ export default function EditCourse() {
     courseCode: '',
     category: 'general',
     level: 'beginner',
-    maxStudents: 30,
+    maxStudents: 20,
     startDate: '',
     endDate: '',
     schedule: [],

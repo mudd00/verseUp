@@ -1,12 +1,12 @@
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { apiService } from './api'
 
 class CourseService {
   /**
-   * 새 강의 생성 (강사용)
+   * 새 강의 생성 (강의실 시간표 시스템 사용)
    */
   async createCourse(data) {
-    // zustand store에서 인증된 사용자 정보 가져오기 (이미 role이 추론됨)
     const currentUser = useAuthStore.getState().user
 
     if (!currentUser) {
@@ -18,82 +18,29 @@ class CourseService {
       throw new Error('강사 권한이 필요합니다.')
     }
 
-    // course_code 처리
-    let courseCode = data.courseCode
-
-    if (courseCode) {
-      // 사용자가 입력한 경우 중복 검사
-      const { data: existing, error: checkError } = await supabase
-        .from('courses')
-        .select('id')
-        .eq('course_code', courseCode)
-        .maybeSingle()
-
-      if (checkError) {
-        console.error('수강번호 중복 검사 실패:', checkError)
-        throw new Error('수강번호 확인에 실패했습니다.')
-      }
-
-      if (existing) {
-        throw new Error('이미 사용 중인 수강번호입니다. 다른 번호를 입력해주세요.')
-      }
-    } else {
-      // 비워두면 자동 생성 (형식: COURSE-YYYYMMDD-랜덤4자리)
-      const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-      const random = Math.random().toString(36).substring(2, 6).toUpperCase()
-      courseCode = `COURSE-${date}-${random}`
-
-      // 생성된 코드 중복 확인 (만약을 위해)
-      const { data: existingGenerated } = await supabase
-        .from('courses')
-        .select('id')
-        .eq('course_code', courseCode)
-        .maybeSingle()
-
-      // 중복이면 재시도
-      if (existingGenerated) {
-        const random2 = Math.random().toString(36).substring(2, 6).toUpperCase()
-        courseCode = `COURSE-${date}-${random2}`
-      }
-    }
-
-    const { data: course, error } = await supabase
-      .from('courses')
-      .insert({
+    try {
+      const response = await apiService.post('/courses', {
         title: data.title,
         description: data.description,
-        course_code: courseCode,
-        category: data.category || 'general',
-        level: data.level || 'beginner',
-        instructor_id: currentUser.id,
-        max_students: data.maxStudents,
-        start_date: data.startDate,
-        end_date: data.endDate,
-        schedule: data.schedule || [],
-        thumbnail: data.thumbnail,
+        classroomId: data.classroomId,
+        timeSlotId: data.timeSlotId,
+        weeks: data.weeks,
+        maxStudents: data.maxStudents || 20,
+        startDate: data.startDate,
+        thumbnail: data.thumbnail || '',
         price: data.price || 0,
-        status: 'draft',
       })
-      .select(
-        `
-        *,
-        instructor:profiles!instructor_id(id, name, email, avatar_url)
-      `
-      )
-      .single()
 
-    if (error) {
+      return this.mapCourseFromAPI(response.course)
+    } catch (error) {
       console.error('강의 생성 실패:', error)
 
-      // 중복 키 오류 처리
-      if (error.code === '23505') {
-        throw new Error('수강번호가 중복되었습니다. 다시 시도해주세요.')
+      if (error.message.includes('409')) {
+        throw new Error('선택한 시간대에 이미 다른 강의가 있습니다.')
       }
 
       throw new Error('강의 생성에 실패했습니다.')
     }
-
-    return this.mapCourseFromDB(course)
   }
 
   /**
@@ -391,6 +338,42 @@ class CourseService {
       schedule: data.schedule || [],
       category: data.category,
       level: data.level,
+      status: data.status,
+      price: data.price,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    }
+  }
+
+  /**
+   * API 응답 데이터를 Course 타입으로 변환
+   */
+  mapCourseFromAPI(data) {
+    return {
+      id: data.id,
+      courseCode: data.course_code,
+      title: data.title,
+      description: data.description,
+      instructorId: data.instructor_id,
+      instructor: data.instructor
+        ? {
+            id: data.instructor.id,
+            name: data.instructor.name,
+            email: data.instructor.email,
+            avatarUrl: data.instructor.avatar_url,
+            role: 'instructor',
+            createdAt: '',
+            updatedAt: '',
+          }
+        : undefined,
+      thumbnail: data.thumbnail,
+      maxStudents: data.max_students,
+      enrolledCount: data.enrolled_count || 0,
+      startDate: data.start_date,
+      endDate: data.end_date,
+      classroom: data.classroom,
+      timeSlot: data.time_slot,
+      weeks: data.weeks,
       status: data.status,
       price: data.price,
       createdAt: data.created_at,

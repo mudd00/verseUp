@@ -7,23 +7,29 @@ const router = Router()
 // Get all courses
 router.get('/', async (req, res) => {
   try {
-    // TODO: Implement actual database query
-    const mockCourses = [
-      {
-        id: '1',
-        title: 'React 기초',
-        description: 'React를 처음부터 배우는 강의',
-        instructorId: '1',
-        thumbnail: '',
-        maxStudents: 30,
-        enrolledCount: 15,
-        startDate: new Date().toISOString(),
-        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        createdAt: new Date().toISOString(),
-      },
-    ]
+    if (!supabase) {
+      return res.status(503).json({ error: 'Database service unavailable' })
+    }
 
-    res.json({ courses: mockCourses })
+    const { data: courses, error } = await supabase
+      .from('courses')
+      .select(
+        `
+        *,
+        instructor:profiles!courses_instructor_id_fkey(id, name, email),
+        classroom:classrooms(id, name, description, capacity),
+        time_slot:time_slots(id, day_of_week, start_time, end_time, slot_order)
+      `
+      )
+      .eq('status', 'published')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching courses:', error)
+      return res.status(500).json({ error: 'Failed to fetch courses' })
+    }
+
+    res.json({ courses })
   } catch (error) {
     console.error('Error fetching courses:', error)
     res.status(500).json({ error: 'Failed to fetch courses' })
@@ -35,21 +41,30 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params
 
-    // TODO: Implement actual database query
-    const mockCourse = {
-      id,
-      title: 'React 기초',
-      description: 'React를 처음부터 배우는 강의',
-      instructorId: '1',
-      thumbnail: '',
-      maxStudents: 30,
-      enrolledCount: 15,
-      startDate: new Date().toISOString(),
-      endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      createdAt: new Date().toISOString(),
+    if (!supabase) {
+      return res.status(503).json({ error: 'Database service unavailable' })
     }
 
-    res.json({ course: mockCourse })
+    const { data: course, error } = await supabase
+      .from('courses')
+      .select(
+        `
+        *,
+        instructor:profiles!courses_instructor_id_fkey(id, name, email),
+        classroom:classrooms(id, name, description, capacity),
+        time_slot:time_slots(id, day_of_week, start_time, end_time, slot_order),
+        schedules:course_schedules(id, week_number, session_date, start_time, end_time, status)
+      `
+      )
+      .eq('id', id)
+      .single()
+
+    if (error || !course) {
+      console.error('Error fetching course:', error)
+      return res.status(404).json({ error: 'Course not found' })
+    }
+
+    res.json({ course })
   } catch (error) {
     console.error('Error fetching course:', error)
     res.status(500).json({ error: 'Failed to fetch course' })
@@ -162,6 +177,240 @@ router.post('/:id/enroll', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('Error enrolling:', error)
     res.status(500).json({ error: 'Failed to enroll' })
+  }
+})
+
+// Create new course (requires auth + instructor role)
+router.post('/', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id
+    const userRole = req.user?.user_metadata?.role || req.user?.role
+
+    // Check if user is instructor or admin
+    if (userRole !== 'instructor' && userRole !== 'admin') {
+      return res.status(403).json({ error: 'Instructor access required' })
+    }
+
+    const {
+      title,
+      description,
+      classroomId,
+      timeSlotId,
+      weeks,
+      maxStudents,
+      startDate,
+      thumbnail,
+      price,
+    } = req.body
+
+    // Validate required fields
+    if (!title || !description || !classroomId || !timeSlotId || !weeks || !startDate) {
+      return res.status(400).json({
+        error: 'Missing required fields: title, description, classroomId, timeSlotId, weeks, startDate',
+      })
+    }
+
+    if (!supabase) {
+      return res.status(503).json({ error: 'Database service unavailable' })
+    }
+
+    // Check time slot availability
+    const { data: availabilityData, error: availabilityError } = await supabase.rpc(
+      'check_time_slot_availability',
+      {
+        p_classroom_id: classroomId,
+        p_time_slot_id: timeSlotId,
+        p_start_date: startDate,
+        p_weeks: parseInt(weeks),
+      }
+    )
+
+    if (availabilityError) {
+      console.error('Error checking availability:', availabilityError)
+      return res.status(500).json({ error: 'Failed to check time slot availability' })
+    }
+
+    const availability = availabilityData && availabilityData.length > 0 ? availabilityData[0] : null
+
+    if (!availability?.is_available) {
+      return res.status(409).json({
+        error: 'Time slot not available',
+        conflict: {
+          courseId: availability?.conflicting_course_id,
+          courseTitle: availability?.conflicting_course_title,
+          date: availability?.conflict_date,
+        },
+      })
+    }
+
+    // Get time slot details to calculate end date
+    const { data: timeSlot, error: timeSlotError } = await supabase
+      .from('time_slots')
+      .select('day_of_week, start_time, end_time')
+      .eq('id', timeSlotId)
+      .single()
+
+    if (timeSlotError || !timeSlot) {
+      return res.status(404).json({ error: 'Time slot not found' })
+    }
+
+    // Calculate end date (last session date)
+    const start = new Date(startDate)
+    const dayOfWeek = timeSlot.day_of_week
+    const currentDay = start.getDay() === 0 ? 7 : start.getDay() // Convert Sunday from 0 to 7
+
+    // Calculate days to add to get to the target day of week
+    let daysToAdd = (dayOfWeek - currentDay + 7) % 7
+    if (daysToAdd === 0 && start.toISOString().split('T')[0] !== startDate) {
+      daysToAdd = 7
+    }
+
+    const firstSessionDate = new Date(start)
+    firstSessionDate.setDate(start.getDate() + daysToAdd)
+
+    const lastSessionDate = new Date(firstSessionDate)
+    lastSessionDate.setDate(firstSessionDate.getDate() + (weeks - 1) * 7)
+
+    // Create course
+    const { data: course, error: courseError } = await supabase
+      .from('courses')
+      .insert({
+        title,
+        description,
+        instructor_id: userId,
+        classroom_id: classroomId,
+        time_slot_id: timeSlotId,
+        weeks: parseInt(weeks),
+        max_students: maxStudents || 20,
+        start_date: startDate,
+        end_date: lastSessionDate.toISOString().split('T')[0],
+        thumbnail: thumbnail || '',
+        price: price || 0,
+        status: 'published',
+      })
+      .select(
+        `
+        *,
+        instructor:profiles!courses_instructor_id_fkey(id, name, email),
+        classroom:classrooms(id, name, description, capacity),
+        time_slot:time_slots(id, day_of_week, start_time, end_time, slot_order)
+      `
+      )
+      .single()
+
+    if (courseError) {
+      console.error('Error creating course:', courseError)
+      return res.status(500).json({ error: 'Failed to create course' })
+    }
+
+    res.status(201).json({ course })
+  } catch (error) {
+    console.error('Error creating course:', error)
+    res.status(500).json({ error: 'Failed to create course' })
+  }
+})
+
+// Update course (requires auth + instructor/admin)
+router.put('/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params
+    const userId = req.user.id
+    const userRole = req.user?.user_metadata?.role || req.user?.role
+
+    if (!supabase) {
+      return res.status(503).json({ error: 'Database service unavailable' })
+    }
+
+    // Get existing course
+    const { data: existingCourse, error: fetchError } = await supabase
+      .from('courses')
+      .select('instructor_id')
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !existingCourse) {
+      return res.status(404).json({ error: 'Course not found' })
+    }
+
+    // Check if user is the instructor or admin
+    if (existingCourse.instructor_id !== userId && userRole !== 'admin') {
+      return res.status(403).json({ error: 'Not authorized to update this course' })
+    }
+
+    const { title, description, maxStudents, thumbnail, price, status } = req.body
+
+    const updates = {}
+    if (title !== undefined) updates.title = title
+    if (description !== undefined) updates.description = description
+    if (maxStudents !== undefined) updates.max_students = maxStudents
+    if (thumbnail !== undefined) updates.thumbnail = thumbnail
+    if (price !== undefined) updates.price = price
+    if (status !== undefined) updates.status = status
+
+    const { data: course, error: updateError } = await supabase
+      .from('courses')
+      .update(updates)
+      .eq('id', id)
+      .select(
+        `
+        *,
+        instructor:profiles!courses_instructor_id_fkey(id, name, email),
+        classroom:classrooms(id, name, description, capacity),
+        time_slot:time_slots(id, day_of_week, start_time, end_time, slot_order)
+      `
+      )
+      .single()
+
+    if (updateError) {
+      console.error('Error updating course:', updateError)
+      return res.status(500).json({ error: 'Failed to update course' })
+    }
+
+    res.json({ course })
+  } catch (error) {
+    console.error('Error updating course:', error)
+    res.status(500).json({ error: 'Failed to update course' })
+  }
+})
+
+// Delete course (requires auth + instructor/admin)
+router.delete('/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params
+    const userId = req.user.id
+    const userRole = req.user?.user_metadata?.role || req.user?.role
+
+    if (!supabase) {
+      return res.status(503).json({ error: 'Database service unavailable' })
+    }
+
+    // Get existing course
+    const { data: existingCourse, error: fetchError } = await supabase
+      .from('courses')
+      .select('instructor_id')
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !existingCourse) {
+      return res.status(404).json({ error: 'Course not found' })
+    }
+
+    // Check if user is the instructor or admin
+    if (existingCourse.instructor_id !== userId && userRole !== 'admin') {
+      return res.status(403).json({ error: 'Not authorized to delete this course' })
+    }
+
+    const { error: deleteError } = await supabase.from('courses').delete().eq('id', id)
+
+    if (deleteError) {
+      console.error('Error deleting course:', deleteError)
+      return res.status(500).json({ error: 'Failed to delete course' })
+    }
+
+    res.json({ message: 'Course deleted successfully' })
+  } catch (error) {
+    console.error('Error deleting course:', error)
+    res.status(500).json({ error: 'Failed to delete course' })
   }
 })
 

@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS public.courses (
   description TEXT NOT NULL,
   instructor_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   thumbnail TEXT,
-  max_students INTEGER NOT NULL DEFAULT 30,
+  max_students INTEGER NOT NULL DEFAULT 20,
   enrolled_count INTEGER NOT NULL DEFAULT 0,
   start_date TIMESTAMPTZ NOT NULL,
   end_date TIMESTAMPTZ NOT NULL,
