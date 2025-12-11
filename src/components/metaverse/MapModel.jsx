@@ -6,6 +6,7 @@ import ErrorBoundary from './ErrorBoundary'
 import Portal from './Portal'
 import Door from './Door'
 import InteractiveObject from './InteractiveObject'
+import Blackboard from './Blackboard'
 
 // 맵별 설정
 const MAP_CONFIG = {
@@ -54,6 +55,7 @@ function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNe
   const { scene } = useGLTF(config.path)
   const [doorPositions, setDoorPositions] = useState([])
   const [interactiveObjects, setInteractiveObjects] = useState([])
+  const [blackboardMesh, setBlackboardMesh] = useState(null)
 
   // 3DCommunity 방식: useMemo로 씬 복제, 그림자 설정, 위치 조정을 모두 처리
   // (useEffect에서 하면 콜라이더와 메시 위치가 불일치함)
@@ -61,6 +63,7 @@ function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNe
     const cloned = scene.clone()
     const foundDoors = []
     const foundObjects = []
+    let foundBlackboardMesh = null
 
     // 그림자 설정 및 상호작용 요소 찾기
     cloned.traverse((child) => {
@@ -69,6 +72,17 @@ function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNe
         child.receiveShadow = true
 
         if (currentMap === 'school') {
+          // 디버깅: 학교 맵의 모든 메시 이름 출력
+          if (child.name) {
+            console.log(`🔍 메시:`, child.name)
+          }
+
+          // 칠판 메시 찾기 (VERDE_GRANDE_StingrayPBS7_0)
+          if (child.name === 'VERDE_GRANDE_StingrayPBS7_0') {
+            console.log(`🎨 칠판 메시 발견!:`, child.name, child)
+            foundBlackboardMesh = child
+          }
+
           // 문 요소 찾기
           if (child.name === 'PUERTA_1_StingrayPBS9_0' || child.name === 'PUERTA_4_StingrayPBS9_0') {
             const worldPos = new THREE.Vector3()
@@ -168,14 +182,22 @@ function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNe
       setInteractiveObjects(foundObjects)
     }
 
-    return cloned
+    return { cloned, foundBlackboardMesh }
   }, [scene, currentMap])
+
+  // 칠판 메시를 state에 저장 (useMemo 밖에서)
+  useEffect(() => {
+    if (clonedScene.foundBlackboardMesh) {
+      console.log(`🎨 칠판 메시 설정 완료:`, clonedScene.foundBlackboardMesh.name)
+      setBlackboardMesh(clonedScene.foundBlackboardMesh)
+    }
+  }, [clonedScene])
 
   return (
     <>
       {/* 3DCommunity 방식: RigidBody에 colliders="trimesh" 사용 */}
       <RigidBody type="fixed" colliders="trimesh" friction={1} restitution={0}>
-        <primitive object={clonedScene} />
+        <primitive object={clonedScene.cloned} />
       </RigidBody>
 
       {/* 안전망 바닥 콜라이더 (맵 밖으로 떨어질 경우 대비) */}
@@ -258,6 +280,11 @@ function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNe
           />
         )
       })}
+
+      {/* 칠판 (학교 맵에만 표시) */}
+      {currentMap === 'school' && blackboardMesh && (
+        <Blackboard targetMesh={blackboardMesh} />
+      )}
     </>
   )
 }

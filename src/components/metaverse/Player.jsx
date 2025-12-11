@@ -24,12 +24,12 @@ const CAPSULE_Y_OFFSET = 1.28
 const STEP_UP_SPEED = 4 // 계단 오를 때 상승 속도 (중력 -20 기준)
 const BLOCKED_THRESHOLD = 0.45 // 이 비율 이하로 움직이면 막힌 것으로 판단
 
-const Player = forwardRef(({ currentMap = 'main', cameraAngle = 0, onPositionChange, bodyRef: externalBodyRef }, ref) => {
+const Player = forwardRef(({ currentMap = 'main', cameraAngle = 0, onPositionChange, bodyRef: externalBodyRef, isInputDisabled = false }, ref) => {
   const START_POS = START_POSITIONS[currentMap] || START_POSITIONS.main
   const bodyRef = useRef(null)
   const characterRef = useRef(null)
   const currentRotationRef = useRef(new THREE.Quaternion())
-  const { forward, backward, left, right, shift } = useKeyboardControls()
+  const { forward, backward, left, right, shift } = useKeyboardControls(isInputDisabled)
 
   const [isMoving, setIsMoving] = useState(false)
   const [isSitting, setIsSitting] = useState(false)

@@ -14,6 +14,7 @@ import EditCourse from './pages/EditCourse.jsx'
 import MyCourses from './pages/MyCourses.jsx'
 import Profile from './pages/Profile.jsx'
 import Metaverse from './pages/Metaverse.jsx'
+import WhiteboardController from './pages/WhiteboardController.jsx'
 import Payment from './pages/Payment.jsx'
 import PaymentSuccess from './pages/PaymentSuccess.jsx'
 import PaymentFail from './pages/PaymentFail.jsx'
@@ -237,6 +238,8 @@ function App() {
           </Route>
           {/* Metaverse - Full screen, no layout */}
           <Route path={ROUTES.METAVERSE} element={<Metaverse />} />
+          {/* Whiteboard Controller - Full screen, no layout */}
+          <Route path="/whiteboard-controller" element={<WhiteboardController />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>

@@ -45,11 +45,42 @@ class SocketService {
     }
   }
 
-  emit(event, data) {
+  // 소켓 연결을 기다리는 헬퍼 메서드
+  waitForConnection(timeout = 5000) {
+    return new Promise((resolve, reject) => {
+      if (this.socket?.connected) {
+        resolve(this.socket)
+        return
+      }
+
+      if (!this.socket) {
+        reject(new Error('Socket not initialized'))
+        return
+      }
+
+      const timer = setTimeout(() => {
+        reject(new Error('Socket connection timeout'))
+      }, timeout)
+
+      this.socket.once('connect', () => {
+        clearTimeout(timer)
+        resolve(this.socket)
+      })
+    })
+  }
+
+  async emit(event, data) {
     if (this.socket?.connected) {
       this.socket.emit(event, data)
     } else {
-      console.warn('Socket not connected')
+      console.warn(`Socket not connected, waiting for connection to emit: ${event}`)
+      try {
+        await this.waitForConnection()
+        this.socket.emit(event, data)
+        console.log(`✅ Successfully emitted ${event} after waiting for connection`)
+      } catch (error) {
+        console.error(`❌ Failed to emit ${event}:`, error.message)
+      }
     }
   }
 

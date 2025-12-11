@@ -1,6 +1,7 @@
 const connectedUsers = new Map()
 const rooms = new Map()
 const screenSharing = new Map() // roomId -> { teacherId, teacherSocketId, teacherName }
+const whiteboardSessions = new Map() // roomId -> { teacherId, teacherSocketId, teacherName, isActive }
 
 export function setupSocketHandlers(io) {
   io.on('connection', (socket) => {
@@ -259,6 +260,82 @@ export function setupSocketHandlers(io) {
       })
     })
 
+    // ========== Whiteboard (판서) Handlers ==========
+
+    // Handle whiteboard session start
+    socket.on('whiteboard:start', (data) => {
+      const { roomId } = data
+      const user = connectedUsers.get(socket.id)
+
+      if (!user) {
+        socket.emit('error', { message: 'User not authenticated' })
+        return
+      }
+
+      // Store whiteboard session
+      whiteboardSessions.set(roomId, {
+        teacherId: user.id,
+        teacherSocketId: socket.id,
+        teacherName: user.user.name,
+        isActive: true,
+      })
+
+      console.log(`🎨 ${user.user.name} started whiteboard in room ${roomId}`)
+
+      // Notify all users in the room
+      io.to(roomId).emit('whiteboard:started', {
+        teacherId: user.id,
+        teacherSocketId: socket.id,
+        teacherName: user.user.name,
+      })
+    })
+
+    // Handle whiteboard drawing data
+    socket.on('whiteboard:draw', (data) => {
+      const { roomId, drawData } = data
+      const user = connectedUsers.get(socket.id)
+
+      if (!user) return
+
+      // Broadcast drawing data to all users in the room (except sender)
+      socket.to(roomId).emit('whiteboard:draw', {
+        drawData,
+        fromSocketId: socket.id,
+      })
+    })
+
+    // Handle whiteboard clear
+    socket.on('whiteboard:clear', (data) => {
+      const { roomId } = data
+      const user = connectedUsers.get(socket.id)
+
+      if (!user) return
+
+      console.log(`🎨 ${user.user.name} cleared whiteboard in room ${roomId}`)
+
+      // Broadcast clear command to all users in the room
+      io.to(roomId).emit('whiteboard:cleared', {
+        fromSocketId: socket.id,
+      })
+    })
+
+    // Handle whiteboard session stop
+    socket.on('whiteboard:stop', (data) => {
+      const { roomId } = data
+      const user = connectedUsers.get(socket.id)
+
+      if (!user) return
+
+      whiteboardSessions.delete(roomId)
+      console.log(`🎨 ${user.user.name} stopped whiteboard in room ${roomId}`)
+
+      // Notify all users in the room
+      io.to(roomId).emit('whiteboard:stopped', {
+        teacherId: user.id,
+        teacherSocketId: socket.id,
+      })
+    })
+
     // Handle disconnect
     socket.on('disconnect', () => {
       const user = connectedUsers.get(socket.id)
@@ -279,6 +356,17 @@ export function setupSocketHandlers(io) {
             teacherSocketId: socket.id,
           })
           console.log(`📺 Screen sharing stopped due to disconnect: ${user.user.name}`)
+        }
+
+        // If user was using whiteboard, stop it
+        const whiteboardInfo = whiteboardSessions.get(user.roomId)
+        if (whiteboardInfo && whiteboardInfo.teacherSocketId === socket.id) {
+          whiteboardSessions.delete(user.roomId)
+          socket.to(user.roomId).emit('whiteboard:stopped', {
+            teacherId: user.id,
+            teacherSocketId: socket.id,
+          })
+          console.log(`🎨 Whiteboard stopped due to disconnect: ${user.user.name}`)
         }
       }
 

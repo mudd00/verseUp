@@ -7,9 +7,12 @@ import Player from './Player.jsx'
 import OtherPlayer from './OtherPlayer.jsx'
 import ThirdPersonCamera from './ThirdPersonCamera.jsx'
 import ScreenShareOverlay from './ScreenShareOverlay.jsx'
+import ChatBox from './ChatBox.jsx'
+import MetaverseUI from './MetaverseUI.jsx'
 import { useScreenShare } from '../../hooks/useScreenShare'
 import { useScreenReceive } from '../../hooks/useScreenReceive'
 import { useVoiceChat } from '../../hooks/useVoiceChat'
+import { useChat } from '../../hooks/useChat'
 import { useAuthStore } from '../../stores/authStore'
 import { socketService } from '../../services/socket'
 import * as THREE from 'three'
@@ -31,6 +34,9 @@ export default function MetaverseScene({ onReady }) {
   const [students, setStudents] = useState([]) // 방의 학생 목록
   const [isViewingScreen, setIsViewingScreen] = useState(false) // 학생이 화면을 보고 있는지
   const [otherPlayers, setOtherPlayers] = useState(new Map()) // 다른 플레이어들 (socketId -> player data)
+  const [isMenuOpen, setIsMenuOpen] = useState(false) // 메타버스 UI 메뉴 열림/닫힘
+  const [showDebugInfo, setShowDebugInfo] = useState(true) // Debug info 표시 여부
+  const [isWhiteboardActive, setIsWhiteboardActive] = useState(false) // 판서 활성화 여부
   const lastPositionSentRef = useRef({ x: 0, y: 0, z: 0 })
   const positionSendIntervalRef = useRef(null)
 
@@ -58,8 +64,11 @@ export default function MetaverseScene({ onReady }) {
   const screenShare = useScreenShare(roomId, students, isInstructor)
   const screenReceive = useScreenReceive(roomId, !isInstructor)
 
-  // 음성 채팅 훅 (교실에 있을 때만 활성화, students 사용)
-  const voiceChat = useVoiceChat(roomId, students, currentMap === 'school')
+  // 음성 채팅 훅 (모든 맵에서 활성화)
+  const voiceChat = useVoiceChat(roomId, students, true)
+
+  // 텍스트 채팅 훅 (모든 맵에서 활성화)
+  const chat = useChat(roomId, true)
 
   // 디버깅: voiceChat 상태 모니터링
   useEffect(() => {
@@ -100,7 +109,7 @@ export default function MetaverseScene({ onReady }) {
       Math.pow(position.z - lastPositionSentRef.current.z, 2)
     )
 
-    if (distance > 0.1 && currentMap === 'school' && effectiveUser) {
+    if (distance > 0.1 && effectiveUser) {
       lastPositionSentRef.current = position
 
       const body = playerBodyRef.current
@@ -160,10 +169,8 @@ export default function MetaverseScene({ onReady }) {
     }
   }, [])
 
-  // 다른 플레이어 위치 업데이트 수신
+  // 다른 플레이어 위치 업데이트 수신 (모든 맵에서)
   useEffect(() => {
-    if (currentMap !== 'school') return
-
     const handlePlayerMoved = ({ socketId, userId, user, position, rotation, animation }) => {
       setOtherPlayers(prev => {
         const newMap = new Map(prev)
@@ -179,7 +186,7 @@ export default function MetaverseScene({ onReady }) {
       socketService.off('player:moved', handlePlayerMoved)
       console.log('👥 [Multiplayer] Stopped listening for player:moved')
     }
-  }, [currentMap])
+  }, [])
 
   // Socket.IO 방 참가 및 사용자 목록 관리
   useEffect(() => {
@@ -187,12 +194,11 @@ export default function MetaverseScene({ onReady }) {
       hasEffectiveUser: !!effectiveUser,
       effectiveUser,
       currentMap,
-      isSchoolMap: currentMap === 'school',
       roomId,
       socketConnected: socketService.getSocket()?.connected
     })
 
-    if (effectiveUser && currentMap === 'school') {
+    if (effectiveUser) {
       const socket = socketService.getSocket()
       if (!socket?.connected) {
         console.error('❌ [Room Join] Socket not connected, cannot join room')
@@ -251,7 +257,7 @@ export default function MetaverseScene({ onReady }) {
         socketService.emit('room:leave', { roomId })
       }
     }
-  }, [effectiveUser, currentMap, roomId])
+  }, [effectiveUser, roomId])
 
   // 화면 공유 토글 (강사용)
   const handleScreenShareToggle = useCallback(() => {
@@ -275,6 +281,19 @@ export default function MetaverseScene({ onReady }) {
       screenShare.startSharing()
     }
   }, [screenShare, students])
+
+  // 판서 시작/중지
+  const handleWhiteboardToggle = useCallback(() => {
+    if (isWhiteboardActive) {
+      console.log('🎨 Stopping whiteboard...')
+      socketService.emit('whiteboard:stop', { roomId })
+      setIsWhiteboardActive(false)
+    } else {
+      console.log('🎨 Starting whiteboard...')
+      socketService.emit('whiteboard:start', { roomId })
+      setIsWhiteboardActive(true)
+    }
+  }, [isWhiteboardActive, roomId])
 
   const handlePortalNearChange = useCallback((info) => {
     setPortalInfo(info)
@@ -376,6 +395,24 @@ export default function MetaverseScene({ onReady }) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [portalInfo, doorInfo, objectInfo, isSitting, isInstructor, screenShare, handleMapChange, handleDoorEnter, handleObjectInteract])
 
+  // Tab키로 메타버스 UI 메뉴 토글
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // 채팅 입력 중이면 Tab 키 무시
+      if (chat.isInputActive) return
+
+      if (e.code === 'Tab') {
+        e.preventDefault()
+        setIsMenuOpen((prev) => !prev)
+        console.log('메뉴 토글:', !isMenuOpen)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [chat.isInputActive, isMenuOpen])
+
+
   return (
     <div className="w-full h-screen">
       {/* 애니메이션을 위한 스타일 */}
@@ -418,6 +455,7 @@ export default function MetaverseScene({ onReady }) {
             currentMap={currentMap}
             cameraAngle={cameraAngle}
             onPositionChange={handlePositionChange}
+            isInputDisabled={chat.isInputActive || isMenuOpen}
           />
           {/* 다른 플레이어들 렌더링 */}
           {Array.from(otherPlayers.values()).map((player) => (
@@ -435,15 +473,9 @@ export default function MetaverseScene({ onReady }) {
         <ThirdPersonCamera target={playerRef} onCameraRotate={handleCameraRotate} />
       </Canvas>
 
-      {/* 마이크 버튼 (항상 표시, 학교 맵에서만 사용 가능) */}
+      {/* 마이크 버튼 (모든 맵에서 사용 가능) */}
       <button
         onClick={() => {
-          // 학교 맵이 아닐 때
-          if (currentMap !== 'school') {
-            alert('학교 맵에서만 음성 채팅을 사용할 수 있습니다.')
-            return
-          }
-
           // 마이크 토글
           if (voiceChat.isMicOn) {
             voiceChat.turnOffMic()
@@ -455,7 +487,7 @@ export default function MetaverseScene({ onReady }) {
           position: 'absolute',
           top: '20px',
           left: '20px',
-          background: voiceChat.isMicOn ? '#ef4444' : currentMap !== 'school' ? '#4b5563' : '#6b7280',
+          background: voiceChat.isMicOn ? '#ef4444' : '#6b7280',
           color: '#fff',
           padding: '12px 24px',
           borderRadius: '8px',
@@ -469,7 +501,6 @@ export default function MetaverseScene({ onReady }) {
           display: 'flex',
           alignItems: 'center',
           gap: '8px',
-          opacity: currentMap !== 'school' ? 0.5 : 1,
         }}
         onMouseEnter={(e) => {
           e.target.style.transform = 'scale(1.05)'
@@ -496,6 +527,35 @@ export default function MetaverseScene({ onReady }) {
             {voiceChat.connections.size}명 연결됨
           </span>
         )}
+      </button>
+
+      {/* Debug Info 토글 버튼 */}
+      <button
+        onClick={() => setShowDebugInfo((prev) => !prev)}
+        style={{
+          position: 'absolute',
+          top: '80px',
+          left: '20px',
+          background: showDebugInfo ? '#3b82f6' : '#6b7280',
+          color: '#fff',
+          padding: '8px 16px',
+          borderRadius: '8px',
+          border: 'none',
+          fontSize: '14px',
+          fontWeight: 'bold',
+          cursor: 'pointer',
+          zIndex: 9999,
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
+          transition: 'all 0.2s',
+        }}
+        onMouseEnter={(e) => {
+          e.target.style.transform = 'scale(1.05)'
+        }}
+        onMouseLeave={(e) => {
+          e.target.style.transform = 'scale(1)'
+        }}
+      >
+        {showDebugInfo ? '🔍 Debug 끄기' : '🔍 Debug 켜기'}
       </button>
 
       {/* 음성 채팅 에러 표시 */}
@@ -581,85 +641,89 @@ export default function MetaverseScene({ onReady }) {
       )}
 
       {/* 플레이어 위치 및 상태 표시 */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '10px',
-          left: '10px',
-          background: 'rgba(0, 0, 0, 0.7)',
-          color: '#4ade80',
-          padding: '10px 15px',
-          borderRadius: '8px',
-          fontFamily: 'monospace',
-          fontSize: '14px',
-          zIndex: 9999,
-          pointerEvents: 'none',
-        }}
-      >
-        <div style={{ color: '#fff', marginBottom: '5px', fontWeight: 'bold' }}>Debug Info</div>
-        <div>X: {playerPosition.x.toFixed(2)}</div>
-        <div>Y: {playerPosition.y.toFixed(2)}</div>
-        <div>Z: {playerPosition.z.toFixed(2)}</div>
-
-        {effectiveUser && (
-          <div style={{ color: '#60a5fa', marginTop: '8px', borderTop: '1px solid #374151', paddingTop: '8px' }}>
-            <div style={{ fontWeight: 'bold' }}>{effectiveUser.name}</div>
-            <div style={{ fontSize: '12px', color: '#9ca3af' }}>{effectiveUser.role}</div>
+      {showDebugInfo && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '10px',
+            left: '10px',
+            background: 'rgba(0, 0, 0, 0.7)',
+            color: '#4ade80',
+            padding: '10px 15px',
+            borderRadius: '8px',
+            fontFamily: 'monospace',
+            fontSize: '14px',
+            zIndex: 9999,
+            pointerEvents: 'none',
+          }}
+        >
+          <div style={{ color: '#fff', marginBottom: '5px', fontWeight: 'bold' }}>
+            Debug Info
           </div>
-        )}
+          <div>X: {playerPosition.x.toFixed(2)}</div>
+          <div>Y: {playerPosition.y.toFixed(2)}</div>
+          <div>Z: {playerPosition.z.toFixed(2)}</div>
 
-        {testRole && (
-          <div style={{ color: '#fbbf24', marginTop: '4px', fontSize: '12px', fontWeight: 'bold' }}>
-            🧪 TEST MODE
-          </div>
-        )}
-
-        <div style={{ marginTop: '8px', borderTop: '1px solid #374151', paddingTop: '8px' }}>
-          <div style={{ color: '#fff', fontWeight: 'bold', marginBottom: '4px' }}>Status:</div>
-          <div style={{ fontSize: '12px' }}>
-            <div>Map: {currentMap}</div>
-            <div>Sitting: {isSitting ? '✅' : '❌'}</div>
-            <div>At Desk: {isAtDesk ? '✅' : '❌'}</div>
-            {isInstructor && (
-              <div style={{ color: screenShare?.isSharing ? '#10b981' : '#ef4444' }}>
-                Sharing: {screenShare?.isSharing ? '✅' : '❌'}
-              </div>
-            )}
-            {!isInstructor && (
-              <>
-                <div style={{ color: screenReceive?.teacherInfo ? '#10b981' : '#ef4444' }}>
-                  Teacher Sharing: {screenReceive?.teacherInfo ? '✅' : '❌'}
-                </div>
-                <div style={{ color: screenReceive?.teacherStream ? '#10b981' : '#ef4444' }}>
-                  Stream Received: {screenReceive?.teacherStream ? '✅' : '❌'}
-                </div>
-              </>
-            )}
-            <div style={{ color: voiceChat.isMicOn ? '#10b981' : '#ef4444' }}>
-              Mic: {voiceChat.isMicOn ? '✅' : '❌'}
+          {effectiveUser && (
+            <div style={{ color: '#60a5fa', marginTop: '8px', borderTop: '1px solid #374151', paddingTop: '8px' }}>
+              <div style={{ fontWeight: 'bold' }}>{effectiveUser.name}</div>
+              <div style={{ fontSize: '12px', color: '#9ca3af' }}>{effectiveUser.role}</div>
             </div>
-            {voiceChat.isMicOn && (
-              <div style={{ color: '#a78bfa', fontSize: '11px' }}>
-                Voice Connections: {voiceChat.connections.size}
-              </div>
-            )}
-          </div>
-        </div>
+          )}
 
-        <div style={{ marginTop: '8px', borderTop: '1px solid #374151', paddingTop: '8px' }}>
-          <div style={{ color: '#fff', fontWeight: 'bold', marginBottom: '4px' }}>
-            Room Users ({students.length + 1}):
-          </div>
-          <div style={{ fontSize: '11px', maxHeight: '100px', overflowY: 'auto' }}>
-            <div style={{ color: '#10b981' }}>• {effectiveUser?.name} (me)</div>
-            {students.map((student, idx) => (
-              <div key={idx} style={{ color: '#60a5fa' }}>
-                • {student.user?.name || 'Unknown'}
+          {testRole && (
+            <div style={{ color: '#fbbf24', marginTop: '4px', fontSize: '12px', fontWeight: 'bold' }}>
+              🧪 TEST MODE
+            </div>
+          )}
+
+          <div style={{ marginTop: '8px', borderTop: '1px solid #374151', paddingTop: '8px' }}>
+            <div style={{ color: '#fff', fontWeight: 'bold', marginBottom: '4px' }}>Status:</div>
+            <div style={{ fontSize: '12px' }}>
+              <div>Map: {currentMap}</div>
+              <div>Sitting: {isSitting ? '✅' : '❌'}</div>
+              <div>At Desk: {isAtDesk ? '✅' : '❌'}</div>
+              {isInstructor && (
+                <div style={{ color: screenShare?.isSharing ? '#10b981' : '#ef4444' }}>
+                  Sharing: {screenShare?.isSharing ? '✅' : '❌'}
+                </div>
+              )}
+              {!isInstructor && (
+                <>
+                  <div style={{ color: screenReceive?.teacherInfo ? '#10b981' : '#ef4444' }}>
+                    Teacher Sharing: {screenReceive?.teacherInfo ? '✅' : '❌'}
+                  </div>
+                  <div style={{ color: screenReceive?.teacherStream ? '#10b981' : '#ef4444' }}>
+                    Stream Received: {screenReceive?.teacherStream ? '✅' : '❌'}
+                  </div>
+                </>
+              )}
+              <div style={{ color: voiceChat.isMicOn ? '#10b981' : '#ef4444' }}>
+                Mic: {voiceChat.isMicOn ? '✅' : '❌'}
               </div>
-            ))}
+              {voiceChat.isMicOn && (
+                <div style={{ color: '#a78bfa', fontSize: '11px' }}>
+                  Voice Connections: {voiceChat.connections.size}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div style={{ marginTop: '8px', borderTop: '1px solid #374151', paddingTop: '8px' }}>
+            <div style={{ color: '#fff', fontWeight: 'bold', marginBottom: '4px' }}>
+              Room Users ({students.length + 1}):
+            </div>
+            <div style={{ fontSize: '11px', maxHeight: '100px', overflowY: 'auto' }}>
+              <div style={{ color: '#10b981' }}>• {effectiveUser?.name} (me)</div>
+              {students.map((student, idx) => (
+                <div key={idx} style={{ color: '#60a5fa' }}>
+                  • {student.user?.name || 'Unknown'}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* 포탈 상호작용 안내 */}
       {portalInfo.isNear && (
@@ -862,6 +926,92 @@ export default function MetaverseScene({ onReady }) {
           {screenShare.error}
         </div>
       )}
+
+      {/* 교탁에 섰을 때 판서 버튼 (강사만) */}
+      {isAtDesk && isInstructor && (
+        <button
+          onClick={handleWhiteboardToggle}
+          style={{
+            position: 'absolute',
+            top: '80px',
+            right: '20px',
+            background: isWhiteboardActive ? '#10b981' : '#8b5cf6',
+            color: '#fff',
+            padding: '12px 24px',
+            borderRadius: '8px',
+            border: 'none',
+            fontSize: '16px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            zIndex: 9999,
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.transform = 'scale(1.05)'
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.transform = 'scale(1)'
+          }}
+        >
+          {isWhiteboardActive ? '🎨 판서 중지' : '🎨 판서 시작'}
+        </button>
+      )}
+
+      {/* 판서 컨트롤러 링크 (판서 활성화 시) */}
+      {isAtDesk && isInstructor && isWhiteboardActive && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '140px',
+            right: '20px',
+            background: 'rgba(0, 0, 0, 0.9)',
+            color: '#fff',
+            padding: '16px 20px',
+            borderRadius: '8px',
+            zIndex: 9999,
+            maxWidth: '300px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+            border: '2px solid #8b5cf6',
+          }}
+        >
+          <div style={{ marginBottom: '12px', fontWeight: 'bold', color: '#c4b5fd' }}>
+            📱 태블릿으로 접속하세요
+          </div>
+          <div
+            style={{
+              background: '#fff',
+              color: '#000',
+              padding: '8px 12px',
+              borderRadius: '4px',
+              fontSize: '14px',
+              fontFamily: 'monospace',
+              wordBreak: 'break-all',
+              marginBottom: '8px',
+            }}
+          >
+            {window.location.origin}/whiteboard-controller?room={roomId}
+          </div>
+          <div style={{ fontSize: '12px', color: '#9ca3af' }}>
+            위 링크를 태블릿/폰으로 열어서 판서하세요
+          </div>
+        </div>
+      )}
+
+      {/* 게임 스타일 텍스트 채팅 (모든 맵에서 표시) */}
+      <ChatBox
+        messages={chat.messages}
+        isInputActive={chat.isInputActive}
+        inputText={chat.inputText}
+        messagesEndRef={chat.messagesEndRef}
+        onInputChange={chat.handleInputChange}
+        onSendMessage={chat.sendMessage}
+        onActivateInput={chat.activateInput}
+        onDeactivateInput={chat.deactivateInput}
+      />
+
+      {/* 메타버스 UI 메뉴 (강의, 프로필, 대시보드, 결제내역) */}
+      <MetaverseUI isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
     </div>
   )
 }

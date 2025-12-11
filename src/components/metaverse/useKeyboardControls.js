@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 
-export function useKeyboardControls() {
+export function useKeyboardControls(isInputDisabled = false) {
   const [keys, setKeys] = useState({
     forward: false,
     backward: false,
@@ -13,6 +13,9 @@ export function useKeyboardControls() {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // 채팅 입력 중이면 게임 키 입력 무시
+      if (isInputDisabled) return
+
       switch (e.code) {
         case 'KeyW':
         case 'ArrowUp':
@@ -45,6 +48,9 @@ export function useKeyboardControls() {
     }
 
     const handleKeyUp = (e) => {
+      // 채팅 입력 중이면 게임 키 입력 무시
+      if (isInputDisabled) return
+
       switch (e.code) {
         case 'KeyW':
         case 'ArrowUp':
@@ -82,7 +88,7 @@ export function useKeyboardControls() {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
     }
-  }, [])
+  }, [isInputDisabled])
 
   return keys
 }
