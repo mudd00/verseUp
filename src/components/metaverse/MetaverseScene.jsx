@@ -198,64 +198,82 @@ export default function MetaverseScene({ onReady }) {
       socketConnected: socketService.getSocket()?.connected
     })
 
-    if (effectiveUser) {
-      const socket = socketService.getSocket()
-      if (!socket?.connected) {
-        console.error('❌ [Room Join] Socket not connected, cannot join room')
-        return
+    if (!effectiveUser) return
+
+    let isMounted = true
+
+    // 방 사용자 목록 수신
+    const handleRoomUsers = ({ users }) => {
+      console.log('📚 [Room Join] Received room:users event:', users)
+      setStudents(users.filter(u => u.user?.id !== effectiveUser.id)) // 본인 제외
+      console.log('📚 [Room Join] Room users:', users.length, 'total -', users.map(u => u.user?.name))
+      console.log('📚 [Room Join] Students (excluding me):', users.filter(u => u.user?.id !== effectiveUser.id).map(u => u.user?.name))
+    }
+
+    // user:joined 응답을 받은 후 room:join 실행
+    const handleUserJoinedConfirmation = ({ success }) => {
+      if (success && isMounted) {
+        console.log('✅ [Room Join] user:join confirmed, now joining room')
+        socketService.emit('room:join', { roomId })
+        console.log('📤 [Room Join] Emitted room:join')
       }
+    }
 
-      console.log('🚪 [Room Join] Joining room:', roomId, 'as', effectiveUser.name)
-
-      // 사용자 정보와 함께 소켓 연결
-      socketService.emit('user:join', { user: effectiveUser })
-      console.log('📤 [Room Join] Emitted user:join')
-
-      // 방 참가
-      socketService.emit('room:join', { roomId })
-      console.log('📤 [Room Join] Emitted room:join')
-
-      // 방 사용자 목록 수신
-      const handleRoomUsers = ({ users }) => {
-        console.log('📚 [Room Join] Received room:users event:', users)
-        setStudents(users.filter(u => u.user?.id !== effectiveUser.id)) // 본인 제외
-        console.log('📚 [Room Join] Room users:', users.length, 'total -', users.map(u => u.user?.name))
-        console.log('📚 [Room Join] Students (excluding me):', users.filter(u => u.user?.id !== effectiveUser.id).map(u => u.user?.name))
+    // 새 사용자 입장
+    const handleUserJoined = ({ user: newUser, socketId }) => {
+      console.log('👋 [Room Join] Received room:user-joined:', newUser.name, socketId)
+      if (newUser.id !== effectiveUser.id) {
+        setStudents(prev => [...prev, { user: newUser, socketId }])
+        console.log('👋 [Room Join] User added to students:', newUser.name)
       }
+    }
 
-      // 새 사용자 입장
-      const handleUserJoined = ({ user: newUser, socketId }) => {
-        console.log('👋 [Room Join] Received room:user-joined:', newUser.name, socketId)
-        if (newUser.id !== effectiveUser.id) {
-          setStudents(prev => [...prev, { user: newUser, socketId }])
-          console.log('👋 [Room Join] User added to students:', newUser.name)
-        }
+    // 사용자 퇴장
+    const handleUserLeft = ({ socketId }) => {
+      console.log('👋 [Room Join] Received room:user-left:', socketId)
+      setStudents(prev => prev.filter(s => s.socketId !== socketId))
+      setOtherPlayers(prev => {
+        const newMap = new Map(prev)
+        newMap.delete(socketId)
+        return newMap
+      })
+      console.log('👋 [Room Join] User removed from students and otherPlayers')
+    }
+
+    // 이벤트 핸들러 등록
+    console.log('📌 [Room Join] Registering room event handlers')
+    socketService.on('user:joined', handleUserJoinedConfirmation)
+    socketService.on('room:users', handleRoomUsers)
+    socketService.on('room:user-joined', handleUserJoined)
+    socketService.on('room:user-left', handleUserLeft)
+    console.log('✅ [Room Join] Room event handlers registered')
+
+    // Socket 연결 후 user:join 실행
+    const joinRoom = async () => {
+      try {
+        console.log('⏳ [Room Join] Waiting for socket connection...')
+        await socketService.waitForConnection()
+
+        if (!isMounted) return
+
+        console.log('✅ [Room Join] Socket connected, joining as:', effectiveUser.name)
+        socketService.emit('user:join', { user: effectiveUser })
+        console.log('📤 [Room Join] Emitted user:join')
+      } catch (error) {
+        console.error('❌ [Room Join] Failed to join room:', error)
       }
+    }
 
-      // 사용자 퇴장
-      const handleUserLeft = ({ socketId }) => {
-        console.log('👋 [Room Join] Received room:user-left:', socketId)
-        setStudents(prev => prev.filter(s => s.socketId !== socketId))
-        setOtherPlayers(prev => {
-          const newMap = new Map(prev)
-          newMap.delete(socketId)
-          return newMap
-        })
-        console.log('👋 [Room Join] User removed from students and otherPlayers')
-      }
+    joinRoom()
 
-      console.log('📌 [Room Join] Registering room event handlers')
-      socketService.on('room:users', handleRoomUsers)
-      socketService.on('room:user-joined', handleUserJoined)
-      socketService.on('room:user-left', handleUserLeft)
-      console.log('✅ [Room Join] Room event handlers registered')
-
-      return () => {
-        socketService.off('room:users', handleRoomUsers)
-        socketService.off('room:user-joined', handleUserJoined)
-        socketService.off('room:user-left', handleUserLeft)
-        socketService.emit('room:leave', { roomId })
-      }
+    return () => {
+      isMounted = false
+      socketService.off('user:joined', handleUserJoinedConfirmation)
+      socketService.off('room:users', handleRoomUsers)
+      socketService.off('room:user-joined', handleUserJoined)
+      socketService.off('room:user-left', handleUserLeft)
+      socketService.emit('room:leave', { roomId })
+      console.log('🚪 [Room Join] Cleanup: left room and removed handlers')
     }
   }, [effectiveUser, roomId])
 
@@ -283,15 +301,23 @@ export default function MetaverseScene({ onReady }) {
   }, [screenShare, students])
 
   // 판서 시작/중지
-  const handleWhiteboardToggle = useCallback(() => {
-    if (isWhiteboardActive) {
-      console.log('🎨 Stopping whiteboard...')
-      socketService.emit('whiteboard:stop', { roomId })
-      setIsWhiteboardActive(false)
-    } else {
-      console.log('🎨 Starting whiteboard...')
-      socketService.emit('whiteboard:start', { roomId })
-      setIsWhiteboardActive(true)
+  const handleWhiteboardToggle = useCallback(async () => {
+    try {
+      // Socket 연결 확인
+      await socketService.waitForConnection()
+
+      if (isWhiteboardActive) {
+        console.log('🎨 Stopping whiteboard...')
+        socketService.emit('whiteboard:stop', { roomId })
+        setIsWhiteboardActive(false)
+      } else {
+        console.log('🎨 Starting whiteboard...')
+        socketService.emit('whiteboard:start', { roomId })
+        setIsWhiteboardActive(true)
+      }
+    } catch (error) {
+      console.error('🎨 Failed to toggle whiteboard:', error)
+      alert('소켓 연결 실패. 페이지를 새로고침해주세요.')
     }
   }, [isWhiteboardActive, roomId])
 
@@ -363,6 +389,9 @@ export default function MetaverseScene({ onReady }) {
   // F키 상호작용 리스너
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // 채팅 입력 중이면 무시
+      if (chat.isInputActive) return
+
       if (e.code === 'KeyF') {
         // 앉아있을 때는 일어서기
         if (isSitting && playerRef.current) {
@@ -393,7 +422,7 @@ export default function MetaverseScene({ onReady }) {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [portalInfo, doorInfo, objectInfo, isSitting, isInstructor, screenShare, handleMapChange, handleDoorEnter, handleObjectInteract])
+  }, [portalInfo, doorInfo, objectInfo, isSitting, isInstructor, screenShare, chat.isInputActive, handleMapChange, handleDoorEnter, handleObjectInteract])
 
   // Tab키로 메타버스 UI 메뉴 토글
   useEffect(() => {

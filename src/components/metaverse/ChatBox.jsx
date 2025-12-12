@@ -42,6 +42,14 @@ export default function ChatBox({
   // 키보드 이벤트 처리
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // 채팅 입력 중일 때는 게임 키 입력 차단 (F, WASD, Shift, Tab 등)
+      if (isInputActive) {
+        const gameKeys = ['KeyF', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'ShiftLeft', 'ShiftRight', 'Tab']
+        if (gameKeys.includes(e.code)) {
+          e.stopPropagation() // 이벤트 전파 차단
+        }
+      }
+
       // Enter 키: 입력창 활성화, 메시지 전송, 또는 입력창 닫기
       if (e.key === 'Enter') {
         if (!isInputActive) {

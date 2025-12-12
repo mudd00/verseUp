@@ -55,7 +55,6 @@ function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNe
   const { scene } = useGLTF(config.path)
   const [doorPositions, setDoorPositions] = useState([])
   const [interactiveObjects, setInteractiveObjects] = useState([])
-  const [blackboardMesh, setBlackboardMesh] = useState(null)
 
   // 3DCommunity 방식: useMemo로 씬 복제, 그림자 설정, 위치 조정을 모두 처리
   // (useEffect에서 하면 콜라이더와 메시 위치가 불일치함)
@@ -185,14 +184,6 @@ function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNe
     return { cloned, foundBlackboardMesh }
   }, [scene, currentMap])
 
-  // 칠판 메시를 state에 저장 (useMemo 밖에서)
-  useEffect(() => {
-    if (clonedScene.foundBlackboardMesh) {
-      console.log(`🎨 칠판 메시 설정 완료:`, clonedScene.foundBlackboardMesh.name)
-      setBlackboardMesh(clonedScene.foundBlackboardMesh)
-    }
-  }, [clonedScene])
-
   return (
     <>
       {/* 3DCommunity 방식: RigidBody에 colliders="trimesh" 사용 */}
@@ -282,8 +273,8 @@ function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNe
       })}
 
       {/* 칠판 (학교 맵에만 표시) */}
-      {currentMap === 'school' && blackboardMesh && (
-        <Blackboard targetMesh={blackboardMesh} />
+      {currentMap === 'school' && clonedScene.foundBlackboardMesh && (
+        <Blackboard targetMesh={clonedScene.foundBlackboardMesh} />
       )}
     </>
   )

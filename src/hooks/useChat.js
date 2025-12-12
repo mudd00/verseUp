@@ -46,9 +46,23 @@ export function useChat(roomId, isInSchool) {
 
   // 메시지 전송
   const sendMessage = useCallback(() => {
-    if (!inputText.trim() || !roomId) return
+    if (!inputText.trim()) {
+      console.log('💬 [Chat] Empty message, not sending')
+      return
+    }
 
-    console.log('💬 [Chat] Sending message:', inputText)
+    if (!roomId) {
+      console.error('💬 [Chat] No roomId, cannot send message')
+      return
+    }
+
+    const socket = socketService.getSocket()
+    if (!socket?.connected) {
+      console.error('💬 [Chat] Socket not connected, cannot send message')
+      return
+    }
+
+    console.log('💬 [Chat] Sending message to room:', roomId, '| Message:', inputText)
     socketService.emit('chat:message', {
       roomId,
       message: inputText.trim(),
@@ -61,6 +75,7 @@ export function useChat(roomId, isInSchool) {
 
   // 입력창 활성화
   const activateInput = useCallback(() => {
+    console.log('💬 [Chat] Input activated')
     setIsInputActive(true)
   }, [])
 

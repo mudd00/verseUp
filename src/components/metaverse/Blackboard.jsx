@@ -19,7 +19,7 @@ export default function Blackboard({ targetMesh, roomId = 'metaverse-classroom-1
   useEffect(() => {
     const canvas = document.createElement('canvas')
     canvas.width = 2048
-    canvas.height = 1024
+    canvas.height = 1024 // 2:1 비율 (가로로 긴 직사각형)
 
     const ctx = canvas.getContext('2d')
 
@@ -36,9 +36,14 @@ export default function Blackboard({ targetMesh, roomId = 'metaverse-classroom-1
     // Texture 생성
     const texture = new THREE.CanvasTexture(canvas)
     texture.needsUpdate = true
+
+    // Texture를 270도 회전 (90도 + 180도 추가)
+    texture.rotation = (Math.PI / 2) + Math.PI // 270도 시계방향
+    texture.center.set(0.5, 0.5) // 중심점을 텍스처 중앙으로 설정
+
     textureRef.current = texture
 
-    console.log('🎨 [Blackboard] Canvas initialized')
+    console.log('🎨 [Blackboard] Canvas initialized with rotation')
   }, [])
 
   // 타겟 메시의 재질을 Canvas Texture로 교체

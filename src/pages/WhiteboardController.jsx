@@ -26,12 +26,16 @@ export default function WhiteboardController() {
 
     const ctx = canvas.getContext('2d')
 
-    // 캔버스 크기 설정 (고해상도)
+    // 캔버스 크기 설정 (2:1 비율로 고정)
     const dpr = window.devicePixelRatio || 1
     const rect = canvas.getBoundingClientRect()
 
-    canvas.width = rect.width * dpr
-    canvas.height = rect.height * dpr
+    // 2:1 비율 강제 (가로로 긴 직사각형)
+    const canvasWidth = rect.width * dpr
+    const canvasHeight = (rect.width / 2) * dpr // 높이 = 너비의 절반
+
+    canvas.width = canvasWidth
+    canvas.height = canvasHeight
 
     ctx.scale(dpr, dpr)
 
@@ -46,9 +50,41 @@ export default function WhiteboardController() {
 
   // Socket 연결 및 판서 시작
   useEffect(() => {
-    socketService.emit('whiteboard:start', { roomId })
+    console.log('🎨 [WhiteboardController] Initializing socket connection...')
+
+    // Socket 연결 먼저!
+    socketService.connect(null)
+
+    // 연결 후 사용자 등록 및 판서 시작
+    const startWhiteboard = async () => {
+      try {
+        await socketService.waitForConnection()
+        console.log('🎨 [WhiteboardController] Socket connected')
+
+        // 태블릿 컨트롤러용 임시 사용자 등록
+        const tabletUser = {
+          id: `tablet-controller-${Date.now()}`,
+          name: '판서 컨트롤러 (태블릿)',
+          email: 'tablet@controller.local',
+          role: 'instructor',
+        }
+
+        // 사용자 등록
+        socketService.emit('user:join', { user: tabletUser })
+        console.log('🎨 [WhiteboardController] User joined')
+
+        // 판서 시작
+        socketService.emit('whiteboard:start', { roomId })
+        console.log('🎨 [WhiteboardController] Whiteboard started')
+      } catch (error) {
+        console.error('🎨 [WhiteboardController] Failed to connect:', error)
+      }
+    }
+
+    startWhiteboard()
 
     return () => {
+      console.log('🎨 [WhiteboardController] Stopping whiteboard')
       socketService.emit('whiteboard:stop', { roomId })
     }
   }, [roomId])
@@ -163,11 +199,12 @@ export default function WhiteboardController() {
       </div>
 
       {/* 캔버스 */}
-      <div className="flex-1 relative">
-        <canvas
-          ref={canvasRef}
-          className="w-full h-full touch-none"
-          style={{ touchAction: 'none' }}
+      <div className="flex-1 relative flex items-center justify-center">
+        <div className="w-full" style={{ aspectRatio: '2 / 1' }}>
+          <canvas
+            ref={canvasRef}
+            className="w-full h-full touch-none"
+            style={{ touchAction: 'none' }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -175,7 +212,8 @@ export default function WhiteboardController() {
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
-        />
+          />
+        </div>
       </div>
 
       {/* 도구 바 */}
