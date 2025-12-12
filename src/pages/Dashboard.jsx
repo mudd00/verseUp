@@ -1,6 +1,7 @@
 import { useAuthStore } from '@/stores/authStore.js'
 import StudentDashboard from '@/components/dashboard/StudentDashboard.jsx'
 import InstructorDashboard from '@/components/dashboard/InstructorDashboard.jsx'
+import AdminDashboard from '@/components/dashboard/AdminDashboard.jsx'
 
 export default function Dashboard() {
   const { user } = useAuthStore()
@@ -18,14 +19,7 @@ export default function Dashboard() {
   }
 
   if (user.role === 'admin') {
-    return (
-      <div>
-        <h1 className="text-4xl font-bold mb-8">관리자 대시보드</h1>
-        <div className="bg-gray-800 p-6 rounded-lg">
-          <p className="text-gray-400">관리자 대시보드는 추후 구현 예정입니다.</p>
-        </div>
-      </div>
-    )
+    return <AdminDashboard />
   }
 
   return <StudentDashboard />

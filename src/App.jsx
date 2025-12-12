@@ -19,6 +19,13 @@ import Payment from './pages/Payment.jsx'
 import PaymentSuccess from './pages/PaymentSuccess.jsx'
 import PaymentFail from './pages/PaymentFail.jsx'
 import PaymentHistory from './pages/PaymentHistory.jsx'
+import Forbidden from './pages/Forbidden.jsx'
+import AdminRoute from './components/AdminRoute.jsx'
+import AdminDashboard from './components/dashboard/AdminDashboard.jsx'
+import UserManagement from './components/admin/UserManagement.jsx'
+import CourseManagement from './components/admin/CourseManagement.jsx'
+import EnrollmentManagement from './components/admin/EnrollmentManagement.jsx'
+import PaymentManagement from './components/admin/PaymentManagement.jsx'
 import { useAuthStore } from './stores/authStore.js'
 import { supabase } from './lib/supabase.js'
 import { ROUTES } from './utils/constants.js'
@@ -233,6 +240,49 @@ function App() {
                 <PrivateRoute>
                   <PaymentHistory />
                 </PrivateRoute>
+              }
+            />
+            {/* Forbidden page */}
+            <Route path="/forbidden" element={<Forbidden />} />
+            {/* Admin Routes */}
+            <Route
+              path="/admin/users"
+              element={
+                <AdminRoute>
+                  <AdminDashboard>
+                    <UserManagement />
+                  </AdminDashboard>
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/courses"
+              element={
+                <AdminRoute>
+                  <AdminDashboard>
+                    <CourseManagement />
+                  </AdminDashboard>
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/enrollments"
+              element={
+                <AdminRoute>
+                  <AdminDashboard>
+                    <EnrollmentManagement />
+                  </AdminDashboard>
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/payments"
+              element={
+                <AdminRoute>
+                  <AdminDashboard>
+                    <PaymentManagement />
+                  </AdminDashboard>
+                </AdminRoute>
               }
             />
           </Route>
