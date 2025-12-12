@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import { AlertTriangle, CheckCircle } from 'lucide-react'
 import { courseService } from '@/services/courseService.js'
 import { classroomService } from '@/services/classroomService.js'
 import { ROUTES } from '@/utils/constants.js'
@@ -30,6 +31,7 @@ export default function CreateCourse() {
   const [availableSlots, setAvailableSlots] = useState([]) // 가용 시간표 (시작일/주차 입력 후)
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [showAvailability, setShowAvailability] = useState(false)
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
 
   const [formData, setFormData] = useState({
     title: '',
@@ -153,10 +155,9 @@ export default function CreateCourse() {
     return price.toLocaleString()
   }
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault()
     setError(null)
-    setIsLoading(true)
 
     try {
       // 필수 필드 검증
@@ -178,12 +179,28 @@ export default function CreateCourse() {
 
       // 가용성 재확인
       if (showAvailability) {
-        const selectedSlot = availableSlots.find(s => s.id === formData.timeSlotId)
+        const selectedSlot = availableSlots.find((s) => s.id === formData.timeSlotId)
         if (selectedSlot && !selectedSlot.isAvailable) {
-          throw new Error('선택한 시간대는 사용할 수 없습니다. 다른 시간을 선택해주세요.')
+          throw new Error(
+            '선택한 시간대는 사용할 수 없습니다. 다른 시간을 선택해주세요.'
+          )
         }
       }
 
+      // 모든 검증을 통과하면 확인 모달 표시
+      setShowConfirmModal(true)
+    } catch (err) {
+      console.error('검증 실패:', err)
+      setError(err instanceof Error ? err.message : '입력 값을 확인해주세요.')
+    }
+  }
+
+  const handleConfirmSubmit = async () => {
+    setShowConfirmModal(false)
+    setError(null)
+    setIsLoading(true)
+
+    try {
       // 강의 생성
       const course = await courseService.createCourse(formData)
 
@@ -531,6 +548,134 @@ export default function CreateCourse() {
           </button>
         </div>
       </form>
+
+      {/* 확인 모달 */}
+      {showConfirmModal && (
+        <div
+          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowConfirmModal(false)}
+        >
+          <div
+            className="bg-gray-800 rounded-lg max-w-2xl w-full p-6 max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3 mb-4">
+              <AlertTriangle className="w-6 h-6 text-yellow-400 flex-shrink-0 mt-1" />
+              <div>
+                <h3 className="text-2xl font-bold mb-2">강의 생성 최종 확인</h3>
+                <p className="text-gray-300">
+                  아래 정보는 생성 후 변경할 수 없습니다. 신중히 확인해주세요.
+                </p>
+              </div>
+            </div>
+
+            {/* 변경 불가능한 항목 강조 표시 */}
+            <div className="bg-yellow-900/20 border-2 border-yellow-500 rounded-lg p-4 mb-4">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertTriangle className="w-5 h-5 text-yellow-400" />
+                <h4 className="font-semibold text-yellow-200">
+                  생성 후 변경 불가능한 항목
+                </h4>
+              </div>
+
+              <div className="space-y-3 text-sm">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="text-gray-400">강의실:</div>
+                  <div className="font-medium">
+                    {classrooms.find((c) => c.id === formData.classroomId)?.name ||
+                      '선택됨'}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="text-gray-400">수업 시간:</div>
+                  <div className="font-medium">
+                    {(() => {
+                      const selectedSlot = displaySlots.find(
+                        (s) => s.id === formData.timeSlotId
+                      )
+                      if (selectedSlot) {
+                        return `${DAYS_OF_WEEK[selectedSlot.day_of_week]} ${TIME_SLOT_DISPLAY[selectedSlot.slot_order]}`
+                      }
+                      return '선택됨'
+                    })()}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="text-gray-400">시작일:</div>
+                  <div className="font-medium">{formData.startDate}</div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="text-gray-400">주차 수:</div>
+                  <div className="font-medium">{formData.weeks}주</div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="text-gray-400">최대 수강 인원:</div>
+                  <div className="font-medium">{formData.maxStudents}명</div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="text-gray-400">가격:</div>
+                  <div className="font-medium">
+                    {formData.price === 0
+                      ? '무료'
+                      : `${formData.price.toLocaleString()}원`}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 변경 가능한 항목 */}
+            <div className="bg-gray-700/50 rounded-lg p-4 mb-6">
+              <div className="flex items-center gap-2 mb-3">
+                <CheckCircle className="w-5 h-5 text-green-400" />
+                <h4 className="font-semibold text-green-200">
+                  생성 후 수정 가능한 항목
+                </h4>
+              </div>
+
+              <div className="space-y-2 text-sm">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="text-gray-400">강의명:</div>
+                  <div className="font-medium">{formData.title}</div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="text-gray-400">강의 설명:</div>
+                  <div className="font-medium line-clamp-2">
+                    {formData.description}
+                  </div>
+                </div>
+
+                <p className="text-xs text-gray-400 mt-2">
+                  * 강의 제목, 설명, 썸네일, 강의 자료는 생성 후에도 수정 가능합니다.
+                </p>
+              </div>
+            </div>
+
+            {/* 버튼 */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition"
+                disabled={isLoading}
+              >
+                취소하고 수정
+              </button>
+              <button
+                onClick={handleConfirmSubmit}
+                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition disabled:opacity-50"
+                disabled={isLoading}
+              >
+                {isLoading ? '생성 중...' : '확인 및 생성'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -2,11 +2,27 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { courseService } from '@/services/courseService.js'
+import { classroomService } from '@/services/classroomService.js'
 import { ROUTES } from '@/utils/constants.js'
 import { useAuthStore } from '@/stores/authStore.js'
-
-import ScheduleInput from '@/components/course/ScheduleInput.jsx'
 import CourseMaterials from '@/components/course/CourseMaterials.jsx'
+import { AlertTriangle } from 'lucide-react'
+
+const DAYS_OF_WEEK = {
+  1: '월요일',
+  2: '화요일',
+  3: '수요일',
+  4: '목요일',
+  5: '금요일',
+}
+
+const TIME_SLOT_DISPLAY = {
+  1: '09:00-10:40',
+  2: '11:00-12:40',
+  3: '13:00-14:40',
+  4: '15:00-16:40',
+  5: '17:00-18:40',
+}
 
 export default function EditCourse() {
   const { id } = useParams()
@@ -15,26 +31,24 @@ export default function EditCourse() {
   const [isLoading, setIsLoading] = useState(false)
   const [isFetching, setIsFetching] = useState(true)
   const [error, setError] = useState(null)
+  const [classroomName, setClassroomName] = useState('')
+  const [timeSlotInfo, setTimeSlotInfo] = useState({ day: '', time: '' })
 
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     courseCode: '',
-    category: 'general',
-    level: 'beginner',
+    classroomId: '',
+    timeSlotId: '',
+    weeks: 4,
     maxStudents: 20,
     startDate: '',
-    endDate: '',
-    schedule: [],
     thumbnail: '',
     price: 0,
     status: 'draft',
   })
 
-  const handleScheduleChange = (schedules) => {
-    setFormData((prev) => ({ ...prev, schedule: schedules }))
-  }
-
+  // 강의 정보 로드
   useEffect(() => {
     if (id) {
       loadCourse(id)
@@ -46,6 +60,8 @@ export default function EditCourse() {
       setIsFetching(true)
       const course = await courseService.getCourseById(courseId)
 
+      console.log('로드된 강의 데이터:', course)
+
       // 날짜 형식 변환 (YYYY-MM-DD)
       const formatDateForInput = (dateString) => {
         return dateString.split('T')[0]
@@ -55,16 +71,28 @@ export default function EditCourse() {
         title: course.title,
         description: course.description,
         courseCode: course.courseCode,
-        category: course.category || 'general',
-        level: course.level || 'beginner',
-        maxStudents: course.maxStudents,
+        classroomId: course.classroom?.id || '',
+        timeSlotId: course.timeSlot?.id || '',
+        weeks: course.weeks || 4,
+        maxStudents: course.maxStudents || 20,
         startDate: formatDateForInput(course.startDate),
-        endDate: formatDateForInput(course.endDate),
-        schedule: course.schedule || [],
         thumbnail: course.thumbnail || '',
         price: course.price || 0,
         status: course.status || 'draft',
       })
+
+      // 강의실 정보 설정 (이미 조인되어 있음)
+      if (course.classroom) {
+        setClassroomName(course.classroom.name)
+      }
+
+      // 시간표 정보 설정 (이미 조인되어 있음)
+      if (course.timeSlot) {
+        setTimeSlotInfo({
+          day: DAYS_OF_WEEK[course.timeSlot.day_of_week] || '',
+          time: TIME_SLOT_DISPLAY[course.timeSlot.slot_order] || '',
+        })
+      }
     } catch (err) {
       console.error('강의 로드 실패:', err)
       setError('강의를 불러오는데 실패했습니다.')
@@ -77,45 +105,8 @@ export default function EditCourse() {
     const { name, value } = e.target
     setFormData((prev) => ({
       ...prev,
-      [name]: name === 'maxStudents' ? Number(value) : value,
+      [name]: value,
     }))
-  }
-
-  // 가격 입력 처리 (쉼표 포맷팅)
-  const handlePriceChange = (e) => {
-    const value = e.target.value
-    // 쉼표 제거하고 숫자만 추출
-    const numericValue = value.replace(/,/g, '').replace(/[^0-9]/g, '')
-
-    // 빈 값이면 0으로 설정
-    if (numericValue === '') {
-      setFormData((prev) => ({ ...prev, price: 0 }))
-    } else {
-      setFormData((prev) => ({ ...prev, price: Number(numericValue) }))
-    }
-  }
-
-  // 가격을 쉼표 포맷으로 표시
-  const formatPrice = (price) => {
-    if (price === 0) return ''
-    return price.toLocaleString()
-  }
-
-  // 최대 수강 인원 입력 처리
-  const handleMaxStudentsChange = (e) => {
-    const value = e.target.value
-    // 숫자만 추출
-    const numericValue = value.replace(/[^0-9]/g, '')
-
-    // 빈 값이면 1로 설정 (최소값)
-    if (numericValue === '') {
-      setFormData((prev) => ({ ...prev, maxStudents: 1 }))
-    } else {
-      const num = Number(numericValue)
-      // 20명 초과 시 20으로 제한
-      const limitedNum = Math.min(num, 20)
-      setFormData((prev) => ({ ...prev, maxStudents: limitedNum }))
-    }
   }
 
   const handleSubmit = async (e) => {
@@ -133,34 +124,22 @@ export default function EditCourse() {
         throw new Error('강의명과 설명은 필수입니다.')
       }
 
-      if (!formData.startDate || !formData.endDate) {
-        throw new Error('시작일과 종료일은 필수입니다.')
-      }
-
-      if (new Date(formData.endDate) <= new Date(formData.startDate)) {
-        throw new Error('종료일은 시작일보다 나중이어야 합니다.')
-      }
-
-      // 강의 업데이트
+      // 강의 업데이트 (수정 가능한 필드만)
       const updateData = {
         title: formData.title,
         description: formData.description,
-        courseCode: formData.courseCode,
-        category: formData.category,
-        level: formData.level,
-        maxStudents: formData.maxStudents,
-        startDate: formData.startDate,
-        endDate: formData.endDate,
-        schedule: formData.schedule,
         thumbnail: formData.thumbnail || undefined,
-        price: formData.price,
         status: formData.status,
       }
 
       const updatedCourse = await courseService.updateCourse(id, updateData)
 
-      // 성공 토스트
-      const statusText = updatedCourse.status === 'published' ? '공개' : updatedCourse.status === 'draft' ? '초안' : '보관됨'
+      const statusText =
+        updatedCourse.status === 'published'
+          ? '공개'
+          : updatedCourse.status === 'draft'
+            ? '초안'
+            : '보관됨'
       toast.success(
         `강의 "${updatedCourse.title}"이(가) 수정되었습니다!\n상태: ${statusText}`,
         {
@@ -193,7 +172,23 @@ export default function EditCourse() {
     <div className="max-w-4xl mx-auto">
       <div className="mb-8">
         <h1 className="text-4xl font-bold mb-2">강의 수정</h1>
-        <p className="text-gray-400">강의 정보를 수정하세요</p>
+        <p className="text-gray-400">
+          강의 설명과 자료만 수정할 수 있습니다
+        </p>
+      </div>
+
+      {/* 안내 메시지 */}
+      <div className="mb-6 p-4 bg-yellow-900/20 border border-yellow-500 rounded-lg flex items-start gap-3">
+        <AlertTriangle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+        <div className="text-sm text-yellow-200">
+          <p className="font-semibold mb-1">수정 제한 안내</p>
+          <p>
+            강의실, 시간표, 수강 인원, 가격, 시작일, 주차 수는 생성 후 변경할 수
+            없습니다.
+            <br />
+            강의 제목, 설명, 썸네일, 강의 자료만 수정 가능합니다.
+          </p>
+        </div>
       </div>
 
       {error && (
@@ -203,9 +198,9 @@ export default function EditCourse() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* 기본 정보 */}
+        {/* 수정 가능한 정보 */}
         <div className="bg-gray-800 p-6 rounded-lg">
-          <h2 className="text-2xl font-semibold mb-4">기본 정보</h2>
+          <h2 className="text-2xl font-semibold mb-4">강의 정보 (수정 가능)</h2>
 
           <div className="space-y-4">
             <div>
@@ -218,25 +213,9 @@ export default function EditCourse() {
                 value={formData.title}
                 onChange={handleChange}
                 className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
+                placeholder="예: React 완벽 가이드"
                 required
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                수강번호
-              </label>
-              <input
-                type="text"
-                name="courseCode"
-                value={formData.courseCode}
-                onChange={handleChange}
-                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
-                readOnly
-              />
-              <p className="text-sm text-gray-400 mt-1">
-                수강번호는 수정할 수 없습니다
-              </p>
             </div>
 
             <div>
@@ -248,62 +227,23 @@ export default function EditCourse() {
                 value={formData.description}
                 onChange={handleChange}
                 className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 min-h-[120px]"
+                placeholder="강의에 대한 자세한 설명을 입력하세요"
                 required
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  카테고리
-                </label>
-                <select
-                  name="category"
-                  value={formData.category}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
-                >
-                  <option value="general">일반</option>
-                  <option value="programming">프로그래밍</option>
-                  <option value="design">디자인</option>
-                  <option value="business">비즈니스</option>
-                  <option value="math">수학</option>
-                  <option value="science">과학</option>
-                  <option value="language">언어</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">난이도</label>
-                <select
-                  name="level"
-                  value={formData.level}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
-                >
-                  <option value="beginner">초급</option>
-                  <option value="intermediate">중급</option>
-                  <option value="advanced">고급</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  최대 수강 인원
-                </label>
-                <input
-                  type="text"
-                  name="maxStudents"
-                  value={formData.maxStudents}
-                  onChange={handleMaxStudentsChange}
-                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
-                  placeholder="최대 20명"
-                  required
-                />
-                <p className="text-sm text-gray-400 mt-1">
-                  최대 20명까지 설정 가능합니다
-                </p>
-              </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                썸네일 URL (선택사항)
+              </label>
+              <input
+                type="url"
+                name="thumbnail"
+                value={formData.thumbnail}
+                onChange={handleChange}
+                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
+                placeholder="https://example.com/image.jpg"
+              />
             </div>
 
             <div>
@@ -321,96 +261,136 @@ export default function EditCourse() {
                 <option value="archived">보관</option>
               </select>
               <p className="text-sm text-gray-400 mt-1">
-                초안: 강의 목록에 표시되지 않음 | 공개: 모든 사용자에게 표시 | 보관: 더 이상 수강 신청 불가
+                초안: 비공개 | 공개: 모든 사용자 표시
               </p>
             </div>
           </div>
         </div>
 
-        {/* 기간 및 시간표 */}
-        <div className="bg-gray-800 p-6 rounded-lg">
-          <h2 className="text-2xl font-semibold mb-4">기간 및 시간표</h2>
+        {/* 변경 불가능한 정보 */}
+        <div className="bg-gray-800 p-6 rounded-lg border-2 border-gray-600">
+          <h2 className="text-2xl font-semibold mb-2">
+            강의 세부 정보 (변경 불가)
+          </h2>
+          <p className="text-sm text-gray-400 mb-4">
+            아래 정보는 강의 생성 시 설정된 값으로 변경할 수 없습니다
+          </p>
 
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2">
-                  시작일 <span className="text-red-400">*</span>
+                <label className="block text-sm font-medium mb-2 text-gray-400">
+                  수강번호
                 </label>
                 <input
-                  type="date"
-                  name="startDate"
-                  value={formData.startDate}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
-                  required
+                  type="text"
+                  value={formData.courseCode}
+                  className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-400 cursor-not-allowed"
+                  readOnly
+                  disabled
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">
-                  종료일 <span className="text-red-400">*</span>
+                <label className="block text-sm font-medium mb-2 text-gray-400">
+                  강의실
                 </label>
                 <input
-                  type="date"
-                  name="endDate"
-                  value={formData.endDate}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
-                  required
+                  type="text"
+                  value={classroomName}
+                  className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-400 cursor-not-allowed"
+                  readOnly
+                  disabled
                 />
               </div>
             </div>
 
-            {/* 강의 시간표 */}
-            <ScheduleInput
-              schedules={formData.schedule}
-              onChange={handleScheduleChange}
-            />
-          </div>
-        </div>
-
-        {/* 가격 설정 */}
-        <div className="bg-gray-800 p-6 rounded-lg">
-          <h2 className="text-2xl font-semibold mb-4">가격 설정</h2>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                가격 (원)
-              </label>
-              <div className="relative">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-400">
+                  수업 요일
+                </label>
                 <input
                   type="text"
-                  name="price"
-                  value={formatPrice(formData.price)}
-                  onChange={handlePriceChange}
-                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
-                  placeholder="0 (무료)"
+                  value={timeSlotInfo.day}
+                  className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-400 cursor-not-allowed"
+                  readOnly
+                  disabled
                 />
-                {formData.price > 0 && (
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-                    원
-                  </span>
-                )}
               </div>
-              <p className="text-sm text-gray-400 mt-1">
-                0원으로 설정하면 무료 강의입니다 (예: 50,000)
-              </p>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-400">
+                  수업 시간
+                </label>
+                <input
+                  type="text"
+                  value={timeSlotInfo.time}
+                  className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-400 cursor-not-allowed"
+                  readOnly
+                  disabled
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                썸네일 URL
-              </label>
-              <input
-                type="url"
-                name="thumbnail"
-                value={formData.thumbnail}
-                onChange={handleChange}
-                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
-                placeholder="https://example.com/image.jpg"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-400">
+                  시작일
+                </label>
+                <input
+                  type="text"
+                  value={formData.startDate}
+                  className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-400 cursor-not-allowed"
+                  readOnly
+                  disabled
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-400">
+                  주차 수
+                </label>
+                <input
+                  type="text"
+                  value={`${formData.weeks}주`}
+                  className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-400 cursor-not-allowed"
+                  readOnly
+                  disabled
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-400">
+                  최대 수강 인원
+                </label>
+                <input
+                  type="text"
+                  value={`${formData.maxStudents}명`}
+                  className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-400 cursor-not-allowed"
+                  readOnly
+                  disabled
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-400">
+                  가격
+                </label>
+                <input
+                  type="text"
+                  value={
+                    formData.price === 0
+                      ? '무료'
+                      : `${formData.price.toLocaleString()}원`
+                  }
+                  className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-400 cursor-not-allowed"
+                  readOnly
+                  disabled
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -437,7 +417,10 @@ export default function EditCourse() {
 
       {/* 강의 자료 관리 */}
       <div className="mt-8">
-        <CourseMaterials courseId={id} isInstructor={user?.role === 'instructor'} />
+        <CourseMaterials
+          courseId={id}
+          isInstructor={user?.role === 'instructor'}
+        />
       </div>
     </div>
   )
