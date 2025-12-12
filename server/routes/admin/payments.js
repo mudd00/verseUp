@@ -19,21 +19,42 @@ router.get('/', async (req, res) => {
     const { page = 1, limit = 20, search = '' } = req.query
     const offset = (Number(page) - 1) * Number(limit)
 
+    // payments 조회 (course 조인)
     let query = supabase
       .from('payments')
-      .select(
-        '*, user:user_id(id, name, email), course:course_id(id, title)',
-        { count: 'exact' }
-      )
+      .select('*, course:courses!course_id(id, title, course_code)', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(offset, offset + Number(limit) - 1)
 
-    const { data, error, count } = await query
+    const { data: payments, error, count } = await query
 
     if (error) throw error
 
+    // user_id로 profiles 조회
+    const userIds = [...new Set(payments?.map((p) => p.user_id).filter(Boolean))]
+    let profiles = []
+    if (userIds.length > 0) {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, name, email')
+        .in('id', userIds)
+      profiles = data || []
+    }
+
+    // profiles를 map으로 변환
+    const profilesMap = {}
+    profiles.forEach((profile) => {
+      profilesMap[profile.id] = profile
+    })
+
+    // payments에 user 정보 추가
+    const paymentsWithUser = payments?.map((payment) => ({
+      ...payment,
+      user: profilesMap[payment.user_id] || null,
+    }))
+
     res.json({
-      payments: data || [],
+      payments: paymentsWithUser || [],
       total: count || 0,
       page: Number(page),
       limit: Number(limit),
@@ -55,14 +76,38 @@ router.get('/refunds', async (req, res) => {
       return res.status(503).json({ error: 'Database service unavailable' })
     }
 
-    const { data, error } = await supabase
+    // refunds 조회 (course 조인)
+    const { data: refunds, error } = await supabase
       .from('refunds')
-      .select('*, user:user_id(id, name, email), course:course_id(id, title)')
+      .select('*, course:courses!course_id(id, title, course_code)')
       .order('created_at', { ascending: false })
 
     if (error) throw error
 
-    res.json({ refunds: data || [] })
+    // user_id로 profiles 조회
+    const userIds = [...new Set(refunds?.map((r) => r.user_id).filter(Boolean))]
+    let profiles = []
+    if (userIds.length > 0) {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, name, email')
+        .in('id', userIds)
+      profiles = data || []
+    }
+
+    // profiles를 map으로 변환
+    const profilesMap = {}
+    profiles.forEach((profile) => {
+      profilesMap[profile.id] = profile
+    })
+
+    // refunds에 user 정보 추가
+    const refundsWithUser = refunds?.map((refund) => ({
+      ...refund,
+      user: profilesMap[refund.user_id] || null,
+    }))
+
+    res.json({ refunds: refundsWithUser || [] })
   } catch (error) {
     console.error('환불 목록 조회 실패:', error)
     res.status(500).json({ error: error.message || 'Internal server error' })

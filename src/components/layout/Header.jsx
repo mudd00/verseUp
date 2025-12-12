@@ -27,34 +27,65 @@ export default function Header() {
               >
                 대시보드
               </Link>
-              {(user?.role === 'instructor' || user?.role === 'admin') && (
+
+              {/* 관리자: 대시보드와 메타버스만 표시 */}
+              {user?.role === 'admin' && (
                 <Link
-                  to={ROUTES.MY_COURSES}
+                  to={ROUTES.METAVERSE}
                   className="text-gray-300 hover:text-white transition"
                 >
-                  내 강의 관리
+                  메타버스
                 </Link>
               )}
-              <Link
-                to={ROUTES.COURSES}
-                className="text-gray-300 hover:text-white transition"
-              >
-                강의목록
-              </Link>
-              <Link
-                to={ROUTES.METAVERSE}
-                className="text-gray-300 hover:text-white transition"
-              >
-                메타버스
-              </Link>
+
+              {/* 강사: 내 강의 관리, 강의목록, 메타버스 표시 */}
+              {user?.role === 'instructor' && (
+                <>
+                  <Link
+                    to={ROUTES.MY_COURSES}
+                    className="text-gray-300 hover:text-white transition"
+                  >
+                    내 강의 관리
+                  </Link>
+                  <Link
+                    to={ROUTES.COURSES}
+                    className="text-gray-300 hover:text-white transition"
+                  >
+                    강의목록
+                  </Link>
+                  <Link
+                    to={ROUTES.METAVERSE}
+                    className="text-gray-300 hover:text-white transition"
+                  >
+                    메타버스
+                  </Link>
+                </>
+              )}
+
+              {/* 학생: 강의목록, 메타버스, 결제내역 표시 */}
               {user?.role === 'student' && (
-                <Link
-                  to="/payment/history"
-                  className="text-gray-300 hover:text-white transition"
-                >
-                  결제내역
-                </Link>
+                <>
+                  <Link
+                    to={ROUTES.COURSES}
+                    className="text-gray-300 hover:text-white transition"
+                  >
+                    강의목록
+                  </Link>
+                  <Link
+                    to={ROUTES.METAVERSE}
+                    className="text-gray-300 hover:text-white transition"
+                  >
+                    메타버스
+                  </Link>
+                  <Link
+                    to="/payment/history"
+                    className="text-gray-300 hover:text-white transition"
+                  >
+                    결제내역
+                  </Link>
+                </>
               )}
+
               <div className="flex items-center gap-3">
                 <span className="text-gray-300">{user?.name}</span>
                 <Link

@@ -22,7 +22,7 @@ router.get('/', async (req, res) => {
     let query = supabase
       .from('enrollments')
       .select(
-        '*, student:student_id(id, name, email), course:course_id(id, title)',
+        '*, student:profiles!student_id(id, name, email), course:courses!course_id(id, title, course_code)',
         { count: 'exact' }
       )
 
@@ -31,12 +31,15 @@ router.get('/', async (req, res) => {
     }
 
     query = query
-      .order('created_at', { ascending: false })
+      .order('enrolled_at', { ascending: false })
       .range(offset, offset + Number(limit) - 1)
 
     const { data, error, count } = await query
 
-    if (error) throw error
+    if (error) {
+      console.error('Supabase query error:', error)
+      throw error
+    }
 
     res.json({
       enrollments: data || [],

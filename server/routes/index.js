@@ -20,7 +20,7 @@ router.use('/admin/users', adminUsersRoutes)
 router.use('/admin/stats', adminStatsRoutes)
 router.use('/admin/courses', adminCoursesRoutes)
 router.use('/admin/enrollments', adminEnrollmentsRoutes)
-router.use('/admin', adminPaymentsRoutes)
+router.use('/admin/payments', adminPaymentsRoutes)
 router.use('/', materialsRoutes)
 
 export default router
