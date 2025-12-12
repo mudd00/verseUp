@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Search, Check, X } from 'lucide-react'
+import { Search, Check, X, Plus } from 'lucide-react'
 import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 
@@ -9,9 +9,19 @@ export default function PaymentManagement() {
   const [refunds, setRefunds] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
+  const [showManualRefundModal, setShowManualRefundModal] = useState(false)
+  const [manualRefundForm, setManualRefundForm] = useState({
+    userId: '',
+    courseId: '',
+    amount: '',
+    reason: '',
+  })
 
   useEffect(() => {
     if (tab === 'payments') {
@@ -19,7 +29,7 @@ export default function PaymentManagement() {
     } else {
       loadRefunds()
     }
-  }, [tab, page, search])
+  }, [tab, page, search, statusFilter, startDate, endDate])
 
   const loadPayments = async () => {
     try {
@@ -28,6 +38,9 @@ export default function PaymentManagement() {
         page: String(page),
         limit: '20',
         ...(search && { search }),
+        ...(statusFilter && { status: statusFilter }),
+        ...(startDate && { startDate }),
+        ...(endDate && { endDate }),
       })
 
       const response = await fetch(`/api/admin/payments?${params}`, {
@@ -98,6 +111,43 @@ export default function PaymentManagement() {
     }
   }
 
+  const handleManualRefund = async (e) => {
+    e.preventDefault()
+
+    if (!manualRefundForm.userId || !manualRefundForm.courseId || !manualRefundForm.amount) {
+      toast.error('모든 필수 항목을 입력해주세요.')
+      return
+    }
+
+    try {
+      const response = await fetch('/api/admin/refunds/manual', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+        },
+        body: JSON.stringify({
+          user_id: manualRefundForm.userId,
+          course_id: manualRefundForm.courseId,
+          amount: Number(manualRefundForm.amount),
+          reason: manualRefundForm.reason,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to create manual refund')
+      }
+
+      toast.success('수동 환불이 생성되었습니다.')
+      setShowManualRefundModal(false)
+      setManualRefundForm({ userId: '', courseId: '', amount: '', reason: '' })
+      loadRefunds()
+    } catch (error) {
+      console.error('수동 환불 생성 실패:', error)
+      toast.error('수동 환불 생성에 실패했습니다.')
+    }
+  }
+
   const totalRevenue = payments
     .filter((p) => p.status === 'DONE')
     .reduce((sum, p) => sum + (p.amount || 0), 0)
@@ -162,6 +212,81 @@ export default function PaymentManagement() {
           </button>
         </div>
       </div>
+
+      {/* 결제 필터 */}
+      {tab === 'payments' && (
+        <div className="bg-gray-800 p-4 rounded-lg mb-6">
+          <div className="space-y-4">
+            <div className="flex gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  type="text"
+                  placeholder="검색..."
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value)
+                    setPage(1)
+                  }}
+                  className="w-full pl-10 pr-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value)
+                  setPage(1)
+                }}
+                className="px-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">모든 상태</option>
+                <option value="DONE">완료</option>
+                <option value="PENDING">대기중</option>
+                <option value="CANCELLED">취소</option>
+              </select>
+            </div>
+
+            {/* 날짜 범위 필터 */}
+            <div className="flex gap-4 items-center">
+              <span className="text-sm text-gray-400">결제일 범위:</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value)
+                  setPage(1)
+                }}
+                className="px-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+              <span className="text-gray-400">~</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value)
+                  setPage(1)
+                }}
+                className="px-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+              {(startDate || endDate || statusFilter || search) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch('')
+                    setStatusFilter('')
+                    setStartDate('')
+                    setEndDate('')
+                    setPage(1)
+                  }}
+                  className="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition"
+                >
+                  필터 초기화
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 결제 테이블 */}
       {tab === 'payments' && (
@@ -255,8 +380,18 @@ export default function PaymentManagement() {
 
       {/* 환불 테이블 */}
       {tab === 'refunds' && (
-        <div className="bg-gray-800 rounded-lg overflow-hidden">
-          <div className="overflow-x-auto">
+        <>
+          <div className="mb-6 flex justify-end">
+            <button
+              onClick={() => setShowManualRefundModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition"
+            >
+              <Plus className="w-4 h-4" />
+              수동 환불 처리
+            </button>
+          </div>
+          <div className="bg-gray-800 rounded-lg overflow-hidden">
+            <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-700">
                 <tr>
@@ -356,6 +491,94 @@ export default function PaymentManagement() {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+        </>
+      )}
+
+      {/* 수동 환불 처리 모달 */}
+      {showManualRefundModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-xl font-bold mb-4">수동 환불 처리</h3>
+            <form onSubmit={handleManualRefund} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  사용자 ID <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="사용자 UUID"
+                  value={manualRefundForm.userId}
+                  onChange={(e) =>
+                    setManualRefundForm({ ...manualRefundForm, userId: e.target.value })
+                  }
+                  className="w-full px-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  강의 ID <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="강의 UUID"
+                  value={manualRefundForm.courseId}
+                  onChange={(e) =>
+                    setManualRefundForm({ ...manualRefundForm, courseId: e.target.value })
+                  }
+                  className="w-full px-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  환불 금액 <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="number"
+                  placeholder="환불 금액 (원)"
+                  value={manualRefundForm.amount}
+                  onChange={(e) =>
+                    setManualRefundForm({ ...manualRefundForm, amount: e.target.value })
+                  }
+                  className="w-full px-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                  min="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">환불 사유</label>
+                <textarea
+                  placeholder="환불 사유를 입력하세요"
+                  value={manualRefundForm.reason}
+                  onChange={(e) =>
+                    setManualRefundForm({ ...manualRefundForm, reason: e.target.value })
+                  }
+                  className="w-full px-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows={3}
+                />
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowManualRefundModal(false)
+                    setManualRefundForm({ userId: '', courseId: '', amount: '', reason: '' })
+                  }}
+                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition"
+                >
+                  환불 처리
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

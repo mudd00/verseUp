@@ -16,13 +16,30 @@ router.get('/', async (req, res) => {
       return res.status(503).json({ error: 'Database service unavailable' })
     }
 
-    const { page = 1, limit = 20, search = '' } = req.query
+    const { page = 1, limit = 20, search = '', status = '', startDate = '', endDate = '' } = req.query
     const offset = (Number(page) - 1) * Number(limit)
 
     // payments 조회 (course 조인)
     let query = supabase
       .from('payments')
       .select('*, course:courses!course_id(id, title, course_code)', { count: 'exact' })
+
+    if (status) {
+      query = query.eq('status', status)
+    }
+
+    if (startDate) {
+      query = query.gte('created_at', startDate)
+    }
+
+    if (endDate) {
+      // endDate를 해당일의 23:59:59로 설정
+      const endDateTime = new Date(endDate)
+      endDateTime.setHours(23, 59, 59, 999)
+      query = query.lte('created_at', endDateTime.toISOString())
+    }
+
+    query = query
       .order('created_at', { ascending: false })
       .range(offset, offset + Number(limit) - 1)
 
@@ -162,6 +179,45 @@ router.post('/refunds/:id/reject', async (req, res) => {
     res.json({ message: 'Refund rejected successfully' })
   } catch (error) {
     console.error('환불 거부 실패:', error)
+    res.status(500).json({ error: error.message || 'Internal server error' })
+  }
+})
+
+/**
+ * POST /api/admin/refunds/manual
+ * 수동 환불 처리
+ */
+router.post('/refunds/manual', async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.status(503).json({ error: 'Database service unavailable' })
+    }
+
+    const { user_id, course_id, amount, reason } = req.body
+
+    if (!user_id || !course_id || !amount) {
+      return res.status(400).json({ error: 'Missing required fields' })
+    }
+
+    // 수동 환불 레코드 생성 (상태는 'approved'로 바로 설정)
+    const { data, error } = await supabase
+      .from('refunds')
+      .insert({
+        user_id,
+        course_id,
+        amount: Number(amount),
+        reason: reason || '관리자 수동 환불',
+        status: 'approved',
+        approved_at: new Date().toISOString(),
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+
+    res.json({ message: 'Manual refund created successfully', refund: data })
+  } catch (error) {
+    console.error('수동 환불 처리 실패:', error)
     res.status(500).json({ error: error.message || 'Internal server error' })
   }
 })

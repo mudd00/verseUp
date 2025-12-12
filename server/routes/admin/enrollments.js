@@ -16,7 +16,7 @@ router.get('/', async (req, res) => {
       return res.status(503).json({ error: 'Database service unavailable' })
     }
 
-    const { page = 1, limit = 20, search = '', status = '' } = req.query
+    const { page = 1, limit = 20, search = '', status = '', startDate = '', endDate = '' } = req.query
     const offset = (Number(page) - 1) * Number(limit)
 
     let query = supabase
@@ -28,6 +28,17 @@ router.get('/', async (req, res) => {
 
     if (status) {
       query = query.eq('status', status)
+    }
+
+    if (startDate) {
+      query = query.gte('enrolled_at', startDate)
+    }
+
+    if (endDate) {
+      // endDate를 해당일의 23:59:59로 설정
+      const endDateTime = new Date(endDate)
+      endDateTime.setHours(23, 59, 59, 999)
+      query = query.lte('enrolled_at', endDateTime.toISOString())
     }
 
     query = query

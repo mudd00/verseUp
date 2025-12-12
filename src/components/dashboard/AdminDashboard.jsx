@@ -8,8 +8,23 @@ import {
   BarChart3,
   Settings,
   Home,
+  TrendingUp,
+  Clock,
 } from 'lucide-react'
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts'
 import { useAuthStore } from '@/stores/authStore.js'
+import { format } from 'date-fns'
 
 const menuItems = [
   {
@@ -67,15 +82,25 @@ export default function AdminDashboard({ children }) {
     todayEnrollments: 0,
   })
   const [isLoading, setIsLoading] = useState(true)
+  const [revenueData, setRevenueData] = useState([])
+  const [popularCourses, setPopularCourses] = useState([])
+  const [recentActivities, setRecentActivities] = useState([])
+  const [revenuePeriod, setRevenuePeriod] = useState('daily') // daily, weekly, monthly
 
   useEffect(() => {
     loadStats()
+    loadRevenueData()
+    loadPopularCourses()
+    loadRecentActivities()
   }, [])
+
+  useEffect(() => {
+    loadRevenueData()
+  }, [revenuePeriod])
 
   const loadStats = async () => {
     try {
       setIsLoading(true)
-      // TODO: API 호출로 실제 통계 데이터 가져오기
       const response = await fetch('/api/admin/stats/overview', {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
@@ -90,6 +115,60 @@ export default function AdminDashboard({ children }) {
       console.error('통계 로드 실패:', error)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const loadRevenueData = async () => {
+    try {
+      const response = await fetch(
+        `/api/admin/stats/revenue?period=${revenuePeriod}`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+          },
+        }
+      )
+
+      if (response.ok) {
+        const data = await response.json()
+        setRevenueData(data.revenue || [])
+      }
+    } catch (error) {
+      console.error('매출 데이터 로드 실패:', error)
+    }
+  }
+
+  const loadPopularCourses = async () => {
+    try {
+      const response = await fetch('/api/admin/stats/popular-courses', {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setPopularCourses(data.courses || [])
+      }
+    } catch (error) {
+      console.error('인기 강의 로드 실패:', error)
+    }
+  }
+
+  const loadRecentActivities = async () => {
+    try {
+      const response = await fetch('/api/admin/stats/activities', {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setRecentActivities(data.activities || [])
+      }
+    } catch (error) {
+      console.error('활동 로그 로드 실패:', error)
     }
   }
 
@@ -186,16 +265,169 @@ export default function AdminDashboard({ children }) {
               </div>
             </div>
 
-            {/* 활동 로그 */}
+            {/* 매출 추이 그래프 */}
             <div className="bg-gray-800 p-6 rounded-lg mb-8">
-              <h3 className="text-xl font-semibold mb-4">최근 활동</h3>
-              <p className="text-gray-400">활동 로그는 추후 구현 예정입니다.</p>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-green-400" />
+                  <h3 className="text-xl font-semibold">매출 추이</h3>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setRevenuePeriod('daily')}
+                    className={`px-3 py-1 rounded text-sm transition ${
+                      revenuePeriod === 'daily'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    일별
+                  </button>
+                  <button
+                    onClick={() => setRevenuePeriod('weekly')}
+                    className={`px-3 py-1 rounded text-sm transition ${
+                      revenuePeriod === 'weekly'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    주별
+                  </button>
+                  <button
+                    onClick={() => setRevenuePeriod('monthly')}
+                    className={`px-3 py-1 rounded text-sm transition ${
+                      revenuePeriod === 'monthly'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    월별
+                  </button>
+                </div>
+              </div>
+
+              {revenueData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={revenueData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis dataKey="date" stroke="#9CA3AF" />
+                    <YAxis stroke="#9CA3AF" />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#1F2937',
+                        border: '1px solid #374151',
+                        borderRadius: '8px',
+                      }}
+                      labelStyle={{ color: '#F3F4F6' }}
+                    />
+                    <Legend />
+                    <Line
+                      type="monotone"
+                      dataKey="revenue"
+                      name="매출"
+                      stroke="#3B82F6"
+                      strokeWidth={2}
+                      dot={{ fill: '#3B82F6' }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-gray-400 text-center py-12">
+                  매출 데이터가 없습니다.
+                </p>
+              )}
             </div>
 
-            {/* 인기 강의 */}
-            <div className="bg-gray-800 p-6 rounded-lg">
-              <h3 className="text-xl font-semibold mb-4">인기 강의 TOP 5</h3>
-              <p className="text-gray-400">인기 강의 목록은 추후 구현 예정입니다.</p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+              {/* 인기 강의 TOP 10 */}
+              <div className="bg-gray-800 p-6 rounded-lg">
+                <h3 className="text-xl font-semibold mb-4">인기 강의 TOP 10</h3>
+
+                {popularCourses.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={400}>
+                    <BarChart
+                      data={popularCourses.slice(0, 10)}
+                      layout="vertical"
+                      margin={{ left: 100 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis type="number" stroke="#9CA3AF" />
+                      <YAxis
+                        dataKey="title"
+                        type="category"
+                        stroke="#9CA3AF"
+                        width={100}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#1F2937',
+                          border: '1px solid #374151',
+                          borderRadius: '8px',
+                        }}
+                        labelStyle={{ color: '#F3F4F6' }}
+                      />
+                      <Bar
+                        dataKey="enrolled_count"
+                        name="수강생 수"
+                        fill="#10B981"
+                        radius={[0, 4, 4, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <p className="text-gray-400 text-center py-12">
+                    인기 강의 데이터가 없습니다.
+                  </p>
+                )}
+              </div>
+
+              {/* 최근 활동 로그 */}
+              <div className="bg-gray-800 p-6 rounded-lg">
+                <div className="flex items-center gap-2 mb-4">
+                  <Clock className="w-5 h-5 text-blue-400" />
+                  <h3 className="text-xl font-semibold">최근 활동</h3>
+                </div>
+
+                {recentActivities.length > 0 ? (
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                    {recentActivities.map((activity, index) => (
+                      <div
+                        key={index}
+                        className="flex items-start gap-3 p-3 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition"
+                      >
+                        <div
+                          className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
+                            activity.type === 'signup'
+                              ? 'bg-green-400'
+                              : activity.type === 'enrollment'
+                                ? 'bg-blue-400'
+                                : activity.type === 'payment'
+                                  ? 'bg-purple-400'
+                                  : 'bg-gray-400'
+                          }`}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-gray-200">
+                            {activity.description}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {activity.created_at
+                              ? format(
+                                  new Date(activity.created_at),
+                                  'yyyy-MM-dd HH:mm'
+                                )
+                              : ''}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-400 text-center py-12">
+                    최근 활동 내역이 없습니다.
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         ) : (

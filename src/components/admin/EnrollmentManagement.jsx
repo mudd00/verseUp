@@ -19,13 +19,15 @@ export default function EnrollmentManagement() {
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
 
   useEffect(() => {
     loadEnrollments()
-  }, [page, search, statusFilter])
+  }, [page, search, statusFilter, startDate, endDate])
 
   const loadEnrollments = async () => {
     try {
@@ -35,6 +37,8 @@ export default function EnrollmentManagement() {
         limit: '20',
         ...(search && { search }),
         ...(statusFilter && { status: statusFilter }),
+        ...(startDate && { startDate }),
+        ...(endDate && { endDate }),
       })
 
       const response = await fetch(`/api/admin/enrollments?${params}`, {
@@ -115,35 +119,74 @@ export default function EnrollmentManagement() {
 
       {/* 검색 및 필터 */}
       <div className="bg-gray-800 p-4 rounded-lg mb-6">
-        <form onSubmit={handleSearch} className="flex gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="학생 또는 강의로 검색..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+        <form onSubmit={handleSearch} className="space-y-4">
+          <div className="flex gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="학생 또는 강의로 검색..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value)
+                setPage(1)
+              }}
+              className="px-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">모든 상태</option>
+              <option value="active">수강 중</option>
+              <option value="dropped">취소됨</option>
+            </select>
+            <button
+              type="submit"
+              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition"
+            >
+              검색
+            </button>
           </div>
-          <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value)
-              setPage(1)
-            }}
-            className="px-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">모든 상태</option>
-            <option value="active">수강 중</option>
-            <option value="dropped">취소됨</option>
-          </select>
-          <button
-            type="submit"
-            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition"
-          >
-            검색
-          </button>
+
+          {/* 날짜 범위 필터 */}
+          <div className="flex gap-4 items-center">
+            <span className="text-sm text-gray-400">수강일 범위:</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.target.value)
+                setPage(1)
+              }}
+              className="px-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            />
+            <span className="text-gray-400">~</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => {
+                setEndDate(e.target.value)
+                setPage(1)
+              }}
+              className="px-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            />
+            {(startDate || endDate) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStartDate('')
+                  setEndDate('')
+                  setPage(1)
+                }}
+                className="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition"
+              >
+                날짜 초기화
+              </button>
+            )}
+          </div>
         </form>
       </div>
 
