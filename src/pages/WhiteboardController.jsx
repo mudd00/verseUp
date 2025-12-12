@@ -30,9 +30,9 @@ export default function WhiteboardController() {
     const dpr = window.devicePixelRatio || 1
     const rect = canvas.getBoundingClientRect()
 
-    // 2:1 비율 강제 (가로로 긴 직사각형)
+    // 3:1 비율 강제 (칠판 메시에 맞춤)
     const canvasWidth = rect.width * dpr
-    const canvasHeight = (rect.width / 2) * dpr // 높이 = 너비의 절반
+    const canvasHeight = (rect.width / 3) * dpr // 높이 = 너비의 1/3
 
     canvas.width = canvasWidth
     canvas.height = canvasHeight
@@ -200,7 +200,7 @@ export default function WhiteboardController() {
 
       {/* 캔버스 */}
       <div className="flex-1 relative flex items-center justify-center">
-        <div className="w-full" style={{ aspectRatio: '2 / 1' }}>
+        <div className="w-full" style={{ aspectRatio: '3 / 1' }}>
           <canvas
             ref={canvasRef}
             className="w-full h-full touch-none"
