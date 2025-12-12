@@ -26,6 +26,7 @@ import UserManagement from './components/admin/UserManagement.jsx'
 import CourseManagement from './components/admin/CourseManagement.jsx'
 import EnrollmentManagement from './components/admin/EnrollmentManagement.jsx'
 import PaymentManagement from './components/admin/PaymentManagement.jsx'
+import ClassroomManagement from './components/admin/ClassroomManagement.jsx'
 import { useAuthStore } from './stores/authStore.js'
 import { supabase } from './lib/supabase.js'
 import { ROUTES } from './utils/constants.js'
@@ -281,6 +282,16 @@ function App() {
                 <AdminRoute>
                   <AdminDashboard>
                     <PaymentManagement />
+                  </AdminDashboard>
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/classrooms"
+              element={
+                <AdminRoute>
+                  <AdminDashboard>
+                    <ClassroomManagement />
                   </AdminDashboard>
                 </AdminRoute>
               }

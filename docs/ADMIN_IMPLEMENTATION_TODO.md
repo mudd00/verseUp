@@ -200,21 +200,21 @@
 
 ---
 
-### **Phase 4: 강의실 및 시간표 관리** ⚠️
-
-> **참고**: 기존 `/api/classrooms` API를 활용 가능하므로 별도 관리자 페이지는 향후 필요시 구현
+### **Phase 4: 강의실 및 시간표 관리** ✅
 
 #### 4.1 강의실 관리 페이지
-- [ ] `src/components/admin/ClassroomManagement.jsx` 컴포넌트 생성 (향후 구현)
-- [ ] 강의실 목록 테이블 (향후 구현)
-  - [ ] 컬럼: 이름, 설명, 수용인원, 이용 중인 강의 수
-  - [ ] 추가 버튼
-- [ ] 강의실 추가/수정 모달 (향후 구현)
-  - [ ] 폼: 이름, 설명, 수용인원
-  - [ ] 유효성 검사
-- [ ] 강의실 삭제 기능 (향후 구현)
-  - [ ] 사용 중인 강의 확인
-  - [ ] 경고 모달
+- [x] `src/components/admin/ClassroomManagement.jsx` 컴포넌트 생성
+- [x] 강의실 목록 테이블
+  - [x] 컬럼: 이름, 설명, 수용인원, 이용 중인 강의 수, 상태
+  - [x] 추가 버튼
+  - [x] 통계 카드 (전체/사용중/비활성)
+- [x] 강의실 추가/수정 모달
+  - [x] 폼: 이름, 설명, 수용인원
+  - [x] 유효성 검사
+- [x] 강의실 삭제 기능
+  - [x] 사용 중인 강의 확인
+  - [x] 확인 다이얼로그
+  - [x] 실제로는 status를 'inactive'로 변경
 
 #### 4.2 시간표 슬롯 관리
 - [ ] 시간표 슬롯 목록 테이블 (향후 구현)
@@ -225,9 +225,14 @@
   - [ ] 시간대별 이용률
 
 #### 4.3 강의실 관리 백엔드 API
-- [x] 기존 `server/routes/classrooms.js` 활용 가능
-  - [x] `GET /api/classrooms` - 전체 강의실 목록
-  - [x] 기타 CRUD API 존재
+- [x] `server/routes/admin/classrooms.js` 라우트 생성
+  - [x] `GET /api/admin/classrooms` - 전체 강의실 목록 (inactive 포함, 강의 수 포함)
+  - [x] `GET /api/admin/classrooms/:id` - 강의실 상세 (시간표, 강의 목록 포함)
+  - [x] `POST /api/admin/classrooms` - 강의실 생성
+  - [x] `PUT /api/admin/classrooms/:id` - 강의실 수정
+  - [x] `DELETE /api/admin/classrooms/:id` - 강의실 삭제 (비활성화)
+  - [x] `GET /api/admin/classrooms/stats` - 강의실 통계
+- [x] 기존 `server/routes/classrooms.js` 활용 가능 (공개 API)
 
 ---
 
@@ -278,7 +283,7 @@
   - [x] `/admin/courses` - 강의 관리
   - [x] `/admin/enrollments` - 수강 관리
   - [x] `/admin/payments` - 결제 관리
-  - [ ] `/admin/classrooms` - 강의실 관리 (향후 구현)
+  - [x] `/admin/classrooms` - 강의실 관리
 
 #### 6.3 보안 강화
 - [ ] API rate limiting 설정 (express-rate-limit) - 향후 구현
@@ -386,9 +391,13 @@ npm install express-rate-limit
 - ✅ 수강/결제 관리 API 전체
 - ⚠️ 결제 상세 조회 API (향후 구현)
 
-#### Phase 4: 강의실 관리 ⚠️ (기존 API 활용 가능)
-- ℹ️ 기존 `/api/classrooms` API 존재
-- ⚠️ 전용 관리 페이지는 필요시 구현
+#### Phase 4: 강의실 관리 ✅ (95%)
+- ✅ 강의실 목록 테이블 (이름, 설명, 수용인원, 사용 중인 강의 수, 상태)
+- ✅ 강의실 추가/수정 모달
+- ✅ 강의실 삭제 (비활성화)
+- ✅ 사용 중인 강의 체크
+- ✅ 강의실 관리 API 전체
+- ⚠️ 시간표 슬롯 관리 (향후 구현)
 
 #### Phase 5: 통합 대시보드 ✅ (100%)
 - ✅ 실시간 통계 카드 (사용자/강의/매출/오늘의 활동)
@@ -407,20 +416,22 @@ npm install express-rate-limit
 - ⚠️ API Rate Limiting (향후 구현)
 
 ### 생성된 파일
-#### 프론트엔드 (7개)
+#### 프론트엔드 (8개)
 - `src/components/dashboard/AdminDashboard.jsx`
 - `src/components/admin/UserManagement.jsx`
 - `src/components/admin/CourseManagement.jsx`
 - `src/components/admin/EnrollmentManagement.jsx`
 - `src/components/admin/PaymentManagement.jsx`
+- `src/components/admin/ClassroomManagement.jsx` ✨ NEW
 - `src/components/AdminRoute.jsx`
 - `src/pages/Forbidden.jsx`
 
-#### 백엔드 (5개)
+#### 백엔드 (6개)
 - `server/routes/admin/users.js`
 - `server/routes/admin/courses.js`
 - `server/routes/admin/enrollments.js`
 - `server/routes/admin/payments.js`
+- `server/routes/admin/classrooms.js` ✨ NEW
 - `server/routes/admin/stats.js`
 
 #### 문서 (2개)
@@ -475,13 +486,22 @@ npm install express-rate-limit
 - 403 Forbidden 페이지
 - 민감한 작업 확인 다이얼로그
 
+#### 7. 강의실 관리 ✨ NEW
+- 전체 강의실 목록 조회 (비활성 포함)
+- 강의실 추가/수정 모달
+- 강의실 삭제 (비활성화)
+- 사용 중인 강의 수 표시
+- 강의실 통계 (전체/사용중/비활성)
+- 강의실별 상세 정보 (시간표, 강의 목록)
+
 ### 향후 구현 예정
 - 결제 상세 조회 API (`GET /api/admin/payments/:id`)
 - 카테고리별 강의 분포 차트
 - 월별 강의 개설 추이 그래프
+- 시간표 슬롯 관리 페이지
+- 강의실 이용률 통계
 - 관리자 활동 로깅 시스템
 - API Rate Limiting
-- 강의실 관리 전용 페이지 (선택사항)
 
 ### 최근 구현 사항 (2025-12-12)
 
@@ -518,6 +538,29 @@ npm install express-rate-limit
    - 타입별 색상 코딩 (초록/파랑/보라)
    - 최근 15건 시간순 정렬
 
+#### 🆕 Phase 4: 강의실 관리 기능
+1. **강의실 관리 페이지**
+   - 강의실 목록 테이블 (이름, 설명, 수용인원, 사용 강의 수, 상태)
+   - 통계 카드 (전체/사용중/비활성)
+   - 실시간 강의 사용 현황 표시
+
+2. **강의실 추가/수정**
+   - 모달 UI로 강의실 생성
+   - 이름, 설명, 수용인원 입력
+   - 폼 유효성 검사
+
+3. **강의실 삭제**
+   - 사용 중인 강의 체크
+   - 사용 중이면 삭제 불가 경고
+   - 실제로는 status를 'inactive'로 변경
+
+4. **강의실 관리 API**
+   - GET /api/admin/classrooms - 전체 목록 (비활성 포함)
+   - POST /api/admin/classrooms - 강의실 생성
+   - PUT /api/admin/classrooms/:id - 강의실 수정
+   - DELETE /api/admin/classrooms/:id - 강의실 삭제
+   - GET /api/admin/classrooms/stats - 통계
+
 ### 테스트 방법
 1. 관리자 계정 생성 (`docs/ADMIN_ACCOUNT_SETUP.md` 참조)
 2. admin@test.com / test1234 로그인
@@ -528,3 +571,4 @@ npm install express-rate-limit
 - **수강 관리**: 날짜 범위 필터로 특정 기간 수강 조회
 - **결제 관리**: 상태/날짜 필터 조합, "수동 환불 처리" 버튼 클릭
 - **대시보드**: 매출 추이 토글 버튼, 인기 강의 차트, 활동 로그 확인
+- **강의실 관리**: "강의실 추가" 버튼, 수정/삭제 기능, 사용 중인 강의 체크
