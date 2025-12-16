@@ -522,6 +522,214 @@ export default function ClassroomManagement() {
           </div>
         </div>
       )}
+
+      {/* 시간표 슬롯 관리 모달 */}
+      {showTimeSlotModal && selectedClassroom && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold">
+                시간표 슬롯 관리 - {selectedClassroom.name}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowTimeSlotModal(false)
+                  setSelectedClassroom(null)
+                  setTimeSlots([])
+                }}
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition"
+              >
+                닫기
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <button
+                onClick={() => handleOpenSlotFormModal()}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition"
+              >
+                <Plus className="w-4 h-4" />
+                시간표 슬롯 추가
+              </button>
+            </div>
+
+            {/* 시간표 슬롯 테이블 */}
+            <div className="bg-gray-900 rounded-lg overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-700">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">
+                      요일
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">
+                      시작 시간
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">
+                      종료 시간
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">
+                      순서
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">
+                      작업
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-700">
+                  {isLoadingSlots ? (
+                    <tr>
+                      <td colSpan="5" className="px-4 py-8 text-center text-gray-400">
+                        로딩 중...
+                      </td>
+                    </tr>
+                  ) : timeSlots.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" className="px-4 py-8 text-center text-gray-400">
+                        시간표 슬롯이 없습니다.
+                      </td>
+                    </tr>
+                  ) : (
+                    timeSlots.map((slot) => (
+                      <tr key={slot.id} className="hover:bg-gray-700/50">
+                        <td className="px-4 py-3">
+                          <span className="px-2 py-1 bg-blue-600/20 text-blue-400 rounded text-sm">
+                            {DAY_LABELS[slot.day_of_week]}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm">{slot.start_time}</td>
+                        <td className="px-4 py-3 text-sm">{slot.end_time}</td>
+                        <td className="px-4 py-3 text-sm">{slot.slot_order}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleOpenSlotFormModal(slot)}
+                              className="p-1 hover:bg-gray-600 rounded transition"
+                              title="수정"
+                            >
+                              <Edit className="w-4 h-4 text-blue-400" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteSlot(slot.id)}
+                              className="p-1 hover:bg-gray-600 rounded transition"
+                              title="삭제"
+                            >
+                              <Trash2 className="w-4 h-4 text-red-400" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 시간표 슬롯 추가/수정 모달 */}
+      {showSlotFormModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-xl font-bold mb-4">
+              {editingSlot ? '시간표 슬롯 수정' : '시간표 슬롯 추가'}
+            </h3>
+            <form onSubmit={handleSubmitSlot} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  요일 <span className="text-red-400">*</span>
+                </label>
+                <select
+                  value={slotFormData.day_of_week}
+                  onChange={(e) =>
+                    setSlotFormData({
+                      ...slotFormData,
+                      day_of_week: Number(e.target.value),
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  required
+                >
+                  {Object.entries(DAY_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  시작 시간 <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="time"
+                  value={slotFormData.start_time}
+                  onChange={(e) =>
+                    setSlotFormData({
+                      ...slotFormData,
+                      start_time: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  종료 시간 <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="time"
+                  value={slotFormData.end_time}
+                  onChange={(e) =>
+                    setSlotFormData({
+                      ...slotFormData,
+                      end_time: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  순서
+                </label>
+                <input
+                  type="number"
+                  value={slotFormData.slot_order}
+                  onChange={(e) =>
+                    setSlotFormData({
+                      ...slotFormData,
+                      slot_order: Number(e.target.value),
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  min="0"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  시간표에 표시될 순서를 지정합니다 (숫자가 낮을수록 먼저 표시)
+                </p>
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  onClick={handleCloseSlotFormModal}
+                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition"
+                >
+                  {editingSlot ? '수정' : '추가'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
