@@ -93,10 +93,16 @@ router.get('/refunds', async (req, res) => {
       return res.status(503).json({ error: 'Database service unavailable' })
     }
 
-    // refunds 조회 (course 조인)
+    // refunds 조회 (payment, course 조인)
     const { data: refunds, error } = await supabase
       .from('refunds')
-      .select('*, course:courses!course_id(id, title, course_code)')
+      .select(
+        `
+        *,
+        payment:payments(order_id, order_name),
+        course:courses(id, title, course_code)
+      `
+      )
       .order('created_at', { ascending: false })
 
     if (error) throw error
