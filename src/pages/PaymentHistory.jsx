@@ -2,14 +2,18 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiService } from '@/services/api.js'
 import { ROUTES } from '@/utils/constants.js'
+import { useAuthStore } from '@/stores/authStore.js'
 import toast from 'react-hot-toast'
 
 export default function PaymentHistory() {
   const navigate = useNavigate()
+  const { user } = useAuthStore()
   const [payments, setPayments] = useState([])
   const [refunds, setRefunds] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('payments') // 'payments' | 'refunds'
+
+  const isAdmin = user?.role === 'admin'
 
   useEffect(() => {
     loadPayments()
@@ -19,7 +23,9 @@ export default function PaymentHistory() {
   const loadPayments = async () => {
     try {
       setIsLoading(true)
-      const response = await apiService.get('/payments')
+      // 관리자는 모든 결제 내역, 학생은 자신의 결제 내역만 조회
+      const endpoint = isAdmin ? '/admin/payments' : '/payments'
+      const response = await apiService.get(endpoint)
       setPayments(response.payments || [])
     } catch (error) {
       console.error('결제 내역 조회 실패:', error)
@@ -31,7 +37,9 @@ export default function PaymentHistory() {
 
   const loadRefunds = async () => {
     try {
-      const response = await apiService.get('/payments/refunds')
+      // 관리자는 모든 환불 내역, 학생은 자신의 환불 내역만 조회
+      const endpoint = isAdmin ? '/admin/payments/refunds' : '/payments/refunds'
+      const response = await apiService.get(endpoint)
       setRefunds(response.refunds || [])
     } catch (error) {
       console.error('환불 내역 조회 실패:', error)
@@ -75,7 +83,9 @@ export default function PaymentHistory() {
     <div className="max-w-6xl mx-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">결제 및 환불 내역</h1>
-        <p className="text-gray-400">모든 결제 및 환불 내역을 확인할 수 있습니다.</p>
+        <p className="text-gray-400">
+          {isAdmin ? '모든 사용자의 결제 및 환불 내역을 확인할 수 있습니다.' : '결제 및 환불 내역을 확인할 수 있습니다.'}
+        </p>
       </div>
 
       {/* 탭 메뉴 */}
@@ -120,6 +130,7 @@ export default function PaymentHistory() {
           <table className="w-full">
             <thead className="bg-gray-700">
               <tr>
+                {isAdmin && <th className="px-6 py-4 text-left text-sm font-semibold">사용자</th>}
                 <th className="px-6 py-4 text-left text-sm font-semibold">주문번호</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold">강의명</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold">결제금액</th>
@@ -131,23 +142,31 @@ export default function PaymentHistory() {
             </thead>
             <tbody className="divide-y divide-gray-700">
               {payments.map((payment) => (
-                <tr key={payment.orderId} className="hover:bg-gray-700/50 transition">
+                <tr key={payment.orderId || payment.order_id} className="hover:bg-gray-700/50 transition">
+                  {isAdmin && (
+                    <td className="px-6 py-4 text-sm">
+                      <div>
+                        <div className="font-medium">{payment.user?.name || '-'}</div>
+                        <div className="text-xs text-gray-400">{payment.user?.email || '-'}</div>
+                      </div>
+                    </td>
+                  )}
                   <td className="px-6 py-4 text-sm font-mono text-gray-400">
-                    {payment.orderId}
+                    {payment.orderId || payment.order_id}
                   </td>
-                  <td className="px-6 py-4 text-sm">{payment.orderName || '-'}</td>
+                  <td className="px-6 py-4 text-sm">{payment.orderName || payment.order_name || '-'}</td>
                   <td className="px-6 py-4 text-sm font-semibold text-blue-400">
                     ₩{payment.amount?.toLocaleString()}
                   </td>
                   <td className="px-6 py-4 text-sm">{payment.method || '카드'}</td>
                   <td className="px-6 py-4 text-sm">{getStatusBadge(payment.status)}</td>
                   <td className="px-6 py-4 text-sm text-gray-400">
-                    {formatDate(payment.approvedAt)}
+                    {formatDate(payment.approvedAt || payment.approved_at)}
                   </td>
                   <td className="px-6 py-4 text-sm">
-                    {payment.receipt ? (
+                    {(payment.receipt || payment.receipt_url) ? (
                       <a
-                        href={payment.receipt}
+                        href={payment.receipt || payment.receipt_url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-400 hover:text-blue-300 underline"
@@ -179,6 +198,7 @@ export default function PaymentHistory() {
               <table className="w-full">
                 <thead className="bg-gray-700">
                   <tr>
+                    {isAdmin && <th className="px-6 py-4 text-left text-sm font-semibold">사용자</th>}
                     <th className="px-6 py-4 text-left text-sm font-semibold">주문번호</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold">강의명</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold">원금액</th>
@@ -191,26 +211,34 @@ export default function PaymentHistory() {
                 </thead>
                 <tbody className="divide-y divide-gray-700">
                   {refunds.map((refund) => (
-                    <tr key={refund.refundId} className="hover:bg-gray-700/50 transition">
+                    <tr key={refund.refundId || refund.id} className="hover:bg-gray-700/50 transition">
+                      {isAdmin && (
+                        <td className="px-6 py-4 text-sm">
+                          <div>
+                            <div className="font-medium">{refund.user?.name || '-'}</div>
+                            <div className="text-xs text-gray-400">{refund.user?.email || '-'}</div>
+                          </div>
+                        </td>
+                      )}
                       <td className="px-6 py-4 text-sm font-mono text-gray-400">
-                        {refund.orderId}
+                        {refund.orderId || refund.payment?.order_id || '-'}
                       </td>
-                      <td className="px-6 py-4 text-sm">{refund.courseTitle || refund.orderName || '-'}</td>
+                      <td className="px-6 py-4 text-sm">{refund.courseTitle || refund.course?.title || refund.orderName || '-'}</td>
                       <td className="px-6 py-4 text-sm text-gray-400">
-                        ₩{refund.originalAmount?.toLocaleString()}
+                        ₩{(refund.originalAmount || refund.original_amount)?.toLocaleString()}
                       </td>
                       <td className="px-6 py-4 text-sm font-semibold text-green-400">
-                        ₩{refund.refundAmount?.toLocaleString()}
+                        ₩{(refund.refundAmount || refund.refund_amount)?.toLocaleString()}
                       </td>
                       <td className="px-6 py-4 text-sm text-blue-400">
-                        {refund.refundRate}%
+                        {refund.refundRate || refund.refund_rate}%
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-400">
-                        {refund.policyApplied}
+                        {refund.policyApplied || refund.policy_applied || '-'}
                       </td>
                       <td className="px-6 py-4 text-sm">{getStatusBadge(refund.status)}</td>
                       <td className="px-6 py-4 text-sm text-gray-400">
-                        {formatDate(refund.completedAt || refund.requestedAt)}
+                        {formatDate(refund.completedAt || refund.completed_at || refund.requestedAt || refund.requested_at)}
                       </td>
                     </tr>
                   ))}
