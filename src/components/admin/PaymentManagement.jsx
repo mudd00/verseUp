@@ -68,7 +68,7 @@ export default function PaymentManagement() {
   const loadRefunds = async () => {
     try {
       setIsLoading(true)
-      const response = await fetch('/api/admin/refunds', {
+      const response = await fetch('/api/admin/payments/refunds', {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
         },
@@ -90,7 +90,7 @@ export default function PaymentManagement() {
 
   const handleRefundAction = async (refundId, action) => {
     try {
-      const response = await fetch(`/api/admin/refunds/${refundId}/${action}`, {
+      const response = await fetch(`/api/admin/payments/refunds/${refundId}/${action}`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
@@ -120,7 +120,7 @@ export default function PaymentManagement() {
     }
 
     try {
-      const response = await fetch('/api/admin/refunds/manual', {
+      const response = await fetch('/api/admin/payments/refunds/manual', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
