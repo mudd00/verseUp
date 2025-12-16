@@ -46,6 +46,7 @@ export default function ClassroomManagement() {
     end_time: '',
     slot_order: 0,
   })
+  const [viewMode, setViewMode] = useState('grid') // 'grid' | 'table'
 
   useEffect(() => {
     loadClassrooms()
@@ -210,7 +211,7 @@ export default function ClassroomManagement() {
     }
   }
 
-  const handleOpenSlotFormModal = (slot = null) => {
+  const handleOpenSlotFormModal = (slot = null, dayOfWeek = 0, startTime = '') => {
     if (slot) {
       setEditingSlot(slot)
       setSlotFormData({
@@ -221,10 +222,12 @@ export default function ClassroomManagement() {
       })
     } else {
       setEditingSlot(null)
+      // 빈 셀 클릭 시 해당 요일과 시간대로 자동 설정
+      const endHour = startTime ? parseInt(startTime.split(':')[0]) + 1 : 10
       setSlotFormData({
-        day_of_week: 0,
-        start_time: '',
-        end_time: '',
+        day_of_week: dayOfWeek,
+        start_time: startTime || '',
+        end_time: startTime ? `${String(endHour).padStart(2, '0')}:00` : '',
         slot_order: 0,
       })
     }
@@ -310,6 +313,26 @@ export default function ClassroomManagement() {
       toast.error('시간표 슬롯 삭제에 실패했습니다.')
     }
   }
+
+  // 시간표 그리드를 위한 유틸리티 함수
+  const generateTimeSlots = () => {
+    const slots = []
+    for (let hour = 9; hour <= 18; hour++) {
+      slots.push(`${String(hour).padStart(2, '0')}:00`)
+    }
+    return slots
+  }
+
+  const getSlotForDayAndTime = (dayOfWeek, timeSlot) => {
+    return timeSlots.filter((slot) => {
+      if (slot.day_of_week !== dayOfWeek) return false
+      const slotStart = slot.start_time.substring(0, 5)
+      const slotEnd = slot.end_time.substring(0, 5)
+      return slotStart <= timeSlot && timeSlot < slotEnd
+    })
+  }
+
+  const timeSlotLabels = generateTimeSlots()
 
   const activeCount = classrooms.filter((c) => c.status === 'active').length
   const inactiveCount = classrooms.filter((c) => c.status === 'inactive').length
@@ -526,7 +549,7 @@ export default function ClassroomManagement() {
       {/* 시간표 슬롯 관리 모달 */}
       {showTimeSlotModal && selectedClassroom && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-6xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold">
                 시간표 슬롯 관리 - {selectedClassroom.name}
@@ -543,7 +566,7 @@ export default function ClassroomManagement() {
               </button>
             </div>
 
-            <div className="mb-4">
+            <div className="mb-4 flex gap-3">
               <button
                 onClick={() => handleOpenSlotFormModal()}
                 className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition"
@@ -551,78 +574,206 @@ export default function ClassroomManagement() {
                 <Plus className="w-4 h-4" />
                 시간표 슬롯 추가
               </button>
+              <div className="flex gap-2 ml-auto">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`px-4 py-2 rounded-lg transition ${
+                    viewMode === 'grid'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-700 hover:bg-gray-600'
+                  }`}
+                >
+                  시간표 보기
+                </button>
+                <button
+                  onClick={() => setViewMode('table')}
+                  className={`px-4 py-2 rounded-lg transition ${
+                    viewMode === 'table'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-700 hover:bg-gray-600'
+                  }`}
+                >
+                  목록 보기
+                </button>
+              </div>
             </div>
 
-            {/* 시간표 슬롯 테이블 */}
-            <div className="bg-gray-900 rounded-lg overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-gray-700">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">
-                      요일
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">
-                      시작 시간
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">
-                      종료 시간
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">
-                      순서
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">
-                      작업
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-700">
-                  {isLoadingSlots ? (
-                    <tr>
-                      <td colSpan="5" className="px-4 py-8 text-center text-gray-400">
-                        로딩 중...
-                      </td>
-                    </tr>
-                  ) : timeSlots.length === 0 ? (
-                    <tr>
-                      <td colSpan="5" className="px-4 py-8 text-center text-gray-400">
-                        시간표 슬롯이 없습니다.
-                      </td>
-                    </tr>
-                  ) : (
-                    timeSlots.map((slot) => (
-                      <tr key={slot.id} className="hover:bg-gray-700/50">
-                        <td className="px-4 py-3">
-                          <span className="px-2 py-1 bg-blue-600/20 text-blue-400 rounded text-sm">
-                            {DAY_LABELS[slot.day_of_week]}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm">{slot.start_time}</td>
-                        <td className="px-4 py-3 text-sm">{slot.end_time}</td>
-                        <td className="px-4 py-3 text-sm">{slot.slot_order}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleOpenSlotFormModal(slot)}
-                              className="p-1 hover:bg-gray-600 rounded transition"
-                              title="수정"
+            {isLoadingSlots ? (
+              <div className="bg-gray-900 rounded-lg p-12 text-center">
+                <p className="text-gray-400">로딩 중...</p>
+              </div>
+            ) : viewMode === 'grid' ? (
+              /* 시간표 그리드 뷰 */
+              <div className="bg-gray-900 rounded-lg overflow-hidden">
+                {timeSlots.length === 0 ? (
+                  <div className="p-12 text-center text-gray-400">
+                    시간표 슬롯이 없습니다. 상단의 "시간표 슬롯 추가" 버튼을 클릭하여 추가하세요.
+                  </div>
+                ) : (
+                  <>
+                    <div className="bg-blue-900/20 border-b border-blue-600/30 p-3">
+                      <p className="text-xs text-blue-300">
+                        💡 <strong>사용 팁:</strong> 빈 셀을 클릭하면 해당 요일과 시간대로 자동 설정된 슬롯 추가 폼이 열립니다.
+                        슬롯을 클릭하면 수정할 수 있으며, 마우스를 올리면 수정/삭제 버튼이 나타납니다.
+                      </p>
+                    </div>
+                    <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="bg-gray-700">
+                          <th className="px-3 py-3 text-xs font-medium text-gray-300 border border-gray-600 w-20">
+                            시간
+                          </th>
+                          {Object.entries(DAY_LABELS).map(([value, label]) => (
+                            <th
+                              key={value}
+                              className="px-3 py-3 text-xs font-medium text-gray-300 border border-gray-600"
                             >
-                              <Edit className="w-4 h-4 text-blue-400" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteSlot(slot.id)}
-                              className="p-1 hover:bg-gray-600 rounded transition"
-                              title="삭제"
-                            >
-                              <Trash2 className="w-4 h-4 text-red-400" />
-                            </button>
-                          </div>
+                              {label}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {timeSlotLabels.map((timeLabel) => (
+                          <tr key={timeLabel}>
+                            <td className="px-3 py-2 text-xs text-gray-400 border border-gray-600 bg-gray-800 text-center font-medium">
+                              {timeLabel}
+                            </td>
+                            {[0, 1, 2, 3, 4, 5, 6].map((dayOfWeek) => {
+                              const slotsInCell = getSlotForDayAndTime(dayOfWeek, timeLabel)
+                              const isEmpty = slotsInCell.length === 0
+                              return (
+                                <td
+                                  key={dayOfWeek}
+                                  className={`border border-gray-600 p-1 align-top h-20 ${
+                                    isEmpty
+                                      ? 'bg-gray-800/50 hover:bg-gray-700/50 cursor-pointer'
+                                      : 'bg-gray-800/50'
+                                  }`}
+                                  onClick={
+                                    isEmpty
+                                      ? () => handleOpenSlotFormModal(null, dayOfWeek, timeLabel)
+                                      : undefined
+                                  }
+                                  title={isEmpty ? '클릭하여 시간표 추가' : ''}
+                                >
+                                  {isEmpty ? (
+                                    <div className="flex items-center justify-center h-full opacity-0 hover:opacity-30 transition">
+                                      <Plus className="w-5 h-5 text-gray-400" />
+                                    </div>
+                                  ) : (
+                                    slotsInCell.map((slot) => (
+                                      <div
+                                        key={slot.id}
+                                        className="bg-gradient-to-br from-purple-600/80 to-blue-600/80 rounded-lg p-2 mb-1 cursor-pointer hover:from-purple-500 hover:to-blue-500 transition group relative"
+                                        onClick={() => handleOpenSlotFormModal(slot)}
+                                      >
+                                        <div className="text-xs font-semibold text-white">
+                                          {slot.start_time.substring(0, 5)} - {slot.end_time.substring(0, 5)}
+                                        </div>
+                                        <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition flex gap-1">
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleOpenSlotFormModal(slot)
+                                            }}
+                                            className="p-0.5 bg-blue-700 rounded hover:bg-blue-600"
+                                            title="수정"
+                                          >
+                                            <Edit className="w-3 h-3" />
+                                          </button>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleDeleteSlot(slot.id)
+                                            }}
+                                            className="p-0.5 bg-red-700 rounded hover:bg-red-600"
+                                            title="삭제"
+                                          >
+                                            <Trash2 className="w-3 h-3" />
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ))
+                                  )}
+                                </td>
+                              )
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              /* 시간표 슬롯 테이블 뷰 */
+              <div className="bg-gray-900 rounded-lg overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-gray-700">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">
+                        요일
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">
+                        시작 시간
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">
+                        종료 시간
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">
+                        순서
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">
+                        작업
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-700">
+                    {timeSlots.length === 0 ? (
+                      <tr>
+                        <td colSpan="5" className="px-4 py-8 text-center text-gray-400">
+                          시간표 슬롯이 없습니다.
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    ) : (
+                      timeSlots.map((slot) => (
+                        <tr key={slot.id} className="hover:bg-gray-700/50">
+                          <td className="px-4 py-3">
+                            <span className="px-2 py-1 bg-blue-600/20 text-blue-400 rounded text-sm">
+                              {DAY_LABELS[slot.day_of_week]}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm">{slot.start_time}</td>
+                          <td className="px-4 py-3 text-sm">{slot.end_time}</td>
+                          <td className="px-4 py-3 text-sm">{slot.slot_order}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleOpenSlotFormModal(slot)}
+                                className="p-1 hover:bg-gray-600 rounded transition"
+                                title="수정"
+                              >
+                                <Edit className="w-4 h-4 text-blue-400" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteSlot(slot.id)}
+                                className="p-1 hover:bg-gray-600 rounded transition"
+                                title="삭제"
+                              >
+                                <Trash2 className="w-4 h-4 text-red-400" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}
