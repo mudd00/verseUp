@@ -239,7 +239,7 @@ router.get('/stats', async (req, res) => {
 
 /**
  * GET /api/admin/classrooms/:id/time-slots
- * 강의실의 시간표 슬롯 목록
+ * 강의실의 시간표 슬롯 목록 (해당 슬롯을 사용하는 강의 정보 포함)
  */
 router.get('/:id/time-slots', async (req, res) => {
   try {
@@ -258,7 +258,39 @@ router.get('/:id/time-slots', async (req, res) => {
 
     if (error) throw error
 
-    res.json({ timeSlots: timeSlots || [] })
+    // 각 시간표 슬롯에 대해 해당 슬롯을 사용하는 강의 조회
+    const timeSlotsWithCourses = await Promise.all(
+      (timeSlots || []).map(async (slot) => {
+        const { data: courses } = await supabase
+          .from('courses')
+          .select('id, title, course_code, status, instructor_id')
+          .eq('time_slot_id', slot.id)
+          .eq('status', 'published')
+
+        // 강사 정보 조회
+        const coursesWithInstructor = await Promise.all(
+          (courses || []).map(async (course) => {
+            const { data: instructor } = await supabase
+              .from('profiles')
+              .select('name, email')
+              .eq('id', course.instructor_id)
+              .single()
+
+            return {
+              ...course,
+              instructor: instructor || null,
+            }
+          })
+        )
+
+        return {
+          ...slot,
+          courses: coursesWithInstructor || [],
+        }
+      })
+    )
+
+    res.json({ timeSlots: timeSlotsWithCourses })
   } catch (error) {
     console.error('시간표 슬롯 조회 실패:', error)
     res.status(500).json({ error: error.message || 'Internal server error' })

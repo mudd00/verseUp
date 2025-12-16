@@ -672,6 +672,25 @@ export default function ClassroomManagement() {
                                         <div className="text-xs font-semibold text-white">
                                           {slot.start_time.substring(0, 5)} - {slot.end_time.substring(0, 5)}
                                         </div>
+                                        {slot.courses && slot.courses.length > 0 && (
+                                          <div className="mt-1 space-y-0.5">
+                                            {slot.courses.map((course) => (
+                                              <div
+                                                key={course.id}
+                                                className="text-xs text-white/90 bg-black/20 rounded px-1.5 py-0.5"
+                                              >
+                                                <div className="font-medium truncate" title={course.title}>
+                                                  {course.title}
+                                                </div>
+                                                {course.instructor && (
+                                                  <div className="text-white/70 text-[10px]">
+                                                    {course.instructor.name}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
                                         <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition flex gap-1">
                                           <button
                                             onClick={(e) => {
