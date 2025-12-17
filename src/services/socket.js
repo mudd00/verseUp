@@ -117,3 +117,4 @@ class SocketService {
 }
 
 export const socketService = new SocketService()
+export const socket = socketService

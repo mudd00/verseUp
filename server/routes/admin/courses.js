@@ -1,6 +1,10 @@
 import express from 'express'
 import { authMiddleware, requireAdmin } from '../../middleware/auth.js'
 import { supabase } from '../../utils/supabase.js'
+import {
+  notifyCourseApproved,
+  notifyCourseRejected,
+} from '../../services/notificationService.js'
 
 const router = express.Router()
 
@@ -186,7 +190,28 @@ router.put('/:id/status', async (req, res) => {
       return res.status(404).json({ error: 'Course not found' })
     }
 
-    // TODO: 강사에게 알림 전송 (이메일, 푸시 등)
+    // 강사에게 알림 전송
+    try {
+      if (status === 'published') {
+        await notifyCourseApproved(
+          data.instructor_id,
+          data.title,
+          data.id,
+          req.io
+        )
+      } else if (status === 'archived' && reason) {
+        await notifyCourseRejected(
+          data.instructor_id,
+          data.title,
+          data.id,
+          reason,
+          req.io
+        )
+      }
+    } catch (notificationError) {
+      console.error('Failed to send notification:', notificationError)
+      // 알림 전송 실패해도 강의 상태 변경은 성공으로 처리
+    }
 
     res.json({ message: 'Course status updated', course: data })
   } catch (error) {

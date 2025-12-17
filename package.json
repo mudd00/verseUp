@@ -27,6 +27,7 @@
     "supabase:gen:types": "supabase gen types typescript --local > src/types/database.types.ts"
   },
   "dependencies": {
+    "@heroicons/react": "^2.2.0",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.4.0",
     "@react-three/rapier": "^2.2.0",

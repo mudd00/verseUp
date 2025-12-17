@@ -41,6 +41,12 @@ app.use(
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
+// Attach Socket.IO instance to req object
+app.use((req, _res, next) => {
+  req.io = io
+  next()
+})
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })

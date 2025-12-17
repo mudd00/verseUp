@@ -20,6 +20,7 @@ import PaymentSuccess from './pages/PaymentSuccess.jsx'
 import PaymentFail from './pages/PaymentFail.jsx'
 import PaymentHistory from './pages/PaymentHistory.jsx'
 import Forbidden from './pages/Forbidden.jsx'
+import AssignmentDetail from './pages/AssignmentDetail.jsx'
 import AdminRoute from './components/AdminRoute.jsx'
 import AdminDashboard from './components/dashboard/AdminDashboard.jsx'
 import UserManagement from './components/admin/UserManagement.jsx'
@@ -245,6 +246,15 @@ function App() {
             />
             {/* Forbidden page */}
             <Route path="/forbidden" element={<Forbidden />} />
+            {/* Assignment Routes */}
+            <Route
+              path="/assignments/:id"
+              element={
+                <PrivateRoute>
+                  <AssignmentDetail />
+                </PrivateRoute>
+              }
+            />
             {/* Admin Routes */}
             <Route
               path="/admin/users"

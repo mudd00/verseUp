@@ -4,6 +4,8 @@ import coursesRoutes from './courses.js'
 import paymentsRoutes from './payments.js'
 import materialsRoutes from './materials.js'
 import classroomsRoutes from './classrooms.js'
+import notificationsRoutes from './notifications.js'
+import assignmentsRoutes from './assignments.js'
 import adminUsersRoutes from './admin/users.js'
 import adminStatsRoutes from './admin/stats.js'
 import adminCoursesRoutes from './admin/courses.js'
@@ -17,6 +19,8 @@ router.use('/auth', authRoutes)
 router.use('/courses', coursesRoutes)
 router.use('/payments', paymentsRoutes)
 router.use('/classrooms', classroomsRoutes)
+router.use('/notifications', notificationsRoutes)
+router.use('/', assignmentsRoutes) // assignments routes include /courses/:courseId/assignments
 router.use('/admin/users', adminUsersRoutes)
 router.use('/admin/stats', adminStatsRoutes)
 router.use('/admin/courses', adminCoursesRoutes)

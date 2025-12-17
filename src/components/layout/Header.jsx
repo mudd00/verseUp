@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore.js'
 import { ROUTES } from '@/utils/constants.js'
+import NotificationCenter from '@/components/NotificationCenter.jsx'
 
 export default function Header() {
   const { user, isAuthenticated, logout } = useAuthStore()
@@ -87,6 +88,7 @@ export default function Header() {
               )}
 
               <div className="flex items-center gap-3">
+                <NotificationCenter />
                 <span className="text-gray-300">{user?.name}</span>
                 <Link
                   to={ROUTES.PROFILE}

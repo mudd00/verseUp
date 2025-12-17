@@ -16,7 +16,11 @@ export function setupSocketHandlers(io) {
       }
 
       connectedUsers.set(socket.id, socketUser)
-      console.log(`👤 User joined: ${userData.user.name} (${socket.id})`)
+
+      // Join user-specific room for notifications
+      const userRoom = `user:${userData.user.id}`
+      socket.join(userRoom)
+      console.log(`👤 User joined: ${userData.user.name} (${socket.id}) - Joined room ${userRoom}`)
 
       socket.emit('user:joined', { success: true })
     })
