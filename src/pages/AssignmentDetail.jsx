@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
+import { uploadAssignmentFile, formatFileSize } from '@/services/uploadService'
 import toast from 'react-hot-toast'
 import { ArrowLeftIcon, DocumentTextIcon, CloudArrowUpIcon } from '@heroicons/react/24/outline'
 
@@ -13,6 +14,7 @@ export default function AssignmentDetail() {
   const { user } = useAuthStore()
   const [submissionContent, setSubmissionContent] = useState('')
   const [file, setFile] = useState(null)
+  const [isUploading, setIsUploading] = useState(false)
 
   // 과제 상세 조회
   const { data: assignment, isLoading } = useQuery({
@@ -55,15 +57,33 @@ export default function AssignmentDetail() {
       return
     }
 
-    // 실제 구현에서는 파일 업로드 로직 추가 필요 (Supabase Storage 사용)
-    // 여기서는 간단히 텍스트 제출만 구현
-    submitMutation.mutate({
-      content: submissionContent,
-      file_url: null,
-      file_name: file?.name || null,
-      file_size: file?.size || null,
-      file_type: file?.type || null,
-    })
+    try {
+      setIsUploading(true)
+      let fileData = {
+        file_url: null,
+        file_name: null,
+        file_size: null,
+        file_type: null,
+      }
+
+      // 파일이 있으면 업로드
+      if (file) {
+        toast.loading('파일 업로드 중...', { id: 'upload' })
+        fileData = await uploadAssignmentFile(file, id, user.id)
+        toast.success('파일 업로드 완료', { id: 'upload' })
+      }
+
+      // 과제 제출
+      submitMutation.mutate({
+        content: submissionContent,
+        ...fileData,
+      })
+    } catch (error) {
+      console.error('File upload error:', error)
+      toast.error(error.message || '파일 업로드에 실패했습니다')
+    } finally {
+      setIsUploading(false)
+    }
   }
 
   const formatDate = (dateString) => {
@@ -198,6 +218,26 @@ export default function AssignmentDetail() {
                     </p>
                   </div>
                 )}
+
+                {submission.file_url && (
+                  <div>
+                    <span className="text-gray-400">첨부 파일:</span>
+                    <div className="mt-2">
+                      <a
+                        href={submission.file_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition"
+                      >
+                        <DocumentTextIcon className="w-5 h-5" />
+                        {submission.file_name}
+                        <span className="text-xs text-gray-400">
+                          ({formatFileSize(submission.file_size || 0)})
+                        </span>
+                      </a>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ) : (
@@ -230,9 +270,12 @@ export default function AssignmentDetail() {
                     />
                     {file && (
                       <p className="text-sm text-gray-400 mt-2">
-                        선택된 파일: {file.name} ({(file.size / 1024).toFixed(2)} KB)
+                        선택된 파일: {file.name} ({formatFileSize(file.size)})
                       </p>
                     )}
+                    <p className="text-xs text-gray-500 mt-2">
+                      최대 파일 크기: 10MB
+                    </p>
                   </div>
 
                   {isDue(assignment.due_date) && assignment.allow_late_submission && (
@@ -245,11 +288,11 @@ export default function AssignmentDetail() {
 
                   <button
                     type="submit"
-                    disabled={submitMutation.isPending}
+                    disabled={submitMutation.isPending || isUploading}
                     className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded transition"
                   >
                     <CloudArrowUpIcon className="w-5 h-5" />
-                    {submitMutation.isPending ? '제출 중...' : '제출하기'}
+                    {isUploading ? '파일 업로드 중...' : submitMutation.isPending ? '제출 중...' : '제출하기'}
                   </button>
                 </form>
               )}
