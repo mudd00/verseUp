@@ -101,7 +101,8 @@ class EnrollmentService {
         *,
         course:courses(
           *,
-          instructor:profiles!instructor_id(id, name, email, avatar_url)
+          instructor:profiles!instructor_id(id, name, email, avatar_url),
+          time_slot:time_slots(id, day_of_week, start_time, end_time)
         )
       `
       )
@@ -147,6 +148,22 @@ class EnrollmentService {
 
     if (courseData) {
       const instructor = courseData.instructor
+
+      // time_slot 정보를 schedule 배열로 변환
+      let schedule = courseData.schedule || []
+      if (!schedule || schedule.length === 0) {
+        // schedule이 비어있으면 time_slot에서 생성
+        if (courseData.time_slot) {
+          schedule = [
+            {
+              dayOfWeek: courseData.time_slot.day_of_week,
+              startTime: courseData.time_slot.start_time,
+              endTime: courseData.time_slot.end_time,
+            },
+          ]
+        }
+      }
+
       course = {
         id: courseData.id,
         courseCode: courseData.course_code,
@@ -169,7 +186,8 @@ class EnrollmentService {
         enrolledCount: courseData.enrolled_count || 0,
         startDate: courseData.start_date,
         endDate: courseData.end_date,
-        schedule: courseData.schedule || [],
+        schedule: schedule,
+        timeSlot: courseData.time_slot,
         category: courseData.category,
         level: courseData.level,
         status: courseData.status,

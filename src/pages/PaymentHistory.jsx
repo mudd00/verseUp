@@ -65,7 +65,7 @@ export default function PaymentHistory() {
     }
     const badge = badges[status] || badges.completed
     return (
-      <span className={`px-3 py-1 text-sm rounded-full ${badge.color} text-white`}>
+      <span className={`px-3 py-1 text-sm rounded-full whitespace-nowrap ${badge.color} text-white`}>
         {badge.label}
       </span>
     )
@@ -126,44 +126,44 @@ export default function PaymentHistory() {
               </button>
             </div>
           ) : (
-        <div className="bg-gray-800 rounded-lg overflow-hidden">
-          <table className="w-full">
+        <div className="bg-gray-800 rounded-lg overflow-x-auto">
+          <table className="w-full min-w-max">
             <thead className="bg-gray-700">
               <tr>
-                {isAdmin && <th className="px-6 py-4 text-left text-sm font-semibold">사용자</th>}
-                <th className="px-6 py-4 text-left text-sm font-semibold">주문번호</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold">강의명</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold">결제금액</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold">결제수단</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold">상태</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold">결제일시</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold">영수증</th>
+                {isAdmin && <th className="px-6 py-4 text-left text-sm font-semibold whitespace-nowrap">사용자</th>}
+                <th className="px-6 py-4 text-left text-sm font-semibold whitespace-nowrap">주문번호</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold whitespace-nowrap">강의명</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold whitespace-nowrap">결제금액</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold whitespace-nowrap">결제수단</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold whitespace-nowrap">상태</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold whitespace-nowrap">결제일시</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold whitespace-nowrap">영수증</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
               {payments.map((payment) => (
                 <tr key={payment.orderId || payment.order_id} className="hover:bg-gray-700/50 transition">
                   {isAdmin && (
-                    <td className="px-6 py-4 text-sm">
+                    <td className="px-6 py-4 text-sm whitespace-nowrap">
                       <div>
                         <div className="font-medium">{payment.user?.name || '-'}</div>
                         <div className="text-xs text-gray-400">{payment.user?.email || '-'}</div>
                       </div>
                     </td>
                   )}
-                  <td className="px-6 py-4 text-sm font-mono text-gray-400">
+                  <td className="px-6 py-4 text-sm font-mono text-gray-400 whitespace-nowrap">
                     {payment.orderId || payment.order_id}
                   </td>
-                  <td className="px-6 py-4 text-sm">{payment.orderName || payment.order_name || '-'}</td>
-                  <td className="px-6 py-4 text-sm font-semibold text-blue-400">
+                  <td className="px-6 py-4 text-sm whitespace-nowrap">{payment.orderName || payment.order_name || '-'}</td>
+                  <td className="px-6 py-4 text-sm font-semibold text-blue-400 whitespace-nowrap">
                     ₩{payment.amount?.toLocaleString()}
                   </td>
-                  <td className="px-6 py-4 text-sm">{payment.method || '카드'}</td>
+                  <td className="px-6 py-4 text-sm whitespace-nowrap">{payment.method || '카드'}</td>
                   <td className="px-6 py-4 text-sm">{getStatusBadge(payment.status)}</td>
-                  <td className="px-6 py-4 text-sm text-gray-400">
+                  <td className="px-6 py-4 text-sm text-gray-400 whitespace-nowrap">
                     {formatDate(payment.approvedAt || payment.approved_at)}
                   </td>
-                  <td className="px-6 py-4 text-sm">
+                  <td className="px-6 py-4 text-sm whitespace-nowrap">
                     {(payment.receipt || payment.receipt_url) ? (
                       <a
                         href={payment.receipt || payment.receipt_url}
@@ -194,50 +194,50 @@ export default function PaymentHistory() {
               <p className="text-gray-400">환불 내역이 없습니다.</p>
             </div>
           ) : (
-            <div className="bg-gray-800 rounded-lg overflow-hidden">
-              <table className="w-full">
+            <div className="bg-gray-800 rounded-lg overflow-x-auto">
+              <table className="w-full min-w-max">
                 <thead className="bg-gray-700">
                   <tr>
-                    {isAdmin && <th className="px-6 py-4 text-left text-sm font-semibold">사용자</th>}
-                    <th className="px-6 py-4 text-left text-sm font-semibold">주문번호</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold">강의명</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold">원금액</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold">환불금액</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold">환불율</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold">환불정책</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold">상태</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold">환불일시</th>
+                    {isAdmin && <th className="px-6 py-4 text-left text-sm font-semibold whitespace-nowrap">사용자</th>}
+                    <th className="px-6 py-4 text-left text-sm font-semibold whitespace-nowrap">주문번호</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold whitespace-nowrap">강의명</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold whitespace-nowrap">원금액</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold whitespace-nowrap">환불금액</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold whitespace-nowrap">환불율</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold whitespace-nowrap">환불정책</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold whitespace-nowrap">상태</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold whitespace-nowrap">환불일시</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700">
                   {refunds.map((refund) => (
                     <tr key={refund.refundId || refund.id} className="hover:bg-gray-700/50 transition">
                       {isAdmin && (
-                        <td className="px-6 py-4 text-sm">
+                        <td className="px-6 py-4 text-sm whitespace-nowrap">
                           <div>
                             <div className="font-medium">{refund.user?.name || '-'}</div>
                             <div className="text-xs text-gray-400">{refund.user?.email || '-'}</div>
                           </div>
                         </td>
                       )}
-                      <td className="px-6 py-4 text-sm font-mono text-gray-400">
+                      <td className="px-6 py-4 text-sm font-mono text-gray-400 whitespace-nowrap">
                         {refund.orderId || refund.payment?.order_id || '-'}
                       </td>
-                      <td className="px-6 py-4 text-sm">{refund.courseTitle || refund.course?.title || refund.orderName || '-'}</td>
-                      <td className="px-6 py-4 text-sm text-gray-400">
+                      <td className="px-6 py-4 text-sm whitespace-nowrap">{refund.courseTitle || refund.course?.title || refund.orderName || '-'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-400 whitespace-nowrap">
                         ₩{(refund.originalAmount || refund.original_amount)?.toLocaleString()}
                       </td>
-                      <td className="px-6 py-4 text-sm font-semibold text-green-400">
+                      <td className="px-6 py-4 text-sm font-semibold text-green-400 whitespace-nowrap">
                         ₩{(refund.refundAmount || refund.refund_amount)?.toLocaleString()}
                       </td>
-                      <td className="px-6 py-4 text-sm text-blue-400">
+                      <td className="px-6 py-4 text-sm text-blue-400 whitespace-nowrap">
                         {refund.refundRate || refund.refund_rate}%
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-400">
+                      <td className="px-6 py-4 text-sm text-gray-400 whitespace-nowrap">
                         {refund.policyApplied || refund.policy_applied || '-'}
                       </td>
                       <td className="px-6 py-4 text-sm">{getStatusBadge(refund.status)}</td>
-                      <td className="px-6 py-4 text-sm text-gray-400">
+                      <td className="px-6 py-4 text-sm text-gray-400 whitespace-nowrap">
                         {formatDate(refund.completedAt || refund.completed_at || refund.requestedAt || refund.requested_at)}
                       </td>
                     </tr>

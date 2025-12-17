@@ -6,8 +6,10 @@ import toast from 'react-hot-toast'
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토']
 
-// 오늘의 요일 인덱스 (0=일요일)
-const TODAY_DAY_INDEX = new Date().getDay()
+// 오늘의 날짜 및 요일
+const TODAY = new Date()
+const TODAY_DAY_INDEX = TODAY.getDay()
+const TODAY_DATE = `${TODAY.getMonth() + 1}/${TODAY.getDate()}`
 
 export default function StudentDashboard() {
   const { user } = useAuthStore()
@@ -32,20 +34,112 @@ export default function StudentDashboard() {
     }
   }
 
+  // 시간 포맷 변환 (08:00:00 -> 08:00)
+  const formatTime = (time) => {
+    if (!time) return ''
+    return time.substring(0, 5)
+  }
+
+  // 날짜 포맷 변환 (2025-12-24 -> 12/24)
+  const formatShortDate = (dateString) => {
+    if (!dateString) return ''
+    const date = new Date(dateString)
+    return `${date.getMonth() + 1}/${date.getDate()}`
+  }
+
+  // 강의 상태 확인 함수
+  const getCourseStatus = (course) => {
+    if (!course.startDate || !course.endDate) {
+      return 'ongoing' // 날짜 정보가 없으면 진행중으로 간주
+    }
+
+    const now = new Date()
+    const startDate = new Date(course.startDate)
+    const endDate = new Date(course.endDate)
+
+    if (now < startDate) {
+      return 'upcoming' // 예정
+    } else if (now >= startDate && now <= endDate) {
+      return 'ongoing' // 진행중
+    } else {
+      return 'completed' // 완료
+    }
+  }
+
   // 전체 시간표 생성 (요일별로 그룹화)
   const getWeeklySchedule = () => {
     const scheduleByDay = {
       0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [],
     }
 
+    // 진행중인 강의와 예정 강의를 분리
+    const ongoingCourses = []
+    const upcomingCourses = []
+
     enrollments.forEach((enrollment) => {
-      if (enrollment.course?.schedule) {
-        enrollment.course.schedule.forEach((schedule) => {
-          scheduleByDay[schedule.dayOfWeek].push({
-            course: enrollment.course.title,
+      const course = enrollment.course
+      if (!course) return
+
+      const status = getCourseStatus(course)
+      if (status === 'completed') {
+        return // 완료된 강의는 표시하지 않음
+      }
+
+      // timeSlot 사용 (우선순위)
+      if (course.timeSlot) {
+        const item = {
+          course: course.title,
+          schedule: {
+            dayOfWeek: course.timeSlot.day_of_week,
+            startTime: course.timeSlot.start_time,
+            endTime: course.timeSlot.end_time,
+          },
+          status,
+          startDate: course.startDate,
+        }
+
+        const dayOfWeek = course.timeSlot.day_of_week
+
+        if (status === 'ongoing') {
+          ongoingCourses.push({ dayOfWeek, item })
+        } else if (status === 'upcoming') {
+          upcomingCourses.push({ dayOfWeek, item })
+        }
+      }
+      // schedule 배열 사용 (fallback)
+      else if (course.schedule && course.schedule.length > 0) {
+        course.schedule.forEach((schedule) => {
+          const item = {
+            course: course.title,
             schedule,
-          })
+            status,
+            startDate: course.startDate,
+          }
+
+          if (status === 'ongoing') {
+            ongoingCourses.push({ dayOfWeek: schedule.dayOfWeek, item })
+          } else if (status === 'upcoming') {
+            upcomingCourses.push({ dayOfWeek: schedule.dayOfWeek, item })
+          }
         })
+      }
+    })
+
+    // 진행중인 강의를 먼저 시간표에 추가
+    ongoingCourses.forEach(({ dayOfWeek, item }) => {
+      scheduleByDay[dayOfWeek].push(item)
+    })
+
+    // 예정된 강의는 같은 요일/시간에 진행중인 강의가 없을 때만 추가
+    upcomingCourses.forEach(({ dayOfWeek, item }) => {
+      const hasOngoingAtSameTime = scheduleByDay[dayOfWeek].some(
+        (existingItem) =>
+          existingItem.status === 'ongoing' &&
+          existingItem.schedule.startTime === item.schedule.startTime
+      )
+
+      if (!hasOngoingAtSameTime) {
+        scheduleByDay[dayOfWeek].push(item)
       }
     })
 
@@ -141,7 +235,7 @@ export default function StudentDashboard() {
                 <div>
                   <p className="font-medium">{item.course}</p>
                   <p className="text-sm text-gray-400">
-                    {item.schedule.startTime} ~ {item.schedule.endTime}
+                    {formatTime(item.schedule.startTime)} ~ {formatTime(item.schedule.endTime)}
                   </p>
                 </div>
               </div>
@@ -174,7 +268,7 @@ export default function StudentDashboard() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {enrollments.map((enrollment) => (
               <div
                 key={enrollment.id}
@@ -191,8 +285,13 @@ export default function StudentDashboard() {
                   {enrollment.course?.schedule && enrollment.course.schedule.length > 0 && (
                     <p className="text-xs text-gray-500">
                       {enrollment.course.schedule
-                        .map((s) => `${DAY_NAMES[s.dayOfWeek]} ${s.startTime}`)
+                        .map((s) => `${DAY_NAMES[s.dayOfWeek]} ${formatTime(s.startTime)} ~ ${formatTime(s.endTime)}`)
                         .join(', ')}
+                    </p>
+                  )}
+                  {enrollment.course?.timeSlot && !enrollment.course.schedule?.length && (
+                    <p className="text-xs text-gray-500">
+                      {DAY_NAMES[enrollment.course.timeSlot.day_of_week]} {formatTime(enrollment.course.timeSlot.start_time)} ~ {formatTime(enrollment.course.timeSlot.end_time)}
                     </p>
                   )}
                 </Link>
@@ -213,7 +312,12 @@ export default function StudentDashboard() {
 
       {/* 주간 시간표 */}
       <div className="mt-8 bg-gray-800 p-6 rounded-lg">
-        <h3 className="text-xl font-semibold mb-4">주간 시간표</h3>
+        <div className="flex items-center gap-3 mb-4">
+          <h3 className="text-xl font-semibold">주간 시간표</h3>
+          <div className="text-sm text-gray-400">
+            {TODAY_DATE} ({DAY_NAMES[TODAY_DAY_INDEX]}요일)
+          </div>
+        </div>
         {isLoading ? (
           <p className="text-gray-400">로딩 중...</p>
         ) : enrollments.length === 0 ? (
@@ -238,12 +342,28 @@ export default function StudentDashboard() {
                     weeklySchedule[dayIndex].map((item, index) => (
                       <div
                         key={index}
-                        className="text-xs p-1 bg-blue-600/30 rounded"
+                        className={`text-xs p-1 rounded ${
+                          item.status === 'upcoming'
+                            ? 'bg-yellow-600/30 border border-yellow-500/50'
+                            : 'bg-blue-600/30'
+                        }`}
                         title={item.course}
                       >
-                        <p className="truncate font-medium">{item.course}</p>
+                        <div className="flex items-center justify-between gap-1">
+                          <p className="truncate font-medium flex-1">{item.course}</p>
+                          {item.status === 'upcoming' && (
+                            <div className="flex items-center gap-1">
+                              <span className="px-1 py-0.5 bg-yellow-500 text-black rounded text-[10px] font-semibold whitespace-nowrap">
+                                예정
+                              </span>
+                              <span className="text-[10px] text-yellow-300 whitespace-nowrap">
+                                {formatShortDate(item.startDate)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                         <p className="text-gray-400">
-                          {item.schedule.startTime}
+                          {formatTime(item.schedule.startTime)} ~ {formatTime(item.schedule.endTime)}
                         </p>
                       </div>
                     ))
