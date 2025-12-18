@@ -44,28 +44,42 @@ class CourseService {
   }
 
   /**
-   * 강의 목록 조회 (공개된 강의만)
+   * 강의 목록 조회 (공개된 강의만, 필터링 지원)
    */
-  async getCourses() {
-    const { data, error } = await supabase
-      .from('courses')
-      .select(
-        `
-        *,
-        instructor:profiles!instructor_id(id, name, email, avatar_url),
-        classroom:classrooms(id, name, description, capacity),
-        time_slot:time_slots(id, day_of_week, start_time, end_time, slot_order)
-      `
-      )
-      .eq('status', 'published')
-      .order('created_at', { ascending: false })
+  async getCourses(filters = {}) {
+    try {
+      const params = new URLSearchParams()
 
-    if (error) {
+      // Add filter parameters
+      if (filters.search) params.append('search', filters.search)
+      if (filters.category) params.append('category', filters.category)
+      if (filters.level) params.append('level', filters.level)
+      if (filters.minPrice !== undefined) params.append('minPrice', filters.minPrice.toString())
+      if (filters.maxPrice !== undefined) params.append('maxPrice', filters.maxPrice.toString())
+      if (filters.instructorId) params.append('instructorId', filters.instructorId)
+
+      const queryString = params.toString()
+      const endpoint = queryString ? `/courses?${queryString}` : '/courses'
+
+      const response = await apiService.get(endpoint)
+      return response.courses.map((course) => this.mapCourseFromAPI(course))
+    } catch (error) {
       console.error('강의 목록 조회 실패:', error)
       throw new Error('강의 목록을 불러오는데 실패했습니다.')
     }
+  }
 
-    return data.map((course) => this.mapCourseFromDB(course))
+  /**
+   * 강사 목록 조회 (필터용)
+   */
+  async getInstructors() {
+    try {
+      const response = await apiService.get('/courses/instructors')
+      return response.instructors || []
+    } catch (error) {
+      console.error('강사 목록 조회 실패:', error)
+      throw new Error('강사 목록을 불러오는데 실패했습니다.')
+    }
   }
 
   /**
