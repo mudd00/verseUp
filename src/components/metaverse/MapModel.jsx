@@ -79,6 +79,16 @@ function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNe
           // 칠판 메시 찾기 (VERDE_GRANDE_StingrayPBS7_0)
           if (child.name === 'VERDE_GRANDE_StingrayPBS7_0') {
             console.log(`🎨 칠판 메시 발견!:`, child.name, child)
+
+            // 메시 크기 확인
+            child.geometry.computeBoundingBox()
+            const bbox = child.geometry.boundingBox
+            const width = bbox.max.x - bbox.min.x
+            const height = bbox.max.y - bbox.min.y
+            const depth = bbox.max.z - bbox.min.z
+            console.log(`📏 칠판 메시 크기: 가로=${width.toFixed(2)}, 세로=${height.toFixed(2)}, 깊이=${depth.toFixed(2)}`)
+            console.log(`📏 칠판 가로:세로 비율 = ${(width/height).toFixed(2)}:1`)
+
             foundBlackboardMesh = child
           }
 

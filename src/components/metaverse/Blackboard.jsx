@@ -18,8 +18,9 @@ export default function Blackboard({ targetMesh, roomId = 'metaverse-classroom-1
   // Canvas 초기화
   useEffect(() => {
     const canvas = document.createElement('canvas')
+    // 칠판 메시 비율(4:1)에 맞춤
     canvas.width = 2048
-    canvas.height = 1024 // 2:1 비율 (가로로 긴 직사각형)
+    canvas.height = 512  // 2048 / 4 = 512 (4:1 비율)
 
     const ctx = canvas.getContext('2d')
 

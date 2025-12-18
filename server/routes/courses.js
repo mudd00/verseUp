@@ -4,14 +4,18 @@ import { supabase } from '../utils/supabase.js'
 
 const router = Router()
 
-// Get all courses
+// Get all courses with filtering and search
 router.get('/', async (req, res) => {
   try {
     if (!supabase) {
       return res.status(503).json({ error: 'Database service unavailable' })
     }
 
-    const { data: courses, error } = await supabase
+    // Extract query parameters
+    const { search = '', category = '', level = '', minPrice, maxPrice, instructorId = '' } = req.query
+
+    // Start building the query
+    let query = supabase
       .from('courses')
       .select(
         `
@@ -22,7 +26,39 @@ router.get('/', async (req, res) => {
       `
       )
       .eq('status', 'published')
-      .order('created_at', { ascending: false })
+
+    // Apply search filter (title or description)
+    if (search) {
+      query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`)
+    }
+
+    // Apply category filter
+    if (category) {
+      query = query.eq('category', category)
+    }
+
+    // Apply level filter
+    if (level) {
+      query = query.eq('level', level)
+    }
+
+    // Apply price range filter
+    if (minPrice !== undefined) {
+      query = query.gte('price', Number(minPrice))
+    }
+    if (maxPrice !== undefined) {
+      query = query.lte('price', Number(maxPrice))
+    }
+
+    // Apply instructor filter
+    if (instructorId) {
+      query = query.eq('instructor_id', instructorId)
+    }
+
+    // Apply sorting (newest first)
+    query = query.order('created_at', { ascending: false })
+
+    const { data: courses, error } = await query
 
     if (error) {
       console.error('Error fetching courses:', error)
@@ -33,6 +69,40 @@ router.get('/', async (req, res) => {
   } catch (error) {
     console.error('Error fetching courses:', error)
     res.status(500).json({ error: 'Failed to fetch courses' })
+  }
+})
+
+// Get instructors list (for filtering)
+router.get('/instructors', async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.status(503).json({ error: 'Database service unavailable' })
+    }
+
+    // Get unique instructors who have published courses
+    const { data: courses, error } = await supabase
+      .from('courses')
+      .select('instructor:profiles!courses_instructor_id_fkey(id, name)')
+      .eq('status', 'published')
+
+    if (error) {
+      console.error('Error fetching instructors:', error)
+      return res.status(500).json({ error: 'Failed to fetch instructors' })
+    }
+
+    // Remove duplicates
+    const uniqueInstructors = Array.from(
+      new Map(
+        courses
+          .filter((c) => c.instructor)
+          .map((c) => [c.instructor.id, c.instructor])
+      ).values()
+    )
+
+    res.json({ instructors: uniqueInstructors })
+  } catch (error) {
+    console.error('Error fetching instructors:', error)
+    res.status(500).json({ error: 'Failed to fetch instructors' })
   }
 })
 
