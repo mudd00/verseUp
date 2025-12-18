@@ -11,10 +11,12 @@ import ChatBox from './ChatBox.jsx'
 import MetaverseUI from './MetaverseUI.jsx'
 import { useScreenShare } from '../../hooks/useScreenShare'
 import { useScreenReceive } from '../../hooks/useScreenReceive'
+import { useStudentScreen } from '../../hooks/useStudentScreen'
 import { useVoiceChat } from '../../hooks/useVoiceChat'
 import { useChat } from '../../hooks/useChat'
 import { useAuthStore } from '../../stores/authStore'
 import { socketService } from '../../services/socket'
+import DeskMonitor from './DeskMonitor.jsx'
 import * as THREE from 'three'
 
 export default function MetaverseScene({ onReady }) {
@@ -29,6 +31,7 @@ export default function MetaverseScene({ onReady }) {
   const [resetTrigger, setResetTrigger] = useState(0)
   const [cameraAngle, setCameraAngle] = useState(0)
   const [isSitting, setIsSitting] = useState(false)
+  const [sittingPosition, setSittingPosition] = useState(null) // 앉았을 때의 의자 위치
   const [isAtDesk, setIsAtDesk] = useState(false) // 교탁에 서 있는지
   const [roomId] = useState('metaverse-classroom-1') // 임시 방 ID
   const [students, setStudents] = useState([]) // 방의 학생 목록
@@ -37,6 +40,7 @@ export default function MetaverseScene({ onReady }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false) // 메타버스 UI 메뉴 열림/닫힘
   const [showDebugInfo, setShowDebugInfo] = useState(true) // Debug info 표시 여부
   const [isWhiteboardActive, setIsWhiteboardActive] = useState(false) // 판서 활성화 여부
+  const [isFirstPerson, setIsFirstPerson] = useState(false) // 1인칭/3인칭 시야 전환
   const lastPositionSentRef = useRef({ x: 0, y: 0, z: 0 })
   const positionSendIntervalRef = useRef(null)
 
@@ -63,6 +67,9 @@ export default function MetaverseScene({ onReady }) {
   // WebRTC 훅 사용 (역할에 따라 활성화 여부 전달)
   const screenShare = useScreenShare(roomId, students, isInstructor)
   const screenReceive = useScreenReceive(roomId, !isInstructor)
+
+  // 학생용 화면 캡처 (버튼으로 수동 제어)
+  const studentScreen = useStudentScreen(!isInstructor)
 
   // 음성 채팅 훅 (모든 맵에서 활성화)
   const voiceChat = useVoiceChat(roomId, students, true)
@@ -342,11 +349,13 @@ export default function MetaverseScene({ onReady }) {
       console.log('💺 의자에 앉기')
       playerRef.current.sit(position, 'sit')
       setIsSitting(true)
+      setSittingPosition(position) // 앉은 위치 저장
       setIsAtDesk(false)
     } else if (type === 'stand') {
       console.log('🎓 교탁에 서기')
       playerRef.current.sit(position, 'stand')
       setIsSitting(true)
+      setSittingPosition(null) // 교탁은 책상 모니터 필요 없음
       setIsAtDesk(true) // 교탁에 섬
     }
 
@@ -397,6 +406,7 @@ export default function MetaverseScene({ onReady }) {
         if (isSitting && playerRef.current) {
           playerRef.current.stand()
           setIsSitting(false)
+          setSittingPosition(null) // 앉은 위치 리셋
           setIsAtDesk(false)
           // 강사가 화면 공유 중이었다면 종료
           if (isInstructor && screenShare?.isSharing) {
@@ -419,10 +429,16 @@ export default function MetaverseScene({ onReady }) {
           handleObjectInteract(objectInfo.objectId, objectInfo.type, objectInfo.position)
         }
       }
+
+      // V키로 1인칭/3인칭 시야 전환
+      if (e.code === 'KeyV') {
+        setIsFirstPerson((prev) => !prev)
+        console.log('시야 전환:', !isFirstPerson ? '1인칭' : '3인칭')
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [portalInfo, doorInfo, objectInfo, isSitting, isInstructor, screenShare, chat.isInputActive, handleMapChange, handleDoorEnter, handleObjectInteract])
+  }, [portalInfo, doorInfo, objectInfo, isSitting, isInstructor, screenShare, chat.isInputActive, isFirstPerson, handleMapChange, handleDoorEnter, handleObjectInteract])
 
   // Tab키로 메타버스 UI 메뉴 토글
   useEffect(() => {
@@ -485,6 +501,7 @@ export default function MetaverseScene({ onReady }) {
             cameraAngle={cameraAngle}
             onPositionChange={handlePositionChange}
             isInputDisabled={chat.isInputActive || isMenuOpen}
+            isFirstPerson={isFirstPerson}
           />
           {/* 다른 플레이어들 렌더링 */}
           {Array.from(otherPlayers.values()).map((player) => (
@@ -497,9 +514,22 @@ export default function MetaverseScene({ onReady }) {
               animation={player.animation}
             />
           ))}
+
+          {/* 학생용 책상 위 모니터 (앉았을 때만 표시) */}
+          {!isInstructor && isSitting && studentScreen.stream && sittingPosition && (
+            <DeskMonitor
+              stream={studentScreen.stream}
+              position={[sittingPosition[0] + 0.9, sittingPosition[1] + 1.9, sittingPosition[2]]}
+            />
+          )}
         </Physics>
 
-        <ThirdPersonCamera target={playerRef} onCameraRotate={handleCameraRotate} />
+        <ThirdPersonCamera
+          target={playerRef}
+          onCameraRotate={handleCameraRotate}
+          distance={isFirstPerson ? 0 : 10}
+          height={isFirstPerson ? 2.0 : 6}
+        />
       </Canvas>
 
       {/* 마이크 버튼 (모든 맵에서 사용 가능) */}
@@ -657,6 +687,53 @@ export default function MetaverseScene({ onReady }) {
           }}></div>
           📺 {screenReceive?.teacherInfo?.teacherName || '강사'}님의 화면 보기
           {!screenReceive?.teacherInfo && ' (대기 중...)'}
+        </button>
+      )}
+
+      {/* 학생용: 내 화면 공유 버튼 (의자에 앉았을 때만 표시) */}
+      {!isInstructor && isSitting && (
+        <button
+          onClick={() => {
+            if (studentScreen.isSharing) {
+              studentScreen.stopCapture()
+            } else {
+              studentScreen.startCapture()
+            }
+          }}
+          style={{
+            position: 'absolute',
+            top: '80px',
+            right: '20px',
+            background: studentScreen.isSharing ? '#ef4444' : '#3b82f6',
+            color: '#fff',
+            padding: '12px 24px',
+            borderRadius: '8px',
+            border: 'none',
+            fontSize: '16px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            zIndex: 9999,
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
+            transition: 'all 0.2s',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.transform = 'scale(1.05)'
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.transform = 'scale(1)'
+          }}
+        >
+          <div style={{
+            width: '8px',
+            height: '8px',
+            background: studentScreen.isSharing ? '#fca5a5' : '#60a5fa',
+            borderRadius: '50%',
+            animation: studentScreen.isSharing ? 'pulse 2s infinite' : 'none',
+          }}></div>
+          {studentScreen.isSharing ? '🖥️ 내 화면 공유 중지' : '🖥️ 내 화면 공유'}
         </button>
       )}
 

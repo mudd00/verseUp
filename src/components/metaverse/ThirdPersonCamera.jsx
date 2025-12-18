@@ -2,13 +2,13 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useRef, useEffect } from 'react'
 import * as THREE from 'three'
 
-const CAMERA_DISTANCE = 10
-const CAMERA_HEIGHT = 6
+const DEFAULT_CAMERA_DISTANCE = 10
+const DEFAULT_CAMERA_HEIGHT = 6
 const SMOOTH_FACTOR_XZ = 5 // 수평 이동 부드러움
 const SMOOTH_FACTOR_Y = 2 // 수직 이동 부드러움 (흔들림 감소)
 const MOUSE_SENSITIVITY = 0.002
 
-export default function ThirdPersonCamera({ target, onCameraRotate }) {
+export default function ThirdPersonCamera({ target, onCameraRotate, distance = DEFAULT_CAMERA_DISTANCE, height = DEFAULT_CAMERA_HEIGHT }) {
   const { camera, gl } = useThree()
   const currentPosition = useRef(new THREE.Vector3())
   const smoothTargetY = useRef(0) // Y축 별도 스무딩
@@ -51,28 +51,47 @@ export default function ThirdPersonCamera({ target, onCameraRotate }) {
     const yLerpAlpha = 1 - Math.exp(-SMOOTH_FACTOR_Y * delta)
     smoothTargetY.current += (targetPosition.y - smoothTargetY.current) * yLerpAlpha
 
-    // 마우스 회전 각도를 기반으로 카메라 오프셋 계산
-    const horizontalDistance = CAMERA_DISTANCE * Math.cos(elevationAngle.current)
-    const offsetX = horizontalDistance * Math.sin(azimuthAngle.current)
-    const offsetZ = horizontalDistance * Math.cos(azimuthAngle.current)
-    const offsetY = CAMERA_HEIGHT + CAMERA_DISTANCE * Math.sin(elevationAngle.current)
+    if (distance < 1) {
+      // ===== 1인칭 모드: 일반 FPS 게임 방식 =====
+      // 카메라를 캐릭터 눈 높이에 정확히 배치
+      camera.position.set(
+        targetPosition.x,
+        smoothTargetY.current + height,
+        targetPosition.z
+      )
 
-    const desiredPosition = new THREE.Vector3(
-      targetPosition.x + offsetX,
-      smoothTargetY.current + offsetY,
-      targetPosition.z + offsetZ
-    )
+      // 카메라 rotation을 직접 설정 (lookAt 대신)
+      camera.rotation.order = 'YXZ' // Yaw-Pitch-Roll 순서
+      camera.rotation.y = azimuthAngle.current + Math.PI // Yaw (좌우)
+      camera.rotation.x = -elevationAngle.current // Pitch (상하)
+      camera.rotation.z = 0 // Roll (기울기 없음)
+    } else {
+      // ===== 3인칭 모드: 기존 방식 =====
+      // 마우스 회전 각도를 기반으로 카메라 오프셋 계산
+      const horizontalDistance = distance * Math.cos(elevationAngle.current)
+      const offsetX = horizontalDistance * Math.sin(azimuthAngle.current)
+      const offsetZ = horizontalDistance * Math.cos(azimuthAngle.current)
+      const offsetY = height + distance * Math.sin(elevationAngle.current)
 
-    const xzLerpAlpha = 1 - Math.exp(-SMOOTH_FACTOR_XZ * delta)
-    currentPosition.current.lerp(desiredPosition, xzLerpAlpha)
-    camera.position.copy(currentPosition.current)
+      const desiredPosition = new THREE.Vector3(
+        targetPosition.x + offsetX,
+        smoothTargetY.current + offsetY,
+        targetPosition.z + offsetZ
+      )
 
-    // lookAt도 부드러운 Y 사용
-    camera.lookAt(targetPosition.x, smoothTargetY.current, targetPosition.z)
+      const xzLerpAlpha = 1 - Math.exp(-SMOOTH_FACTOR_XZ * delta)
+      currentPosition.current.lerp(desiredPosition, xzLerpAlpha)
+      camera.position.copy(currentPosition.current)
+
+      // 3인칭: 캐릭터를 바라봄
+      camera.lookAt(targetPosition.x, smoothTargetY.current, targetPosition.z)
+    }
 
     // 카메라 회전 각도를 Player에 전달
     if (onCameraRotate) {
-      onCameraRotate(azimuthAngle.current)
+      // 1인칭일 때는 카메라가 180도 회전되어 있으므로 같은 각도 전달
+      const playerAngle = distance < 1 ? azimuthAngle.current + Math.PI : azimuthAngle.current
+      onCameraRotate(playerAngle)
     }
   })
 

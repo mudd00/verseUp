@@ -18,8 +18,9 @@ export default function Blackboard({ targetMesh, roomId = 'metaverse-classroom-1
   // Canvas 초기화
   useEffect(() => {
     const canvas = document.createElement('canvas')
+    // 칠판 메시 비율(4:1)에 맞춤
     canvas.width = 2048
-    canvas.height = 682 // 3:1 비율 (2048 / 3)
+    canvas.height = 512  // 2048 / 4 = 512 (4:1 비율)
 
     const ctx = canvas.getContext('2d')
 
@@ -40,9 +41,6 @@ export default function Blackboard({ targetMesh, roomId = 'metaverse-classroom-1
     // Texture를 270도 회전 (90도 + 180도 추가)
     texture.rotation = (Math.PI / 2) + Math.PI // 270도 시계방향
     texture.center.set(0.5, 0.5) // 중심점을 텍스처 중앙으로 설정
-
-    // Texture를 위로 이동 (밑 부분 잘림 방지)
-    texture.offset.set(0, 0.1) // Y축으로 10% 위로 이동
 
     textureRef.current = texture
 

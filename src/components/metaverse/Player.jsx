@@ -10,8 +10,8 @@ const RUN_SPEED = 18
 
 // 맵별 시작 위치
 const START_POSITIONS = {
-  main: [-1.91, 0.04, 32.55],    // 메인 맵 시작 위치
-  school: [-1.32, 2, -14.63],              // 학교 맵 시작 위치
+  main: [-1.91, 10, 32.55],      // 메인 맵 시작 위치 (바닥 콜라이더 로딩 대기)
+  school: [-1.32, 2, -14.63],    // 학교 맵 시작 위치
 }
 
 // 3DCommunity 방식: scale 2 기준 캡슐 args=[2, 1.3], position=[0, 3.2, 0]
@@ -24,7 +24,7 @@ const CAPSULE_Y_OFFSET = 1.28
 const STEP_UP_SPEED = 4 // 계단 오를 때 상승 속도 (중력 -20 기준)
 const BLOCKED_THRESHOLD = 0.45 // 이 비율 이하로 움직이면 막힌 것으로 판단
 
-const Player = forwardRef(({ currentMap = 'main', cameraAngle = 0, onPositionChange, bodyRef: externalBodyRef, isInputDisabled = false }, ref) => {
+const Player = forwardRef(({ currentMap = 'main', cameraAngle = 0, onPositionChange, bodyRef: externalBodyRef, isInputDisabled = false, isFirstPerson = false }, ref) => {
   const START_POS = START_POSITIONS[currentMap] || START_POSITIONS.main
   const bodyRef = useRef(null)
   const characterRef = useRef(null)
@@ -247,7 +247,7 @@ const Player = forwardRef(({ currentMap = 'main', cameraAngle = 0, onPositionCha
         friction={1}
         restitution={0}
       />
-      <group ref={characterRef}>
+      <group ref={characterRef} visible={!isFirstPerson}>
         <CharacterModel isMoving={isMoving} isSitting={isSitting} />
       </group>
     </RigidBody>
