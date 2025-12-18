@@ -12,10 +12,10 @@ export async function uploadAssignmentFile(file, assignmentId, studentId) {
     throw new Error('파일이 선택되지 않았습니다')
   }
 
-  // 파일 크기 제한 (10MB)
-  const MAX_FILE_SIZE = 10 * 1024 * 1024
+  // 파일 크기 제한 (20MB)
+  const MAX_FILE_SIZE = 20 * 1024 * 1024
   if (file.size > MAX_FILE_SIZE) {
-    throw new Error('파일 크기는 10MB를 초과할 수 없습니다')
+    throw new Error('파일 크기는 20MB를 초과할 수 없습니다')
   }
 
   // 파일 확장자 추출

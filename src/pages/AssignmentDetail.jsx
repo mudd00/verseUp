@@ -16,10 +16,7 @@ export default function AssignmentDetail() {
   const [submissionContent, setSubmissionContent] = useState('')
   const [file, setFile] = useState(null)
   const [isUploading, setIsUploading] = useState(false)
-<<<<<<< HEAD
-=======
   const [uploadProgress, setUploadProgress] = useState(0)
->>>>>>> b8e194d3be8508c7bf345d7a2dabcb91da3592e7
 
   // 과제 상세 조회
   const { data: assignment, isLoading } = useQuery({
@@ -74,7 +71,8 @@ export default function AssignmentDetail() {
 
     try {
       setIsUploading(true)
-<<<<<<< HEAD
+      setUploadProgress(0)
+
       let fileData = {
         file_url: null,
         file_name: null,
@@ -84,89 +82,27 @@ export default function AssignmentDetail() {
 
       // 파일이 있으면 업로드
       if (file) {
+        setUploadProgress(30)
         toast.loading('파일 업로드 중...', { id: 'upload' })
         fileData = await uploadAssignmentFile(file, id, user.id)
+        setUploadProgress(80)
         toast.success('파일 업로드 완료', { id: 'upload' })
       }
+
+      setUploadProgress(90)
 
       // 과제 제출
       submitMutation.mutate({
         content: submissionContent,
         ...fileData,
       })
-    } catch (error) {
-      console.error('File upload error:', error)
-      toast.error(error.message || '파일 업로드에 실패했습니다')
-    } finally {
-      setIsUploading(false)
-=======
-      setUploadProgress(0)
-
-      let fileUrl = null
-      let fileName = null
-      let fileSize = null
-      let fileType = null
-
-      // Upload file if selected
-      if (file) {
-        // Generate unique file path: {assignmentId}/{studentId}/{timestamp}_{filename}
-        const fileExt = file.name.split('.').pop()
-        const uniqueFileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
-        const filePath = `${id}/${user.id}/${uniqueFileName}`
-
-        setUploadProgress(25)
-
-        // Upload file to Supabase Storage
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('assignment-submissions')
-          .upload(filePath, file, {
-            cacheControl: '3600',
-            upsert: false,
-          })
-
-        if (uploadError) {
-          console.error('Upload error:', uploadError)
-          throw new Error('파일 업로드에 실패했습니다.')
-        }
-
-        setUploadProgress(60)
-
-        // Get signed URL (private bucket requires signed URL)
-        const { data: urlData, error: urlError } = await supabase.storage
-          .from('assignment-submissions')
-          .createSignedUrl(filePath, 31536000) // 1 year expiry
-
-        if (urlError) {
-          console.error('URL generation error:', urlError)
-          throw new Error('파일 URL 생성에 실패했습니다.')
-        }
-
-        setUploadProgress(80)
-
-        fileUrl = urlData.signedUrl
-        fileName = file.name
-        fileSize = file.size
-        fileType = file.type || 'application/octet-stream'
-      }
-
-      setUploadProgress(90)
-
-      // Submit assignment with file metadata
-      submitMutation.mutate({
-        content: submissionContent,
-        file_url: fileUrl,
-        file_name: fileName,
-        file_size: fileSize,
-        file_type: fileType,
-      })
 
       setUploadProgress(100)
     } catch (error) {
-      console.error('Submission failed:', error)
-      toast.error(error.message || '제출에 실패했습니다.')
+      console.error('File upload error:', error)
+      toast.error(error.message || '파일 업로드에 실패했습니다')
       setIsUploading(false)
       setUploadProgress(0)
->>>>>>> b8e194d3be8508c7bf345d7a2dabcb91da3592e7
     }
   }
 
@@ -179,14 +115,6 @@ export default function AssignmentDetail() {
       hour: '2-digit',
       minute: '2-digit',
     })
-  }
-
-  const formatFileSize = (bytes) => {
-    if (bytes === 0) return '0 Bytes'
-    const k = 1024
-    const sizes = ['Bytes', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
   }
 
   const isDue = (dueDate) => {
@@ -311,27 +239,7 @@ export default function AssignmentDetail() {
                         className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded transition text-sm"
                       >
                         <DocumentTextIcon className="w-4 h-4" />
-                        {submission.file_name} ({formatFileSize(submission.file_size)})
-                      </a>
-                    </div>
-                  </div>
-                )}
-
-                {submission.file_url && (
-                  <div>
-                    <span className="text-gray-400">첨부 파일:</span>
-                    <div className="mt-2">
-                      <a
-                        href={submission.file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition"
-                      >
-                        <DocumentTextIcon className="w-5 h-5" />
-                        {submission.file_name}
-                        <span className="text-xs text-gray-400">
-                          ({formatFileSize(submission.file_size || 0)})
-                        </span>
+                        {submission.file_name} ({formatFileSize(submission.file_size || 0)})
                       </a>
                     </div>
                   </div>
@@ -373,9 +281,6 @@ export default function AssignmentDetail() {
                         선택된 파일: {file.name} ({formatFileSize(file.size)})
                       </p>
                     )}
-                    <p className="text-xs text-gray-500 mt-2">
-                      최대 파일 크기: 10MB
-                    </p>
                   </div>
 
                   {/* Upload Progress */}
@@ -402,17 +307,10 @@ export default function AssignmentDetail() {
                   <button
                     type="submit"
                     disabled={submitMutation.isPending || isUploading}
-<<<<<<< HEAD
-                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded transition"
-                  >
-                    <CloudArrowUpIcon className="w-5 h-5" />
-                    {isUploading ? '파일 업로드 중...' : submitMutation.isPending ? '제출 중...' : '제출하기'}
-=======
                     className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:opacity-50 text-white rounded transition"
                   >
                     <CloudArrowUpIcon className="w-5 h-5" />
                     {isUploading ? '업로드 중...' : submitMutation.isPending ? '제출 중...' : '제출하기'}
->>>>>>> b8e194d3be8508c7bf345d7a2dabcb91da3592e7
                   </button>
                 </form>
               )}
