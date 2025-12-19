@@ -87,11 +87,12 @@ export default function CreateCourse() {
     fetchClassroomTimeSlots()
   }, [formData.classroomId])
 
-  // 시간 선택 후 시작일/주차 입력 시 가용성 확인
+  // 시작일/주차 입력 시 가용성 확인
   useEffect(() => {
     const checkAvailability = async () => {
-      if (!formData.classroomId || !formData.timeSlotId || !formData.startDate || !formData.weeks) {
+      if (!formData.classroomId || !formData.startDate || !formData.weeks) {
         setShowAvailability(false)
+        setAvailableSlots([])
         return
       }
 
@@ -105,21 +106,26 @@ export default function CreateCourse() {
         setAvailableSlots(slots)
         setShowAvailability(true)
 
-        // 선택한 시간대가 사용 불가능한지 확인
-        const selectedSlot = slots.find(s => s.id === formData.timeSlotId)
-        if (selectedSlot && !selectedSlot.isAvailable) {
-          toast.error('선택한 시간대는 해당 기간에 사용할 수 없습니다. 다른 시간을 선택해주세요.')
+        // 선택한 시간대가 사용 불가능한지 확인 (이미 선택한 경우)
+        if (formData.timeSlotId) {
+          const selectedSlot = slots.find(s => s.id === formData.timeSlotId)
+          if (selectedSlot && !selectedSlot.isAvailable) {
+            toast.error('선택한 시간대는 해당 기간에 사용할 수 없습니다. 다른 시간을 선택해주세요.')
+            // 자동으로 timeSlotId 초기화
+            setFormData(prev => ({ ...prev, timeSlotId: '' }))
+          }
         }
       } catch (err) {
         console.error('가용성 확인 실패:', err)
         setShowAvailability(false)
+        setAvailableSlots([])
       } finally {
         setLoadingSlots(false)
       }
     }
 
     checkAvailability()
-  }, [formData.startDate, formData.weeks])
+  }, [formData.classroomId, formData.startDate, formData.weeks])
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -133,6 +139,17 @@ export default function CreateCourse() {
       // 강의실이 변경되면 timeSlotId 초기화
       if (name === 'classroomId') {
         newData.timeSlotId = ''
+      }
+
+      // 시작일이 변경되면 요일이 바뀌므로 timeSlotId 초기화
+      if (name === 'startDate' && prev.timeSlotId) {
+        const oldDate = prev.startDate ? new Date(prev.startDate).getDay() : null
+        const newDate = value ? new Date(value).getDay() : null
+
+        // 요일이 바뀌면 시간대 초기화
+        if (oldDate !== newDate) {
+          newData.timeSlotId = ''
+        }
       }
 
       return newData
@@ -171,6 +188,12 @@ export default function CreateCourse() {
 
       if (!formData.startDate) {
         throw new Error('시작일을 선택해주세요.')
+      }
+
+      // 주말 체크
+      const dayOfWeek = getStartDateDayOfWeek()
+      if (dayOfWeek === null) {
+        throw new Error('주말에는 강의를 개설할 수 없습니다. 평일을 선택해주세요.')
       }
 
       if (formData.weeks < 1 || formData.weeks > 52) {
@@ -217,11 +240,33 @@ export default function CreateCourse() {
     }
   }
 
+  // 시작일의 요일 계산 (0=일요일, 1=월요일, ..., 6=토요일)
+  const getStartDateDayOfWeek = () => {
+    if (!formData.startDate) return null
+    const date = new Date(formData.startDate)
+    const jsDay = date.getDay() // 0(일)~6(토)
+    // DB의 day_of_week는 1(월)~5(금), 0은 일요일, 6은 토요일
+    // jsDay: 0=일, 1=월, 2=화, 3=수, 4=목, 5=금, 6=토
+    // DB: 1=월, 2=화, 3=수, 4=목, 5=금
+    if (jsDay === 0 || jsDay === 6) {
+      // 주말
+      return null
+    }
+    return jsDay // 1~5 (월~금)
+  }
+
+  const startDayOfWeek = getStartDateDayOfWeek()
+
   // 시간표를 표시할 때 사용할 슬롯 (가용성 확인 전에는 모든 시간표, 후에는 가용성 포함)
   const displaySlots = showAvailability ? availableSlots : allTimeSlots
 
+  // 시작일의 요일에 해당하는 시간대만 필터링
+  const filteredSlots = startDayOfWeek !== null
+    ? displaySlots.filter(slot => slot.day_of_week === startDayOfWeek)
+    : displaySlots
+
   // 요일별로 시간표 그룹화
-  const groupedTimeSlots = displaySlots.reduce((acc, slot) => {
+  const groupedTimeSlots = filteredSlots.reduce((acc, slot) => {
     if (!acc[slot.day_of_week]) {
       acc[slot.day_of_week] = []
     }
@@ -336,91 +381,174 @@ export default function CreateCourse() {
               </select>
             </div>
 
-            {/* Step 2: 시간표 선택 */}
+            {/* Step 2: 시작일 */}
             {formData.classroomId && (
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-sm mr-2">
+                    2
+                  </span>
+                  시작일 <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="date"
+                  name="startDate"
+                  value={formData.startDate}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
+                  required
+                />
+
+                {/* 선택한 날짜의 요일 표시 */}
+                {formData.startDate && (
+                  <div className="mt-2">
+                    {startDayOfWeek !== null ? (
+                      <div className="p-3 bg-blue-900/20 border border-blue-500 rounded-lg">
+                        <p className="text-sm text-blue-300">
+                          📅 선택한 날짜: <span className="font-semibold">{DAYS_OF_WEEK[startDayOfWeek]}</span>
+                        </p>
+                        <p className="text-xs text-blue-400 mt-1">
+                          이 요일의 시간대만 선택할 수 있습니다
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-red-900/20 border border-red-500 rounded-lg">
+                        <p className="text-sm text-red-300">
+                          ⚠️ 주말은 강의를 개설할 수 없습니다
+                        </p>
+                        <p className="text-xs text-red-400 mt-1">
+                          월요일부터 금요일 사이의 날짜를 선택해주세요
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Step 3: 주차 수 */}
+            {formData.classroomId && formData.startDate && startDayOfWeek !== null && (
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-sm mr-2">
+                    3
+                  </span>
+                  주차 수 <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="number"
+                  name="weeks"
+                  value={formData.weeks}
+                  onChange={handleChange}
+                  min="1"
+                  max="52"
+                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
+                  required
+                />
+                <p className="text-sm text-gray-400 mt-1">
+                  강의가 진행될 주차 수를 입력하세요 (1~52주)
+                </p>
+              </div>
+            )}
+
+            {/* Step 4: 시간표 선택 (시작일과 주차 입력 후 표시) */}
+            {formData.classroomId && formData.startDate && formData.weeks && startDayOfWeek !== null && (
               <div>
                 <label className="block text-sm font-medium mb-3">
                   <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-sm mr-2">
-                    2
+                    4
                   </span>
                   수업 시간대 선택 <span className="text-red-400">*</span>
                 </label>
 
-                {loadingSlots && !showAvailability ? (
+                {loadingSlots ? (
                   <div className="text-center py-8 text-gray-400">
-                    시간표를 불러오는 중...
+                    가용 시간대를 확인하는 중...
                   </div>
-                ) : allTimeSlots.length === 0 ? (
+                ) : !showAvailability ? (
                   <div className="text-center py-8 text-gray-400">
-                    이 강의실에는 사용 가능한 시간표가 없습니다
+                    시간대 정보를 불러오는 중...
                   </div>
-                ) : (
-                  <div className="space-y-4">
-                    {Object.entries(groupedTimeSlots).map(
-                      ([dayOfWeek, slots]) => (
-                        <div
-                          key={dayOfWeek}
-                          className="bg-gray-700/50 p-4 rounded-lg"
-                        >
-                          <h3 className="font-semibold mb-3">
-                            {DAYS_OF_WEEK[dayOfWeek]}
-                          </h3>
-                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                            {slots.map((slot) => {
-                              const isSelected = formData.timeSlotId === slot.id
-                              const isUnavailable = showAvailability && !slot.isAvailable
-
-                              return (
-                                <button
-                                  key={slot.id}
-                                  type="button"
-                                  onClick={() =>
-                                    setFormData((prev) => ({
-                                      ...prev,
-                                      timeSlotId: slot.id,
-                                    }))
-                                  }
-                                  disabled={isUnavailable}
-                                  className={`
-                                    px-4 py-3 rounded-lg border-2 transition
-                                    ${
-                                      isSelected
-                                        ? 'border-blue-500 bg-blue-600/20 ring-2 ring-blue-500/50'
-                                        : isUnavailable
-                                          ? 'border-gray-700 bg-gray-800 opacity-50 cursor-not-allowed'
-                                          : 'border-gray-600 hover:border-blue-400 bg-gray-700'
-                                    }
-                                  `}
-                                >
-                                  <div className="text-sm font-semibold">
-                                    {TIME_SLOT_DISPLAY[slot.slot_order]}
-                                  </div>
-                                  {isUnavailable && (
-                                    <div className="text-xs text-red-400 mt-1">
-                                      사용 불가
-                                    </div>
-                                  )}
-                                  {isSelected && (
-                                    <div className="text-xs text-blue-400 mt-1">
-                                      선택됨
-                                    </div>
-                                  )}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      )
-                    )}
-                  </div>
-                )}
-
-                {!showAvailability && formData.timeSlotId && (
-                  <div className="mt-4 p-4 bg-yellow-900/20 border border-yellow-500 rounded-lg">
-                    <p className="text-sm text-yellow-300">
-                      💡 시작일과 주차 수를 입력하면 선택한 시간대의 가용성을 확인할 수 있습니다.
+                ) : filteredSlots.length === 0 ? (
+                  <div className="text-center py-8 text-red-400">
+                    <p className="mb-2">선택한 기간에 사용 가능한 시간대가 없습니다</p>
+                    <p className="text-sm text-gray-400">
+                      다른 날짜나 기간을 선택해주세요
                     </p>
                   </div>
+                ) : (
+                  <>
+                    <div className="mb-4 p-3 bg-blue-900/20 border border-blue-500 rounded-lg">
+                      <p className="text-sm text-blue-300">
+                        💡 <span className="font-semibold">{DAYS_OF_WEEK[startDayOfWeek]}</span> {formData.startDate}부터 {formData.weeks}주간 사용 가능한 시간대입니다
+                      </p>
+                      <p className="text-xs text-blue-400 mt-1">
+                        매주 {DAYS_OF_WEEK[startDayOfWeek]}에 수업이 진행됩니다
+                      </p>
+                    </div>
+
+                    <div className="space-y-4">
+                      {Object.entries(groupedTimeSlots).map(
+                        ([dayOfWeek, slots]) => (
+                          <div
+                            key={dayOfWeek}
+                            className="bg-gray-700/50 p-4 rounded-lg"
+                          >
+                            <h3 className="font-semibold mb-3 flex items-center gap-2">
+                              {DAYS_OF_WEEK[dayOfWeek]}
+                              <span className="text-xs text-gray-400">
+                                ({slots.length}개 시간대)
+                              </span>
+                            </h3>
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                              {slots.map((slot) => {
+                                const isSelected = formData.timeSlotId === slot.id
+                                const isUnavailable = !slot.isAvailable
+
+                                return (
+                                  <button
+                                    key={slot.id}
+                                    type="button"
+                                    onClick={() =>
+                                      setFormData((prev) => ({
+                                        ...prev,
+                                        timeSlotId: slot.id,
+                                      }))
+                                    }
+                                    disabled={isUnavailable}
+                                    className={`
+                                      px-4 py-3 rounded-lg border-2 transition
+                                      ${
+                                        isSelected
+                                          ? 'border-blue-500 bg-blue-600/20 ring-2 ring-blue-500/50'
+                                          : isUnavailable
+                                            ? 'border-gray-700 bg-gray-800 opacity-50 cursor-not-allowed'
+                                            : 'border-gray-600 hover:border-blue-400 bg-gray-700'
+                                      }
+                                    `}
+                                  >
+                                    <div className="text-sm font-semibold">
+                                      {TIME_SLOT_DISPLAY[slot.slot_order]}
+                                    </div>
+                                    {isUnavailable && (
+                                      <div className="text-xs text-red-400 mt-1">
+                                        사용 불가
+                                      </div>
+                                    )}
+                                    {isSelected && (
+                                      <div className="text-xs text-blue-400 mt-1">
+                                        선택됨
+                                      </div>
+                                    )}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  </>
                 )}
 
                 {isSelectedSlotUnavailable() && (
@@ -430,47 +558,6 @@ export default function CreateCourse() {
                     </p>
                   </div>
                 )}
-              </div>
-            )}
-
-            {/* Step 3: 시작일 및 주차 */}
-            {formData.timeSlotId && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-sm mr-2">
-                      3
-                    </span>
-                    시작일 <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    name="startDate"
-                    value={formData.startDate}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-sm mr-2">
-                      4
-                    </span>
-                    주차 수 <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    name="weeks"
-                    value={formData.weeks}
-                    onChange={handleChange}
-                    min="1"
-                    max="52"
-                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
-                    required
-                  />
-                </div>
               </div>
             )}
 
@@ -542,7 +629,7 @@ export default function CreateCourse() {
           <button
             type="submit"
             className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={isLoading || isSelectedSlotUnavailable()}
+            disabled={isLoading || isSelectedSlotUnavailable() || startDayOfWeek === null}
           >
             {isLoading ? '생성 중...' : '강의 생성'}
           </button>
