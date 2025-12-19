@@ -89,6 +89,27 @@ function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNe
             console.log(`📏 칠판 메시 크기: 가로=${width.toFixed(2)}, 세로=${height.toFixed(2)}, 깊이=${depth.toFixed(2)}`)
             console.log(`📏 칠판 가로:세로 비율 = ${(width/height).toFixed(2)}:1`)
 
+            // ⭐ UV 범위 분석
+            if (child.geometry.attributes.uv) {
+              const uv = child.geometry.attributes.uv.array
+              let minU = 1, maxU = 0, minV = 1, maxV = 0
+
+              // UV array는 [u0, v0, u1, v1, u2, v2, ...] 형식
+              for (let i = 0; i < uv.length; i += 2) {
+                const u = uv[i]
+                const v = uv[i + 1]
+                minU = Math.min(minU, u)
+                maxU = Math.max(maxU, u)
+                minV = Math.min(minV, v)
+                maxV = Math.max(maxV, v)
+              }
+
+              console.log(`📐 Blackboard Mesh UV Range`)
+              console.log(`  U: ${minU.toFixed(3)} ~ ${maxU.toFixed(3)}`)
+              console.log(`  V: ${minV.toFixed(3)} ~ ${maxV.toFixed(3)}`)
+              console.log(`  V Usage: ${((maxV - minV) * 100).toFixed(1)}%`)
+            }
+
             foundBlackboardMesh = child
           }
 
