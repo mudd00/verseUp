@@ -538,4 +538,94 @@ router.post('/:id/drop', authMiddleware, async (req, res) => {
   }
 })
 
+// Check access to classroom for a course (requires auth)
+router.get('/:id/check-access', authMiddleware, async (req, res) => {
+  try {
+    const courseId = req.params.id
+    const userId = req.user.id
+    const userRole = req.user?.user_metadata?.role || req.user?.role
+
+    if (!supabase) {
+      return res.status(503).json({ error: 'Database service unavailable' })
+    }
+
+    // 1. 강의 정보 조회
+    const { data: course, error: courseError } = await supabase
+      .from('courses')
+      .select(
+        `
+        *,
+        instructor:profiles!courses_instructor_id_fkey(id, name, email),
+        classroom:classrooms(id, name, description, capacity),
+        time_slot:time_slots(id, day_of_week, start_time, end_time, slot_order),
+        schedules:course_schedules(id, week_number, session_date, start_time, end_time, status)
+      `
+      )
+      .eq('id', courseId)
+      .single()
+
+    if (courseError || !course) {
+      console.error('강의 조회 실패:', courseError)
+      return res.status(404).json({ error: '강의를 찾을 수 없습니다.' })
+    }
+
+    // 2. 접근 권한 확인
+    let hasAccess = false
+    let accessReason = ''
+
+    // 관리자는 항상 허용
+    if (userRole === 'admin') {
+      hasAccess = true
+      accessReason = 'admin'
+    }
+    // 강사이고 해당 강의의 instructor면 허용
+    else if (course.instructor_id === userId) {
+      hasAccess = true
+      accessReason = 'instructor'
+    }
+    // 학생이면 수강 신청 확인
+    else {
+      const { data: enrollment, error: enrollError } = await supabase
+        .from('enrollments')
+        .select('id, status')
+        .eq('course_id', courseId)
+        .eq('student_id', userId)
+        .eq('status', 'active')
+        .maybeSingle()
+
+      if (enrollError) {
+        console.error('수강 신청 확인 실패:', enrollError)
+      }
+
+      if (enrollment) {
+        hasAccess = true
+        accessReason = 'enrolled'
+      }
+    }
+
+    // 3. 현재 시간에 해당하는 스케줄 찾기 (선택사항)
+    const now = new Date()
+    const today = now.toISOString().split('T')[0]
+    const currentTime = now.toTimeString().split(' ')[0].substring(0, 5) // HH:MM
+
+    const currentSchedule = course.schedules?.find(
+      (schedule) =>
+        schedule.session_date === today &&
+        schedule.start_time <= currentTime &&
+        schedule.end_time >= currentTime &&
+        schedule.status === 'scheduled'
+    )
+
+    res.json({
+      hasAccess,
+      accessReason,
+      course,
+      currentSchedule: currentSchedule || null,
+    })
+  } catch (error) {
+    console.error('Error checking classroom access:', error)
+    res.status(500).json({ error: 'Failed to check classroom access' })
+  }
+})
+
 export default router

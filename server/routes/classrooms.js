@@ -225,4 +225,137 @@ router.put('/:id', authMiddleware, async (req, res) => {
   }
 })
 
+// Check classroom access for current time (requires auth)
+router.get('/:id/check-access', authMiddleware, async (req, res) => {
+  try {
+    const classroomId = req.params.id
+    const userId = req.user.id
+    const userRole = req.user?.user_metadata?.role || req.user?.role
+
+    if (!supabase) {
+      return res.status(503).json({ error: 'Database service unavailable' })
+    }
+
+    // 1. 교실 정보 조회
+    const { data: classroom, error: classroomError } = await supabase
+      .from('classrooms')
+      .select('*')
+      .eq('id', classroomId)
+      .single()
+
+    if (classroomError || !classroom) {
+      console.error('교실 조회 실패:', classroomError)
+      return res.status(404).json({ error: '교실을 찾을 수 없습니다.' })
+    }
+
+    // 2. 현재 시간 계산
+    const now = new Date()
+    const today = now.toISOString().split('T')[0]
+    const currentTime = now.toTimeString().split(' ')[0].substring(0, 8) // HH:MM:SS
+
+    // 3. 현재 시간에 해당 교실에서 진행 중인 강의 찾기
+    const { data: courses, error: coursesError } = await supabase
+      .from('courses')
+      .select(
+        `
+        *,
+        instructor:profiles!courses_instructor_id_fkey(id, name, email),
+        classroom:classrooms(id, name, description, capacity),
+        time_slot:time_slots(id, day_of_week, start_time, end_time, slot_order),
+        schedules:course_schedules!inner(id, week_number, session_date, start_time, end_time, status)
+      `
+      )
+      .eq('classroom_id', classroomId)
+      .eq('schedules.session_date', today)
+      .eq('schedules.status', 'scheduled')
+
+    if (coursesError) {
+      console.error('강의 조회 실패:', coursesError)
+      return res.status(500).json({ error: '강의 조회에 실패했습니다.' })
+    }
+
+    // 4. 현재 시간에 맞는 강의 필터링
+    const currentCourse = courses?.find((course) => {
+      return course.schedules?.some((schedule) => {
+        return (
+          schedule.session_date === today &&
+          schedule.start_time <= currentTime &&
+          schedule.end_time >= currentTime &&
+          schedule.status === 'scheduled'
+        )
+      })
+    })
+
+    // 5. 현재 시간에 진행 중인 강의가 없으면
+    if (!currentCourse) {
+      return res.json({
+        hasAccess: false,
+        reason: 'no_session',
+        message: '현재 시간에 진행 중인 강의가 없습니다.',
+        classroom,
+      })
+    }
+
+    // 6. 접근 권한 확인
+    let hasAccess = false
+    let accessReason = ''
+
+    // 관리자는 항상 허용
+    if (userRole === 'admin') {
+      hasAccess = true
+      accessReason = 'admin'
+    }
+    // 강사이고 해당 강의의 instructor면 허용
+    else if (currentCourse.instructor_id === userId) {
+      hasAccess = true
+      accessReason = 'instructor'
+    }
+    // 학생이면 수강 신청 확인
+    else {
+      const { data: enrollment, error: enrollError } = await supabase
+        .from('enrollments')
+        .select('id, status')
+        .eq('course_id', currentCourse.id)
+        .eq('student_id', userId)
+        .eq('status', 'active')
+        .maybeSingle()
+
+      if (enrollError) {
+        console.error('수강 신청 확인 실패:', enrollError)
+      }
+
+      if (enrollment) {
+        hasAccess = true
+        accessReason = 'enrolled'
+      }
+    }
+
+    // 7. 결과 반환
+    if (!hasAccess) {
+      return res.json({
+        hasAccess: false,
+        reason: 'not_enrolled',
+        message: '이 강의실에 접근할 권한이 없습니다. 해당 강의를 수강 신청해주세요.',
+        classroom,
+        currentCourse: {
+          id: currentCourse.id,
+          title: currentCourse.title,
+          instructor: currentCourse.instructor,
+        },
+      })
+    }
+
+    res.json({
+      hasAccess: true,
+      accessReason,
+      classroom,
+      course: currentCourse,
+      currentSchedule: currentCourse.schedules?.find((s) => s.session_date === today),
+    })
+  } catch (error) {
+    console.error('Error checking classroom access:', error)
+    res.status(500).json({ error: 'Failed to check classroom access' })
+  }
+})
+
 export default router

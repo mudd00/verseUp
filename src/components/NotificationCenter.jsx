@@ -18,7 +18,7 @@ export default function NotificationCenter() {
     queryKey: ['notifications'],
     queryFn: async () => {
       const res = await api.get('/notifications?limit=50')
-      return res.data
+      return res
     },
     enabled: !!user,
     refetchInterval: 30000, // 30초마다 자동 refetch
@@ -29,7 +29,7 @@ export default function NotificationCenter() {
     queryKey: ['notifications', 'unread-count'],
     queryFn: async () => {
       const res = await api.get('/notifications/unread-count')
-      return res.data
+      return res
     },
     enabled: !!user,
     refetchInterval: 10000, // 10초마다 자동 refetch

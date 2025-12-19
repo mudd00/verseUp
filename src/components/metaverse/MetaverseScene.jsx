@@ -16,6 +16,7 @@ import { useVoiceChat } from '../../hooks/useVoiceChat'
 import { useChat } from '../../hooks/useChat'
 import { useAuthStore } from '../../stores/authStore'
 import { socketService } from '../../services/socket'
+import api from '../../services/api'
 import DeskMonitor from './DeskMonitor.jsx'
 import * as THREE from 'three'
 
@@ -41,6 +42,8 @@ export default function MetaverseScene({ onReady }) {
   const [showDebugInfo, setShowDebugInfo] = useState(true) // Debug info 표시 여부
   const [isWhiteboardActive, setIsWhiteboardActive] = useState(false) // 판서 활성화 여부
   const [isFirstPerson, setIsFirstPerson] = useState(false) // 1인칭/3인칭 시야 전환
+  const [classroomAId, setClassroomAId] = useState(null) // 강의실 A의 ID
+  const [currentClassroom, setCurrentClassroom] = useState(null) // 현재 위치한 교실 (예: 'A', 'B', null)
   const lastPositionSentRef = useRef({ x: 0, y: 0, z: 0 })
   const positionSendIntervalRef = useRef(null)
 
@@ -141,6 +144,38 @@ export default function MetaverseScene({ onReady }) {
     setResetTrigger((prev) => prev + 1) // 플레이어 위치 리셋 트리거
     setPortalInfo({ isNear: false, targetMap: null, label: null }) // 포탈 UI 숨기기
     setDoorInfo({ isNear: false, doorId: null, label: null }) // 문 UI 숨기기
+  }, [])
+
+  // 교실 목록 조회 및 "강의실 A" ID 찾기
+  useEffect(() => {
+    const fetchClassrooms = async () => {
+      try {
+        const response = await api.get('/classrooms')
+        console.log('📚 [Classroom] API 응답:', response)
+        const classrooms = response.classrooms || []
+        console.log('📚 [Classroom] 교실 목록:', classrooms)
+
+        // "강의실 A" 또는 첫 번째 교실 사용
+        let classroomA = classrooms.find((c) => c.name === '강의실 A')
+
+        if (!classroomA && classrooms.length > 0) {
+          // "강의실 A"를 못 찾으면 첫 번째 교실 사용
+          classroomA = classrooms[0]
+          console.warn('⚠️ [Classroom] "강의실 A"를 찾지 못해 첫 번째 교실 사용:', classroomA.name)
+        }
+
+        if (classroomA) {
+          setClassroomAId(classroomA.id)
+          console.log('✅ [Classroom] 사용할 교실:', classroomA.name, 'ID:', classroomA.id)
+        } else {
+          console.error('❌ [Classroom] 사용 가능한 교실이 없습니다.')
+        }
+      } catch (error) {
+        console.error('❌ [Classroom] 교실 목록 조회 실패:', error)
+      }
+    }
+
+    fetchClassrooms()
   }, [])
 
   // Socket 연결 초기화
@@ -362,38 +397,104 @@ export default function MetaverseScene({ onReady }) {
     setObjectInfo({ isNear: false, objectId: null, label: null, type: null, position: null })
   }, [])
 
-  const handleDoorEnter = useCallback((doorId) => {
+  const handleDoorEnter = useCallback(async (doorId) => {
     if (!playerBodyRef.current) return
+
+    console.log('🚪 [Door] F키 눌림, doorId:', doorId)
 
     // 입장(_enter)과 퇴장(_exit) 구분
     if (doorId.endsWith('_enter')) {
-      // 문 안으로 들어가기
       const baseDoorId = doorId.replace('_enter', '')
+
+      // 강의실 A (door1)만 접근 권한 확인
+      if (baseDoorId === 'door1') {
+        console.log('🔐 [Classroom A] 접근 권한 확인 시작')
+
+        if (!classroomAId) {
+          console.warn('⚠️ [Classroom A] classroomAId가 없음')
+          alert('교실 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.')
+          setDoorInfo({ isNear: false, doorId: null, label: null })
+          return
+        }
+
+        if (!effectiveUser) {
+          console.warn('⚠️ [Classroom A] effectiveUser가 없음 (로그인 필요)')
+          alert('로그인이 필요합니다.')
+          setDoorInfo({ isNear: false, doorId: null, label: null })
+          return
+        }
+
+        try {
+          console.log('📡 [Classroom A] API 호출:', `/classrooms/${classroomAId}/check-access`)
+          // 접근 권한 확인 API 호출
+          const response = await api.get(`/classrooms/${classroomAId}/check-access`)
+          console.log('📡 [Classroom A] API 응답:', response)
+
+          const { hasAccess, reason, message } = response
+
+          if (!hasAccess) {
+            console.warn('❌ [Classroom A] 접근 거부:', reason, message)
+            alert(message || '교실에 접근할 수 없습니다.')
+            setDoorInfo({ isNear: false, doorId: null, label: null })
+            return
+          }
+
+          console.log('✅ [Classroom A] 접근 허용:', reason)
+        } catch (error) {
+          console.error('❌ [Classroom A] 접근 권한 확인 실패:', error)
+          if (error.response?.status === 401) {
+            alert('로그인이 필요합니다.')
+          } else if (error.response?.status === 404) {
+            alert('교실을 찾을 수 없습니다.')
+          } else {
+            alert('교실 접근 권한 확인 중 오류가 발생했습니다.')
+          }
+          setDoorInfo({ isNear: false, doorId: null, label: null })
+          return
+        }
+      }
+
+      // 문 안으로 들어가기 (권한 확인 통과 또는 door2)
       const enterDestinations = {
-        door1: [-53.06, 1.5, -22],  // 교실 1 안쪽
+        door1: [-53.06, 1.5, -22],  // 강의실 A 안쪽
         door2: [-69.25, 1.5, -22],  // 교실 2 안쪽
       }
       const destination = enterDestinations[baseDoorId]
       if (destination) {
         playerBodyRef.current.setTranslation({ x: destination[0], y: destination[1], z: destination[2] }, true)
         setDoorInfo({ isNear: false, doorId: null, label: null })
-        console.log(`${baseDoorId} 입장 ->`, destination)
+
+        // 현재 교실 상태 업데이트 및 URL 업데이트
+        const classroomName = baseDoorId === 'door1' ? 'A' : 'B'
+        setCurrentClassroom(classroomName)
+        const newUrl = new URL(window.location)
+        newUrl.searchParams.set('classroom', classroomName)
+        window.history.replaceState({}, '', newUrl)
+
+        console.log(`✅ [Door] ${baseDoorId} (강의실 ${classroomName}) 입장 완료 ->`, destination)
       }
     } else if (doorId.endsWith('_exit')) {
-      // 문 밖으로 나가기
+      // 문 밖으로 나가기 (퇴장은 항상 허용)
       const baseDoorId = doorId.replace('_exit', '')
       const exitDestinations = {
-        door1: [-52.88, 1.5, -20],  // 교실 1 문 밖 (임시, 조정 필요)
-        door2: [-67.69, 1.5, -20],  // 교실 2 문 밖 (임시, 조정 필요)
+        door1: [-52.88, 1.5, -20],  // 강의실 A 문 밖
+        door2: [-67.69, 1.5, -20],  // 교실 2 문 밖
       }
       const destination = exitDestinations[baseDoorId]
       if (destination) {
         playerBodyRef.current.setTranslation({ x: destination[0], y: destination[1], z: destination[2] }, true)
         setDoorInfo({ isNear: false, doorId: null, label: null })
-        console.log(`${baseDoorId} 퇴장 ->`, destination)
+
+        // 교실 밖으로 나오면 currentClassroom 초기화 및 URL 업데이트
+        setCurrentClassroom(null)
+        const newUrl = new URL(window.location)
+        newUrl.searchParams.delete('classroom')
+        window.history.replaceState({}, '', newUrl)
+
+        console.log(`✅ [Door] ${baseDoorId} 퇴장 완료 ->`, destination)
       }
     }
-  }, [])
+  }, [classroomAId, effectiveUser])
 
   // F키 상호작용 리스너
   useEffect(() => {
@@ -787,6 +888,9 @@ export default function MetaverseScene({ onReady }) {
             <div style={{ color: '#fff', fontWeight: 'bold', marginBottom: '4px' }}>Status:</div>
             <div style={{ fontSize: '12px' }}>
               <div>Map: {currentMap}</div>
+              <div style={{ color: currentClassroom ? '#10b981' : '#9ca3af' }}>
+                Classroom: {currentClassroom ? `강의실 ${currentClassroom}` : '복도'}
+              </div>
               <div>Sitting: {isSitting ? '✅' : '❌'}</div>
               <div>At Desk: {isAtDesk ? '✅' : '❌'}</div>
               {isInstructor && (

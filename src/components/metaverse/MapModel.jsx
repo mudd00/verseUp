@@ -236,7 +236,7 @@ function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNe
               position={outsidePosition}
               size={[3, 4, 0.5]}
               doorId={`${door.doorId}_enter`}
-              label={door.doorId === 'door1' ? '교실 1 입장 (F)' : '교실 2 입장 (F)'}
+              label={door.doorId === 'door1' ? '강의실 A 입장 (F)' : '교실 2 입장 (F)'}
               onNearChange={onDoorNearChange}
             />
             {/* 문 안쪽 - 나가기 전용 (얇게) */}
@@ -244,7 +244,7 @@ function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNe
               position={insidePosition}
               size={[3, 4, 0.5]}
               doorId={`${door.doorId}_exit`}
-              label={door.doorId === 'door1' ? '교실 1 나가기 (F)' : '교실 2 나가기 (F)'}
+              label={door.doorId === 'door1' ? '강의실 A 나가기 (F)' : '교실 2 나가기 (F)'}
               onNearChange={onDoorNearChange}
             />
           </group>
