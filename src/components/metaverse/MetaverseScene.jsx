@@ -549,8 +549,15 @@ export default function MetaverseScene({ onReady }) {
 
       if (e.code === 'Tab') {
         e.preventDefault()
-        setIsMenuOpen((prev) => !prev)
-        console.log('메뉴 토글:', !isMenuOpen)
+        const willOpen = !isMenuOpen
+        setIsMenuOpen(willOpen)
+
+        // 메뉴를 열 때 포인터 락 해제 (ESC와 동일한 동작)
+        if (willOpen && document.pointerLockElement) {
+          document.exitPointerLock()
+        }
+
+        console.log('메뉴 토글:', willOpen)
       }
     }
 

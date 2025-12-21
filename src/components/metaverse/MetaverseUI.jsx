@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Courses from '../../pages/Courses'
 import Profile from '../../pages/Profile'
 import Dashboard from '../../pages/Dashboard'
@@ -11,9 +12,14 @@ import PaymentHistory from '../../pages/PaymentHistory'
  * - 게임 UI 느낌의 디자인
  */
 export default function MetaverseUI({ isOpen, onClose }) {
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('courses')
 
   if (!isOpen) return null
+
+  const handleExitMetaverse = () => {
+    navigate('/dashboard')
+  }
 
   const tabs = [
     { id: 'courses', label: '강의', icon: '📚', color: '#f59e0b' },
@@ -107,10 +113,26 @@ export default function MetaverseUI({ isOpen, onClose }) {
             </button>
           ))}
 
+          {/* 나가기 버튼 */}
+          <button
+            onClick={handleExitMetaverse}
+            className="mt-auto py-3 rounded-lg transition-all"
+            style={{
+              background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.3) 0%, rgba(245, 158, 11, 0.1) 100%)',
+              border: '2px solid rgba(245, 158, 11, 0.5)',
+              color: '#fbbf24',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)',
+            }}
+          >
+            🚪<br />메타버스<br/>나가기
+          </button>
+
           {/* 닫기 버튼 */}
           <button
             onClick={onClose}
-            className="mt-auto py-3 rounded-lg transition-all"
+            className="mt-2 py-3 rounded-lg transition-all"
             style={{
               background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.3) 0%, rgba(239, 68, 68, 0.1) 100%)',
               border: '2px solid rgba(239, 68, 68, 0.5)',
