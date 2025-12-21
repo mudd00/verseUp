@@ -19,11 +19,11 @@ export default function AssignmentDetail() {
   const [uploadProgress, setUploadProgress] = useState(0)
 
   // 과제 상세 조회
-  const { data: assignment, isLoading } = useQuery({
+  const { data: assignment, isLoading, error } = useQuery({
     queryKey: ['assignment', id],
     queryFn: async () => {
       const res = await api.get(`/assignments/${id}`)
-      return res.data
+      return res
     },
     enabled: !!id,
   })
@@ -125,7 +125,27 @@ export default function AssignmentDetail() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <p className="text-gray-400">과제 정보를 불러오는 중...</p>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-400">과제 정보를 불러오는 중...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <p className="text-red-400 mb-4">과제를 불러오는데 실패했습니다</p>
+          <p className="text-gray-400 text-sm mb-4">{error.message}</p>
+          <button
+            onClick={() => navigate(-1)}
+            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded transition"
+          >
+            뒤로 가기
+          </button>
+        </div>
       </div>
     )
   }
@@ -133,7 +153,15 @@ export default function AssignmentDetail() {
   if (!assignment) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <p className="text-gray-400">과제를 찾을 수 없습니다</p>
+        <div className="text-center">
+          <p className="text-gray-400 mb-4">과제를 찾을 수 없습니다</p>
+          <button
+            onClick={() => navigate(-1)}
+            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded transition"
+          >
+            뒤로 가기
+          </button>
+        </div>
       </div>
     )
   }

@@ -25,7 +25,7 @@ export default function EditAssignment() {
     queryKey: ['assignment', id],
     queryFn: async () => {
       const res = await api.get(`/assignments/${id}`)
-      return res.data
+      return res
     },
     enabled: !!id,
   })

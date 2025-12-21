@@ -17,7 +17,7 @@ export default function AssignmentSubmissions() {
     queryKey: ['assignment', id],
     queryFn: async () => {
       const res = await api.get(`/assignments/${id}`)
-      return res.data
+      return res
     },
     enabled: !!id,
   })
@@ -27,7 +27,7 @@ export default function AssignmentSubmissions() {
     queryKey: ['submissions', id],
     queryFn: async () => {
       const res = await api.get(`/assignments/${id}/submissions`)
-      return res.data
+      return res
     },
     enabled: !!id,
   })
