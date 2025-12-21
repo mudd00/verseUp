@@ -150,7 +150,21 @@ export default function CreateCourse() {
           }
         }
       } else if (name === 'maxStudents') {
-        processedValue = Number(value)
+        // maxStudents 필드 특별 처리
+        if (value === '') {
+          processedValue = 0
+        } else {
+          const numValue = Number(value)
+          // 숫자가 아니거나 음수면 이전 값 유지
+          if (isNaN(numValue) || numValue < 0) {
+            processedValue = prev.maxStudents
+          } else if (numValue > 20) {
+            // 20 초과하면 자동으로 20으로 설정
+            processedValue = 20
+          } else {
+            processedValue = Math.floor(numValue) // 정수로 변환
+          }
+        }
       }
 
       const newData = {
@@ -220,6 +234,10 @@ export default function CreateCourse() {
 
       if (formData.weeks < 1 || formData.weeks > 10) {
         throw new Error('주차는 1~10주 사이로 설정해주세요.')
+      }
+
+      if (formData.maxStudents < 1 || formData.maxStudents > 20) {
+        throw new Error('최대 수강 인원은 1~20명 사이로 설정해주세요.')
       }
 
       // 가용성 재확인
@@ -355,21 +373,28 @@ export default function CreateCourse() {
 
             <div>
               <label className="block text-sm font-medium mb-2">
-                최대 수강 인원
+                최대 수강 인원 <span className="text-red-400">*</span>
               </label>
               <input
-                type="number"
+                type="text"
                 name="maxStudents"
-                value={formData.maxStudents}
+                value={formData.maxStudents === 0 ? '' : formData.maxStudents}
                 onChange={handleChange}
-                min="1"
-                max="20"
+                placeholder="1~20"
                 className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
                 required
               />
-              <p className="text-sm text-gray-400 mt-1">
-                최대 20명까지 설정 가능합니다
-              </p>
+              {formData.maxStudents === 0 || formData.maxStudents < 1 ? (
+                <div className="mt-2 p-3 bg-red-900/20 border border-red-500 rounded-lg">
+                  <p className="text-sm text-red-300">
+                    ⚠️ 최소 1명 이상으로 설정해야합니다
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400 mt-1">
+                  최대 수강 인원을 입력하세요 (1~20명, 20명 초과 시 자동으로 20명으로 설정됩니다)
+                </p>
+              )}
             </div>
           </div>
         </div>

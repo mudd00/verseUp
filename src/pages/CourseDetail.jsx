@@ -23,6 +23,8 @@ export default function CourseDetail() {
   const [isRefunding, setIsRefunding] = useState(false)
   const [materials, setMaterials] = useState([])
   const [isLoadingMaterials, setIsLoadingMaterials] = useState(false)
+  const [assignments, setAssignments] = useState([])
+  const [isLoadingAssignments, setIsLoadingAssignments] = useState(false)
 
   useEffect(() => {
     if (id) {
@@ -35,9 +37,18 @@ export default function CourseDetail() {
   useEffect(() => {
     if (isEnrolled && id) {
       loadMaterials()
+      loadAssignments()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEnrolled, id])
+
+  useEffect(() => {
+    // 강사인 경우에도 과제 목록 로드
+    if (course && user && course.instructorId === user.id && id) {
+      loadAssignments()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [course, user, id])
 
   const loadCourse = async () => {
     if (!id) return
@@ -86,6 +97,21 @@ export default function CourseDetail() {
       toast.error('자료를 불러오는데 실패했습니다.')
     } finally {
       setIsLoadingMaterials(false)
+    }
+  }
+
+  const loadAssignments = async () => {
+    if (!id) return
+
+    try {
+      setIsLoadingAssignments(true)
+      const response = await apiService.get(`/courses/${id}/assignments`)
+      setAssignments(response.assignments || [])
+    } catch (err) {
+      console.error('과제 조회 실패:', err)
+      toast.error('과제를 불러오는데 실패했습니다.')
+    } finally {
+      setIsLoadingAssignments(false)
     }
   }
 
@@ -420,6 +446,68 @@ export default function CourseDetail() {
                 </ul>
               ) : (
                 <p className="text-gray-400">등록된 자료가 없습니다.</p>
+              )}
+            </div>
+          )}
+
+          {/* 과제 목록 - 수강 중인 학생 또는 강사만 볼 수 있음 */}
+          {(isEnrolled || isInstructor) && (
+            <div className="bg-gray-800 p-6 rounded-lg">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold">과제</h2>
+                {isInstructor && (
+                  <button
+                    onClick={() => navigate(`/courses/${id}/assignments/new`)}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
+                  >
+                    + 과제 등록
+                  </button>
+                )}
+              </div>
+              {isLoadingAssignments ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                </div>
+              ) : assignments.length > 0 ? (
+                <ul className="space-y-3">
+                  {assignments.map((assignment) => (
+                    <li
+                      key={assignment.id}
+                      onClick={() => navigate(`/assignments/${assignment.id}`)}
+                      className="p-4 bg-gray-700 rounded-lg hover:bg-gray-650 transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-white mb-1">{assignment.title}</h3>
+                          {assignment.description && (
+                            <p className="text-sm text-gray-400 mb-2">{assignment.description}</p>
+                          )}
+                          <div className="flex items-center gap-3 text-xs text-gray-500">
+                            <span>만점: {assignment.max_score}점</span>
+                            <span>마감: {new Date(assignment.due_date).toLocaleString()}</span>
+                            {assignment.my_submission && (
+                              <span className={`px-2 py-0.5 rounded ${
+                                assignment.my_submission.status === 'graded'
+                                  ? 'bg-green-600/20 text-green-400'
+                                  : assignment.my_submission.status === 'late'
+                                  ? 'bg-yellow-600/20 text-yellow-400'
+                                  : 'bg-blue-600/20 text-blue-400'
+                              }`}>
+                                {assignment.my_submission.status === 'graded'
+                                  ? `채점 완료 (${assignment.my_submission.score}점)`
+                                  : assignment.my_submission.status === 'late'
+                                  ? '지각 제출'
+                                  : '제출 완료'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-gray-400">등록된 과제가 없습니다.</p>
               )}
             </div>
           )}
