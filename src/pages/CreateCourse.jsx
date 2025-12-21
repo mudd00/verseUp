@@ -90,7 +90,7 @@ export default function CreateCourse() {
   // 시작일/주차 입력 시 가용성 확인
   useEffect(() => {
     const checkAvailability = async () => {
-      if (!formData.classroomId || !formData.startDate || !formData.weeks) {
+      if (!formData.classroomId || !formData.startDate || formData.weeks < 1) {
         setShowAvailability(false)
         setAvailableSlots([])
         return
@@ -130,10 +130,32 @@ export default function CreateCourse() {
   const handleChange = (e) => {
     const { name, value } = e.target
     setFormData((prev) => {
+      let processedValue = value
+
+      // weeks 필드 특별 처리
+      if (name === 'weeks') {
+        // 빈 문자열이면 0으로 설정
+        if (value === '') {
+          processedValue = 0
+        } else {
+          const numValue = Number(value)
+          // 숫자가 아니거나 음수면 이전 값 유지
+          if (isNaN(numValue) || numValue < 0) {
+            processedValue = prev.weeks
+          } else if (numValue > 10) {
+            // 10 초과하면 자동으로 10으로 설정
+            processedValue = 10
+          } else {
+            processedValue = Math.floor(numValue) // 정수로 변환
+          }
+        }
+      } else if (name === 'maxStudents') {
+        processedValue = Number(value)
+      }
+
       const newData = {
         ...prev,
-        [name]:
-          name === 'maxStudents' || name === 'weeks' ? Number(value) : value,
+        [name]: processedValue,
       }
 
       // 강의실이 변경되면 timeSlotId 초기화
@@ -196,8 +218,8 @@ export default function CreateCourse() {
         throw new Error('주말에는 강의를 개설할 수 없습니다. 평일을 선택해주세요.')
       }
 
-      if (formData.weeks < 1 || formData.weeks > 52) {
-        throw new Error('주차는 1~52주 사이로 설정해주세요.')
+      if (formData.weeks < 1 || formData.weeks > 10) {
+        throw new Error('주차는 1~10주 사이로 설정해주세요.')
       }
 
       // 가용성 재확인
@@ -436,23 +458,30 @@ export default function CreateCourse() {
                   주차 수 <span className="text-red-400">*</span>
                 </label>
                 <input
-                  type="number"
+                  type="text"
                   name="weeks"
-                  value={formData.weeks}
+                  value={formData.weeks === 0 ? '' : formData.weeks}
                   onChange={handleChange}
-                  min="1"
-                  max="52"
+                  placeholder="1~10"
                   className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
                   required
                 />
-                <p className="text-sm text-gray-400 mt-1">
-                  강의가 진행될 주차 수를 입력하세요 (1~52주)
-                </p>
+                {formData.weeks === 0 || formData.weeks < 1 ? (
+                  <div className="mt-2 p-3 bg-red-900/20 border border-red-500 rounded-lg">
+                    <p className="text-sm text-red-300">
+                      ⚠️ 최소 1주차 이상의 강의를 개설해야합니다
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400 mt-1">
+                    강의가 진행될 주차 수를 입력하세요 (1~10주, 10주 초과 시 자동으로 10주로 설정됩니다)
+                  </p>
+                )}
               </div>
             )}
 
             {/* Step 4: 시간표 선택 (시작일과 주차 입력 후 표시) */}
-            {formData.classroomId && formData.startDate && formData.weeks && startDayOfWeek !== null && (
+            {formData.classroomId && formData.startDate && formData.weeks > 0 && startDayOfWeek !== null && (
               <div>
                 <label className="block text-sm font-medium mb-3">
                   <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-sm mr-2">
@@ -561,7 +590,7 @@ export default function CreateCourse() {
               </div>
             )}
 
-            {formData.timeSlotId && formData.startDate && formData.weeks && (
+            {formData.timeSlotId && formData.startDate && formData.weeks > 0 && (
               <div className="p-4 bg-green-900/20 border border-green-500 rounded-lg">
                 <p className="text-sm text-green-300">
                   ✓ 선택한 시간대로 매주 {formData.weeks}주간 수업이 진행됩니다

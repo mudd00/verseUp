@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Edit, Trash2, DoorOpen, Clock } from 'lucide-react'
+import { Plus, Edit, Trash2, DoorOpen, Clock, Power } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const STATUS_LABELS = {
@@ -142,6 +142,36 @@ export default function ClassroomManagement() {
     } catch (error) {
       console.error('강의실 저장 실패:', error)
       toast.error('강의실 저장에 실패했습니다.')
+    }
+  }
+
+  const handleToggleStatus = async (classroomId, currentStatus) => {
+    const newStatus = currentStatus === 'active' ? 'inactive' : 'active'
+    const actionText = newStatus === 'active' ? '활성화' : '비활성화'
+
+    if (!confirm(`정말로 이 강의실을 ${actionText}하시겠습니까?`)) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/admin/classrooms/${classroomId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+        },
+        body: JSON.stringify({ status: newStatus }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update classroom status')
+      }
+
+      toast.success(`강의실이 ${actionText}되었습니다.`)
+      loadClassrooms()
+    } catch (error) {
+      console.error('강의실 상태 변경 실패:', error)
+      toast.error(`강의실 ${actionText}에 실패했습니다.`)
     }
   }
 
@@ -436,6 +466,13 @@ export default function ClassroomManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex gap-2">
+                        <button
+                          onClick={() => handleToggleStatus(classroom.id, classroom.status)}
+                          className="p-1 hover:bg-gray-600 rounded transition"
+                          title={classroom.status === 'active' ? '비활성화' : '활성화'}
+                        >
+                          <Power className={`w-4 h-4 ${classroom.status === 'active' ? 'text-green-400' : 'text-gray-400'}`} />
+                        </button>
                         <button
                           onClick={() => handleOpenTimeSlotModal(classroom)}
                           className="p-1 hover:bg-gray-600 rounded transition"
