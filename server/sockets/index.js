@@ -45,8 +45,8 @@ export function setupSocketHandlers(io) {
 
       console.log(`🚪 User ${user.user.name} joined room: ${roomId}`)
 
-      // Notify others in the room (with position for initial sync)
-      socket.to(roomId).emit('room:user-joined', {
+      // Notify all users in the room including self (with position for initial sync)
+      io.to(roomId).emit('room:user-joined', {
         user: user.user,
         socketId: socket.id,
         position: user.position || [0, 2, 0],
