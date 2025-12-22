@@ -92,7 +92,8 @@ if (process.env.NODE_ENV === 'production') {
   app.use(express.static(distPath))
 
   // SPA 라우팅: 모든 비-API 요청을 index.html로 리다이렉트
-  app.get('*', (req, res, next) => {
+  // Express 5에서는 '*' 대신 '{*path}' 사용
+  app.get('/{*path}', (req, res, next) => {
     // API, Socket.IO, health 엔드포인트는 제외
     if (req.path.startsWith('/api') || req.path.startsWith('/socket.io') || req.path === '/health') {
       return next()
