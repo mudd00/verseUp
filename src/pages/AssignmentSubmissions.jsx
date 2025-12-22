@@ -140,7 +140,7 @@ export default function AssignmentSubmissions() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className={`grid gap-6 ${selectedSubmission ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
         {/* 제출 목록 */}
         <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
           <h2 className="text-xl font-semibold text-white mb-4">제출 목록</h2>
@@ -188,11 +188,11 @@ export default function AssignmentSubmissions() {
           )}
         </div>
 
-        {/* 채점 섹션 */}
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">채점</h2>
+        {/* 채점 섹션 - 학생 선택 시에만 표시 */}
+        {selectedSubmission && (
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+            <h2 className="text-xl font-semibold text-white mb-4">채점</h2>
 
-          {selectedSubmission ? (
             <div className="space-y-4">
               {/* 학생 정보 */}
               <div className="bg-gray-750 p-4 rounded">
@@ -276,12 +276,8 @@ export default function AssignmentSubmissions() {
                 </button>
               </form>
             </div>
-          ) : (
-            <p className="text-gray-400 text-center py-12">
-              채점할 제출물을 선택해주세요
-            </p>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )

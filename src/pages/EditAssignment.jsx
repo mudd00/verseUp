@@ -70,7 +70,16 @@ export default function EditAssignment() {
     },
     onSuccess: () => {
       toast.success('과제가 삭제되었습니다')
-      navigate(-1)
+      // 모든 관련 쿼리 무효화
+      queryClient.invalidateQueries({ queryKey: ['assignment', id] })
+      queryClient.invalidateQueries({ queryKey: ['assignments'] })
+      queryClient.invalidateQueries({ queryKey: ['courses'] })
+      // 강의 상세 페이지로 이동
+      if (assignment?.course_id) {
+        navigate(`/courses/${assignment.course_id}`)
+      } else {
+        navigate('/my-courses')
+      }
     },
     onError: (error) => {
       toast.error(error.response?.data?.error || '과제 삭제에 실패했습니다')

@@ -459,16 +459,32 @@ router.get('/assignments/:id/submissions', requireInstructor, async (req, res) =
       return res.status(403).json({ error: 'Access denied' })
     }
 
-    // 제출 목록 조회 (학생 정보 포함)
+    // 제출 목록 조회
     const { data: submissions, error } = await supabase
       .from('assignment_submissions')
-      .select('*, student:student_id(id, name, email)')
+      .select('*')
       .eq('assignment_id', id)
       .order('submitted_at', { ascending: false })
 
     if (error) throw error
 
-    res.json({ submissions: submissions || [] })
+    // 각 제출에 대해 학생 정보를 profiles 테이블에서 조회
+    const submissionsWithStudentInfo = await Promise.all(
+      (submissions || []).map(async (submission) => {
+        const { data: student } = await supabase
+          .from('profiles')
+          .select('id, name, email')
+          .eq('id', submission.student_id)
+          .single()
+
+        return {
+          ...submission,
+          student: student || { id: submission.student_id, name: '알 수 없음', email: '' },
+        }
+      })
+    )
+
+    res.json({ submissions: submissionsWithStudentInfo })
   } catch (error) {
     console.error('Failed to fetch submissions:', error)
     res.status(500).json({ error: error.message || 'Internal server error' })
