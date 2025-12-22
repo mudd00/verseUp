@@ -76,7 +76,7 @@ router.post(
   async (req, res) => {
     try {
       const { courseId } = req.params
-      const { title, description, file_url, file_name, file_size, file_type } = req.body
+      const { title, description, file_url, file_name, file_size, file_type, week_number } = req.body
 
       if (!supabase) {
         return res.status(503).json({ error: 'Database service unavailable' })
@@ -116,6 +116,7 @@ router.post(
           file_size,
           file_type,
           uploaded_by: req.user.id,
+          week_number: week_number || null,
         })
         .select()
         .single()

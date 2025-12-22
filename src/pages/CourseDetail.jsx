@@ -25,6 +25,7 @@ export default function CourseDetail() {
   const [isLoadingMaterials, setIsLoadingMaterials] = useState(false)
   const [assignments, setAssignments] = useState([])
   const [isLoadingAssignments, setIsLoadingAssignments] = useState(false)
+  const [selectedWeek, setSelectedWeek] = useState(0) // 0 = 전체, 1~ = 주차
 
   useEffect(() => {
     if (id) {
@@ -407,54 +408,11 @@ export default function CourseDetail() {
             )}
           </div>
 
-          {/* 강의 자료 - 수강 중인 학생만 볼 수 있음 */}
-          {isEnrolled && (
-            <div className="bg-gray-800 p-6 rounded-lg">
-              <h2 className="text-xl font-semibold mb-4">강의 자료</h2>
-              {isLoadingMaterials ? (
-                <div className="flex justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                </div>
-              ) : materials.length > 0 ? (
-                <ul className="space-y-3">
-                  {materials.map((material) => (
-                    <li
-                      key={material.id}
-                      className="flex items-start justify-between gap-4 p-4 bg-gray-700 rounded-lg hover:bg-gray-650 transition-colors"
-                    >
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-white mb-1">{material.title}</h3>
-                        {material.description && (
-                          <p className="text-sm text-gray-400 mb-2">{material.description}</p>
-                        )}
-                        <div className="flex items-center gap-3 text-xs text-gray-500">
-                          <span>{material.file_type?.toUpperCase()}</span>
-                          {material.file_size && (
-                            <span>{(material.file_size / 1024 / 1024).toFixed(2)} MB</span>
-                          )}
-                          <span>{new Date(material.created_at).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleDownload(material)}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap"
-                      >
-                        다운로드
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-gray-400">등록된 자료가 없습니다.</p>
-              )}
-            </div>
-          )}
-
-          {/* 과제 목록 - 수강 중인 학생 또는 강사만 볼 수 있음 */}
+          {/* 주차별 강의 자료 및 과제 - 수강 중인 학생 또는 강사만 볼 수 있음 */}
           {(isEnrolled || isInstructor) && (
             <div className="bg-gray-800 p-6 rounded-lg">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">과제</h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold">강의 자료 및 과제</h2>
                 {isInstructor && (
                   <button
                     onClick={() => navigate(`/courses/${id}/assignments/new`)}
@@ -464,50 +422,166 @@ export default function CourseDetail() {
                   </button>
                 )}
               </div>
-              {isLoadingAssignments ? (
+
+              {/* 주차 탭 */}
+              {course && course.weeks > 0 && (
+                <div className="mb-6">
+                  <div className="flex gap-2 flex-wrap">
+                    <button
+                      onClick={() => setSelectedWeek(0)}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                        selectedWeek === 0
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-650'
+                      }`}
+                    >
+                      전체
+                    </button>
+                    {Array.from({ length: course.weeks }, (_, i) => i + 1).map((week) => (
+                      <button
+                        key={week}
+                        onClick={() => setSelectedWeek(week)}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                          selectedWeek === week
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-700 text-gray-300 hover:bg-gray-650'
+                        }`}
+                      >
+                        {week}주차
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 로딩 상태 */}
+              {(isLoadingMaterials || isLoadingAssignments) ? (
                 <div className="flex justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
                 </div>
-              ) : assignments.length > 0 ? (
-                <ul className="space-y-3">
-                  {assignments.map((assignment) => (
-                    <li
-                      key={assignment.id}
-                      onClick={() => navigate(`/assignments/${assignment.id}`)}
-                      className="p-4 bg-gray-700 rounded-lg hover:bg-gray-650 transition-colors cursor-pointer"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-white mb-1">{assignment.title}</h3>
-                          {assignment.description && (
-                            <p className="text-sm text-gray-400 mb-2">{assignment.description}</p>
-                          )}
-                          <div className="flex items-center gap-3 text-xs text-gray-500">
-                            <span>만점: {assignment.max_score}점</span>
-                            <span>마감: {new Date(assignment.due_date).toLocaleString()}</span>
-                            {assignment.my_submission && (
-                              <span className={`px-2 py-0.5 rounded ${
-                                assignment.my_submission.status === 'graded'
-                                  ? 'bg-green-600/20 text-green-400'
-                                  : assignment.my_submission.status === 'late'
-                                  ? 'bg-yellow-600/20 text-yellow-400'
-                                  : 'bg-blue-600/20 text-blue-400'
-                              }`}>
-                                {assignment.my_submission.status === 'graded'
-                                  ? `채점 완료 (${assignment.my_submission.score}점)`
-                                  : assignment.my_submission.status === 'late'
-                                  ? '지각 제출'
-                                  : '제출 완료'}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
               ) : (
-                <p className="text-gray-400">등록된 과제가 없습니다.</p>
+                <div className="space-y-6">
+                  {/* 강의 자료 */}
+                  {isEnrolled && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-3">
+                        📚 강의 자료
+                        {selectedWeek > 0 && ` - ${selectedWeek}주차`}
+                      </h3>
+                      {(() => {
+                        const filteredMaterials = selectedWeek === 0
+                          ? materials
+                          : materials.filter(m => m.week_number === selectedWeek)
+
+                        return filteredMaterials.length > 0 ? (
+                          <ul className="space-y-3">
+                            {filteredMaterials.map((material) => (
+                              <li
+                                key={material.id}
+                                className="flex items-start justify-between gap-4 p-4 bg-gray-700 rounded-lg hover:bg-gray-650 transition-colors"
+                              >
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <h4 className="font-semibold text-white">{material.title}</h4>
+                                    {material.week_number && (
+                                      <span className="px-2 py-0.5 text-xs bg-purple-600/20 text-purple-400 rounded">
+                                        {material.week_number}주차
+                                      </span>
+                                    )}
+                                  </div>
+                                  {material.description && (
+                                    <p className="text-sm text-gray-400 mb-2">{material.description}</p>
+                                  )}
+                                  <div className="flex items-center gap-3 text-xs text-gray-500">
+                                    <span>{material.file_type?.toUpperCase()}</span>
+                                    {material.file_size && (
+                                      <span>{(material.file_size / 1024 / 1024).toFixed(2)} MB</span>
+                                    )}
+                                    <span>{new Date(material.created_at).toLocaleDateString()}</span>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => handleDownload(material)}
+                                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap"
+                                >
+                                  다운로드
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-gray-400 text-sm py-4">
+                            {selectedWeek === 0 ? '등록된 자료가 없습니다.' : `${selectedWeek}주차 자료가 없습니다.`}
+                          </p>
+                        )
+                      })()}
+                    </div>
+                  )}
+
+                  {/* 과제 목록 */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-3">
+                      📝 과제
+                      {selectedWeek > 0 && ` - ${selectedWeek}주차`}
+                    </h3>
+                    {(() => {
+                      const filteredAssignments = selectedWeek === 0
+                        ? assignments
+                        : assignments.filter(a => a.week_number === selectedWeek)
+
+                      return filteredAssignments.length > 0 ? (
+                        <ul className="space-y-3">
+                          {filteredAssignments.map((assignment) => (
+                            <li
+                              key={assignment.id}
+                              onClick={() => navigate(`/assignments/${assignment.id}`)}
+                              className="p-4 bg-gray-700 rounded-lg hover:bg-gray-650 transition-colors cursor-pointer"
+                            >
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <h4 className="font-semibold text-white">{assignment.title}</h4>
+                                    {assignment.week_number && (
+                                      <span className="px-2 py-0.5 text-xs bg-purple-600/20 text-purple-400 rounded">
+                                        {assignment.week_number}주차
+                                      </span>
+                                    )}
+                                  </div>
+                                  {assignment.description && (
+                                    <p className="text-sm text-gray-400 mb-2">{assignment.description}</p>
+                                  )}
+                                  <div className="flex items-center gap-3 text-xs text-gray-500">
+                                    <span>만점: {assignment.max_score}점</span>
+                                    <span>마감: {new Date(assignment.due_date).toLocaleString()}</span>
+                                    {assignment.my_submission && (
+                                      <span className={`px-2 py-0.5 rounded ${
+                                        assignment.my_submission.status === 'graded'
+                                          ? 'bg-green-600/20 text-green-400'
+                                          : assignment.my_submission.status === 'late'
+                                          ? 'bg-yellow-600/20 text-yellow-400'
+                                          : 'bg-blue-600/20 text-blue-400'
+                                      }`}>
+                                        {assignment.my_submission.status === 'graded'
+                                          ? `채점 완료 (${assignment.my_submission.score}점)`
+                                          : assignment.my_submission.status === 'late'
+                                          ? '지각 제출'
+                                          : '제출 완료'}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-gray-400 text-sm py-4">
+                          {selectedWeek === 0 ? '등록된 과제가 없습니다.' : `${selectedWeek}주차 과제가 없습니다.`}
+                        </p>
+                      )
+                    })()}
+                  </div>
+                </div>
               )}
             </div>
           )}

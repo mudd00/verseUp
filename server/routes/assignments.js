@@ -165,6 +165,7 @@ router.post(
         due_date,
         allow_late_submission = false,
         late_penalty_percent = 0,
+        week_number,
       } = req.body
 
       if (!supabase) {
@@ -208,6 +209,7 @@ router.post(
           due_date,
           allow_late_submission,
           late_penalty_percent,
+          week_number: week_number || null,
         })
         .select()
         .single()
@@ -266,6 +268,7 @@ router.put('/assignments/:id', requireInstructor, async (req, res) => {
       due_date,
       allow_late_submission,
       late_penalty_percent,
+      week_number,
     } = req.body
 
     if (!supabase) {
@@ -300,6 +303,7 @@ router.put('/assignments/:id', requireInstructor, async (req, res) => {
         due_date,
         allow_late_submission,
         late_penalty_percent,
+        week_number: week_number || null,
       })
       .eq('id', id)
       .select()
