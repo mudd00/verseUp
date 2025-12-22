@@ -439,10 +439,10 @@ export default function CourseDetail() {
                 <h2 className="text-xl font-semibold">강의 자료 및 과제</h2>
                 {isInstructor && (
                   <button
-                    onClick={() => navigate(`/courses/${id}/assignments/new`)}
+                    onClick={() => navigate(`/courses/${id}/edit`)}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
                   >
-                    + 과제 등록
+                    📝 강의 관리 (자료/과제 등록)
                   </button>
                 )}
               </div>

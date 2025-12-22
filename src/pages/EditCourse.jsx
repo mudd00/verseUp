@@ -6,6 +6,7 @@ import { classroomService } from '@/services/classroomService.js'
 import { ROUTES } from '@/utils/constants.js'
 import { useAuthStore } from '@/stores/authStore.js'
 import CourseMaterials from '@/components/course/CourseMaterials.jsx'
+import CourseAssignments from '@/components/course/CourseAssignments.jsx'
 import { AlertTriangle } from 'lucide-react'
 
 const DAYS_OF_WEEK = {
@@ -33,6 +34,7 @@ export default function EditCourse() {
   const [error, setError] = useState(null)
   const [classroomName, setClassroomName] = useState('')
   const [timeSlotInfo, setTimeSlotInfo] = useState({ day: '', time: '' })
+  const [activeTab, setActiveTab] = useState('info') // 'info', 'materials', 'assignments'
 
   const [formData, setFormData] = useState({
     title: '',
@@ -168,36 +170,65 @@ export default function EditCourse() {
     )
   }
 
+  const tabs = [
+    { id: 'info', label: '📋 기본 정보', description: '강의 제목, 설명 등' },
+    { id: 'materials', label: '📚 강의 자료', description: '주차별 강의 자료 관리' },
+    { id: 'assignments', label: '📝 과제 관리', description: '과제 등록 및 관리' },
+  ]
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-2">강의 수정</h1>
+        <h1 className="text-4xl font-bold mb-2">강의 관리</h1>
         <p className="text-gray-400">
-          강의 설명과 자료만 수정할 수 있습니다
+          강의 정보, 자료, 과제를 한 곳에서 관리하세요
         </p>
       </div>
 
-      {/* 안내 메시지 */}
-      <div className="mb-6 p-4 bg-yellow-900/20 border border-yellow-500 rounded-lg flex items-start gap-3">
-        <AlertTriangle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
-        <div className="text-sm text-yellow-200">
-          <p className="font-semibold mb-1">수정 제한 안내</p>
-          <p>
-            강의실, 시간표, 수강 인원, 가격, 시작일, 주차 수는 생성 후 변경할 수
-            없습니다.
-            <br />
-            강의 제목, 설명, 썸네일, 강의 자료만 수정 가능합니다.
-          </p>
+      {/* 탭 네비게이션 */}
+      <div className="mb-6 bg-gray-800 rounded-lg p-1">
+        <div className="flex gap-2">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 px-4 py-3 rounded-md transition-all ${
+                activeTab === tab.id
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-700'
+              }`}
+            >
+              <div className="font-semibold text-sm">{tab.label}</div>
+              <div className="text-xs opacity-75 mt-0.5">{tab.description}</div>
+            </button>
+          ))}
         </div>
       </div>
 
-      {error && (
-        <div className="mb-6 p-4 bg-red-900/20 border border-red-500 rounded-lg text-red-400">
-          {error}
-        </div>
-      )}
+      {/* 탭별 컨텐츠 */}
+      {activeTab === 'info' && (
+        <>
+          {/* 안내 메시지 */}
+          <div className="mb-6 p-4 bg-yellow-900/20 border border-yellow-500 rounded-lg flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-yellow-200">
+              <p className="font-semibold mb-1">수정 제한 안내</p>
+              <p>
+                강의실, 시간표, 수강 인원, 가격, 시작일, 주차 수는 생성 후 변경할 수
+                없습니다.
+                <br />
+                강의 제목, 설명, 썸네일만 수정 가능합니다.
+              </p>
+            </div>
+          </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+          {error && (
+            <div className="mb-6 p-4 bg-red-900/20 border border-red-500 rounded-lg text-red-400">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-6">
         {/* 수정 가능한 정보 */}
         <div className="bg-gray-800 p-6 rounded-lg">
           <h2 className="text-2xl font-semibold mb-4">강의 정보 (수정 가능)</h2>
@@ -395,33 +426,44 @@ export default function EditCourse() {
           </div>
         </div>
 
-        {/* 제출 버튼 */}
-        <div className="flex gap-4">
-          <button
-            type="button"
-            onClick={() => navigate(ROUTES.DASHBOARD)}
-            className="flex-1 px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition"
-            disabled={isLoading}
-          >
-            취소
-          </button>
-          <button
-            type="submit"
-            className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={isLoading}
-          >
-            {isLoading ? '수정 중...' : '수정 완료'}
-          </button>
-        </div>
-      </form>
+            {/* 제출 버튼 */}
+            <div className="flex gap-4">
+              <button
+                type="button"
+                onClick={() => navigate(ROUTES.DASHBOARD)}
+                className="flex-1 px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition"
+                disabled={isLoading}
+              >
+                취소
+              </button>
+              <button
+                type="submit"
+                className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isLoading}
+              >
+                {isLoading ? '수정 중...' : '수정 완료'}
+              </button>
+            </div>
+          </form>
+        </>
+      )}
 
-      {/* 강의 자료 관리 */}
-      <div className="mt-8">
+      {/* 강의 자료 탭 */}
+      {activeTab === 'materials' && (
         <CourseMaterials
           courseId={id}
           isInstructor={user?.role === 'instructor'}
         />
-      </div>
+      )}
+
+      {/* 과제 관리 탭 */}
+      {activeTab === 'assignments' && (
+        <CourseAssignments
+          courseId={id}
+          isInstructor={user?.role === 'instructor'}
+          weeks={formData.weeks}
+        />
+      )}
     </div>
   )
 }
