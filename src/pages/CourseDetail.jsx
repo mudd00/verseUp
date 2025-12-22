@@ -30,10 +30,9 @@ export default function CourseDetail() {
   useEffect(() => {
     if (id) {
       loadCourse()
-      checkEnrollment()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id])
+  }, [id, isAuthenticated])
 
   useEffect(() => {
     if (isEnrolled && id) {
@@ -58,6 +57,11 @@ export default function CourseDetail() {
       setIsLoading(true)
       const data = await courseService.getCourseById(id)
       setCourse(data)
+
+      // 수강 정보도 같이 확인
+      if (isAuthenticated) {
+        await checkEnrollment()
+      }
     } catch (err) {
       console.error('강의 조회 실패:', err)
       setError('강의 정보를 불러오는데 실패했습니다.')
@@ -76,13 +80,22 @@ export default function CourseDetail() {
       // 수강 중이면 enrollmentId도 조회
       if (enrolled) {
         const enrollments = await enrollmentService.getMyEnrollments()
-        const currentEnrollment = enrollments.find(e => e.courseId === id)
+        console.log('수강 목록:', enrollments)
+        console.log('현재 강의 ID:', id)
+
+        const currentEnrollment = enrollments.find(e => String(e.courseId) === String(id))
+        console.log('찾은 enrollment:', currentEnrollment)
+
         if (currentEnrollment) {
           setEnrollmentId(currentEnrollment.id)
+          console.log('enrollmentId 설정:', currentEnrollment.id)
+        } else {
+          console.error('현재 강의에 대한 enrollment를 찾을 수 없습니다.')
         }
       }
     } catch (err) {
       console.error('수강 여부 확인 실패:', err)
+      toast.error('수강 정보를 확인하는데 실패했습니다.')
     }
   }
 
@@ -160,7 +173,18 @@ export default function CourseDetail() {
   }
 
   const handleDrop = async () => {
-    if (!id || !course || !enrollmentId) return
+    if (!id || !course) {
+      toast.error('강의 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.')
+      return
+    }
+
+    if (!enrollmentId) {
+      console.error('enrollmentId가 없습니다. 재조회를 시도합니다.')
+      toast.error('수강 정보를 확인할 수 없습니다. 잠시 후 다시 시도해주세요.')
+      // 수강 정보 재조회
+      await checkEnrollment()
+      return
+    }
 
     // 환불 정책 계산
     const policy = enrollmentService.calculateRefundPolicy(course.startDate)
