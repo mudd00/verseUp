@@ -34,6 +34,7 @@ import ClassroomManagement from './components/admin/ClassroomManagement.jsx'
 import { useAuthStore } from './stores/authStore.js'
 import { supabase } from './lib/supabase.js'
 import { ROUTES } from './utils/constants.js'
+import { inferRoleFromEmail } from './utils/roleUtils.js'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -79,14 +80,7 @@ function App() {
         }
 
         if (session?.user) {
-          // email 기반으로 role 추론 (fallback)
-          const inferRoleFromEmail = (email) => {
-            if (email.includes('instructor@')) return 'instructor'
-            if (email.includes('admin@')) return 'admin'
-            return 'student'
-          }
-
-          // user_metadata만 사용 (profiles 조회 스킵)
+          // user_metadata 우선, 없으면 email 기반 role 추론
           const metadataRole = session.user.user_metadata?.role
           const emailBasedRole = inferRoleFromEmail(session.user.email || '')
           const finalRole = metadataRole || emailBasedRole
@@ -120,14 +114,7 @@ function App() {
 
       // Handle SIGNED_IN event
       if (event === 'SIGNED_IN' && session?.user) {
-        // email 기반으로 role 추론 (fallback)
-        const inferRoleFromEmail = (email) => {
-          if (email.includes('instructor@')) return 'instructor'
-          if (email.includes('admin@')) return 'admin'
-          return 'student'
-        }
-
-        // user_metadata만 사용 (profiles 조회 스킵)
+        // user_metadata 우선, 없으면 email 기반 role 추론
         const metadataRole = session.user.user_metadata?.role
         const emailBasedRole = inferRoleFromEmail(session.user.email || '')
         const finalRole = metadataRole || emailBasedRole

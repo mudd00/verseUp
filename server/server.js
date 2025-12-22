@@ -43,8 +43,15 @@ const corsOptions = {
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true)
     } else {
-      console.warn(`⚠️ CORS rejected origin: ${origin}`)
-      callback(null, true) // 개발 중에는 모든 origin 허용 (프로덕션에서는 false로 변경)
+      // 프로덕션에서는 허용되지 않은 origin 거부
+      if (process.env.NODE_ENV === 'production') {
+        console.warn(`⚠️ CORS rejected origin: ${origin}`)
+        callback(new Error('Not allowed by CORS'))
+      } else {
+        // 개발 환경에서만 모든 origin 허용
+        console.warn(`⚠️ CORS allowing unknown origin (dev mode): ${origin}`)
+        callback(null, true)
+      }
     }
   },
   credentials: true,

@@ -47,9 +47,10 @@ export default function MetaverseScene({ onReady }) {
   const lastPositionSentRef = useRef({ x: 0, y: 0, z: 0 })
   const positionSendIntervalRef = useRef(null)
 
-  // 사용자 역할 확인 (테스트용 URL 파라미터 지원)
+  // 사용자 역할 확인 (개발 환경에서만 테스트용 URL 파라미터 지원)
   const urlParams = new URLSearchParams(window.location.search)
-  const testRole = urlParams.get('role') // ?role=instructor 또는 ?role=student
+  // 프로덕션에서는 테스트 역할 비활성화 (보안)
+  const testRole = import.meta.env.DEV ? urlParams.get('role') : null // ?role=instructor 또는 ?role=student
 
   // 테스트용 임시 사용자 생성 (useMemo로 안정화 - 매 렌더마다 새로 생성되지 않도록)
   const effectiveUser = useMemo(() => {
