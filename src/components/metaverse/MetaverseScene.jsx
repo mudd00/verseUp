@@ -145,7 +145,12 @@ export default function MetaverseScene({ onReady }) {
     setResetTrigger((prev) => prev + 1) // 플레이어 위치 리셋 트리거
     setPortalInfo({ isNear: false, targetMap: null, label: null }) // 포탈 UI 숨기기
     setDoorInfo({ isNear: false, doorId: null, label: null }) // 문 UI 숨기기
-  }, [])
+
+    // 위치 변경 알림 (학교/강의실)
+    const location = targetMap === 'classroom' ? 'classroom' : 'school'
+    socketService.emit('location:change', { roomId, location })
+    console.log(`📍 [Location] Changed to ${location}`)
+  }, [roomId])
 
   // 교실 목록 조회 및 "강의실 A" ID 찾기
   useEffect(() => {
@@ -279,6 +284,10 @@ export default function MetaverseScene({ onReady }) {
         console.log('✅ [Room Join] user:join confirmed, now joining room')
         socketService.emit('room:join', { roomId })
         console.log('📤 [Room Join] Emitted room:join')
+
+        // 학교 입장 알림 (초기 입장)
+        socketService.emit('location:change', { roomId, location: 'school' })
+        console.log('📍 [Location] Initial entry to school')
       }
     }
 

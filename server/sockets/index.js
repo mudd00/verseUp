@@ -89,6 +89,28 @@ export function setupSocketHandlers(io) {
       }
     })
 
+    // Handle location change (학교/강의실 입장 알림)
+    socket.on('location:change', (data) => {
+      const { roomId, location } = data
+      const user = connectedUsers.get(socket.id)
+
+      if (!user) {
+        socket.emit('error', { message: 'User not authenticated' })
+        return
+      }
+
+      const locationName = location === 'classroom' ? '강의실' : '학교'
+      console.log(`📍 ${user.user.name} entered ${locationName} in room ${roomId}`)
+
+      // Broadcast to all users in the room (including sender)
+      io.to(roomId).emit('location:entered', {
+        userId: user.id,
+        userName: user.user.name,
+        location: location,
+        locationName: locationName,
+      })
+    })
+
     // Handle chat messages
     socket.on('chat:message', (data) => {
       const { roomId, message } = data

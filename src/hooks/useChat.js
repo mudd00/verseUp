@@ -40,12 +40,11 @@ export function useChat(roomId, isInSchool) {
     addMessage(message)
   }, [addMessage])
 
-  // 사용자 입장 핸들러
-  const handleUserJoined = useCallback(({ user }) => {
-    if (user?.name) {
-      addSystemMessage(`${user.name}님이 입장하셨습니다.`)
-    }
-  }, [addSystemMessage])
+  // 사용자 입장 핸들러 (멀티플레이어 동기화용, 시스템 메시지는 location:entered에서 처리)
+  const handleUserJoined = useCallback((data) => {
+    console.log('💬 [Chat] room:user-joined received (no message):', data)
+    // 시스템 메시지는 location:entered 이벤트에서 처리
+  }, [])
 
   // 사용자 퇴장 핸들러
   const handleUserLeft = useCallback(({ user }) => {
@@ -56,23 +55,37 @@ export function useChat(roomId, isInSchool) {
     }
   }, [addSystemMessage])
 
+  // 위치 변경 핸들러 (학교/강의실 입장)
+  const handleLocationEntered = useCallback((data) => {
+    console.log('💬 [Chat] location:entered received:', data)
+    const { userName, locationName } = data
+    if (userName && locationName) {
+      addSystemMessage(`${userName}님이 ${locationName}에 입장하셨습니다.`)
+    }
+  }, [addSystemMessage])
+
   // Socket 이벤트 리스너 등록
   useEffect(() => {
     if (!isInSchool || !roomId) return
 
     console.log('💬 [Chat] Setting up chat for room:', roomId)
+    console.log('💬 [Chat] Registering room:user-joined listener')
 
     socketService.on('chat:message', handleChatMessage)
     socketService.on('room:user-joined', handleUserJoined)
     socketService.on('room:user-left', handleUserLeft)
+    socketService.on('location:entered', handleLocationEntered)
+
+    console.log('💬 [Chat] All listeners registered')
 
     return () => {
       socketService.off('chat:message', handleChatMessage)
       socketService.off('room:user-joined', handleUserJoined)
       socketService.off('room:user-left', handleUserLeft)
+      socketService.off('location:entered', handleLocationEntered)
       console.log('💬 [Chat] Cleanup')
     }
-  }, [isInSchool, roomId, handleChatMessage, handleUserJoined, handleUserLeft])
+  }, [isInSchool, roomId, handleChatMessage, handleUserJoined, handleUserLeft, handleLocationEntered])
 
   // 새 메시지가 오면 자동 스크롤
   useEffect(() => {
