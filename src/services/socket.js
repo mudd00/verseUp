@@ -4,6 +4,7 @@ import { SOCKET_URL } from '@/utils/constants.js'
 class SocketService {
   constructor() {
     this.socket = null
+    this.pendingListeners = [] // 소켓 연결 전에 등록된 리스너들
   }
 
   connect(token) {
@@ -42,6 +43,15 @@ class SocketService {
         console.log(`🔔 [SOCKET EVENT] ${eventName}:`, ...args)
       }
     })
+
+    // 대기 중인 리스너들 등록
+    if (this.pendingListeners.length > 0) {
+      console.log(`📌 [SOCKET] Registering ${this.pendingListeners.length} pending listeners`)
+      this.pendingListeners.forEach(({ event, callback }) => {
+        this.socket.on(event, callback)
+      })
+      this.pendingListeners = []
+    }
 
     return this.socket
   }
@@ -95,9 +105,13 @@ class SocketService {
   on(event, callback) {
     if (this.socket) {
       this.socket.on(event, callback)
-      if (event.startsWith('screenshare:')) {
+      if (event.startsWith('screenshare:') || event.startsWith('chat:') || event.startsWith('location:')) {
         console.log(`📌 [SOCKET] Handler registered for: ${event}`)
       }
+    } else {
+      // 소켓이 없으면 대기열에 추가
+      console.log(`📌 [SOCKET] Queuing handler for: ${event} (socket not ready)`)
+      this.pendingListeners.push({ event, callback })
     }
   }
 
@@ -106,16 +120,24 @@ class SocketService {
       if (callback) {
         // 특정 핸들러만 제거
         this.socket.off(event, callback)
-        if (event.startsWith('screenshare:')) {
+        if (event.startsWith('screenshare:') || event.startsWith('chat:') || event.startsWith('location:')) {
           console.log(`📌 [SOCKET] Handler removed for: ${event} (specific)`)
         }
       } else {
         // 모든 핸들러 제거
         this.socket.off(event)
-        if (event.startsWith('screenshare:')) {
+        if (event.startsWith('screenshare:') || event.startsWith('chat:') || event.startsWith('location:')) {
           console.log(`📌 [SOCKET] All handlers removed for: ${event}`)
         }
       }
+    }
+    // 대기열에서도 제거
+    if (callback) {
+      this.pendingListeners = this.pendingListeners.filter(
+        (l) => !(l.event === event && l.callback === callback)
+      )
+    } else {
+      this.pendingListeners = this.pendingListeners.filter((l) => l.event !== event)
     }
   }
 
