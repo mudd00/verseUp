@@ -33,6 +33,7 @@ npm run format            # Prettier 포맷팅
 - 바이너리 파일 자동 포맷 (FBX, GLB, 이미지 등)
 - 기존 에셋 파일명 변경 또는 이동
 - 튜닝된 물리 값, 카메라 설정, 콜라이더 설정 변경
+- **Git 명령어 실행 (add, commit, push 등)** - 사용자가 직접 수동으로 처리
 
 ### 코드 포맷팅 & 린팅
 - `.prettierrc`와 ESLint 설정을 엄격히 준수

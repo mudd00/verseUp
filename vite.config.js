@@ -32,7 +32,6 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
     rollupOptions: {
-      external: ['@tosspayments/tosspayments-sdk'],
       output: {
         manualChunks: {
           'react-vendor': ['react', 'react-dom'],

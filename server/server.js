@@ -89,7 +89,13 @@ setupSocketHandlers(io)
 // 프로덕션에서 정적 파일 서빙 (Vite 빌드 결과물)
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.join(__dirname, '..', 'dist')
-  app.use(express.static(distPath))
+
+  // 정적 파일 서빙 (에러 로깅 포함)
+  app.use(express.static(distPath, {
+    setHeaders: (res, filePath) => {
+      console.log(`📁 Serving static file: ${filePath}`)
+    }
+  }))
 
   // SPA 라우팅: 모든 비-API 요청을 index.html로 리다이렉트
   // Express 5에서는 '*' 대신 '{*path}' 사용
@@ -101,8 +107,10 @@ if (process.env.NODE_ENV === 'production') {
     // 정적 파일 요청은 제외 (이미 express.static에서 처리됨, 없으면 404)
     const staticExtensions = ['.js', '.css', '.map', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.eot', '.glb', '.gltf', '.fbx']
     if (staticExtensions.some(ext => req.path.endsWith(ext))) {
+      console.log(`⚠️ Static file not found by express.static: ${req.path}`)
       return res.status(404).send('Not found')
     }
+    console.log(`🔀 SPA routing: ${req.path} -> index.html`)
     res.sendFile(path.join(distPath, 'index.html'))
   })
 
