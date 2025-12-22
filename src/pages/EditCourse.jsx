@@ -453,6 +453,7 @@ export default function EditCourse() {
         <CourseMaterials
           courseId={id}
           isInstructor={user?.role === 'instructor'}
+          weeks={formData.weeks}
         />
       )}
 

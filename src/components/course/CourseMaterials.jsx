@@ -3,16 +3,18 @@ import { supabase } from '@/lib/supabase.js'
 import toast from 'react-hot-toast'
 import { apiService } from '@/services/api.js'
 
-export default function CourseMaterials({ courseId, isInstructor }) {
+export default function CourseMaterials({ courseId, isInstructor, weeks = 8 }) {
   const [materials, setMaterials] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [selectedWeek, setSelectedWeek] = useState(0) // 0 = 전체
 
   // Upload form state
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [selectedFile, setSelectedFile] = useState(null)
+  const [weekNumber, setWeekNumber] = useState(null)
 
   // Fetch materials
   useEffect(() => {
@@ -92,6 +94,7 @@ export default function CourseMaterials({ courseId, isInstructor }) {
         file_name: selectedFile.name,
         file_size: selectedFile.size,
         file_type: selectedFile.type || 'application/octet-stream',
+        week_number: weekNumber || null,
       })
 
       setUploadProgress(100)
@@ -103,6 +106,7 @@ export default function CourseMaterials({ courseId, isInstructor }) {
       setTitle('')
       setDescription('')
       setSelectedFile(null)
+      setWeekNumber(selectedWeek > 0 ? selectedWeek : null)
       e.target.reset()
 
       toast.success('자료가 업로드되었습니다!')
@@ -167,13 +171,71 @@ export default function CourseMaterials({ courseId, isInstructor }) {
     )
   }
 
+  const filteredMaterials =
+    selectedWeek === 0
+      ? materials
+      : materials.filter((m) => m.week_number === selectedWeek)
+
   return (
     <div className="space-y-6">
+      {/* 헤더 */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-xl font-semibold text-white">강의 자료 관리</h3>
+      </div>
+
+      {/* 주차 필터 */}
+      <div className="flex gap-2 flex-wrap">
+        <button
+          onClick={() => setSelectedWeek(0)}
+          className={`px-4 py-2 rounded-lg transition-colors ${
+            selectedWeek === 0
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+          }`}
+        >
+          전체
+        </button>
+        {Array.from({ length: weeks }, (_, i) => i + 1).map((week) => (
+          <button
+            key={week}
+            onClick={() => setSelectedWeek(week)}
+            className={`px-4 py-2 rounded-lg transition-colors ${
+              selectedWeek === week
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+          >
+            {week}주차
+          </button>
+        ))}
+      </div>
+
       {/* Upload Form (Instructor Only) */}
       {isInstructor && (
         <div className="bg-gray-800 p-6 rounded-lg">
           <h3 className="text-xl font-semibold mb-4">자료 업로드</h3>
           <form onSubmit={handleUpload} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                주차
+              </label>
+              <select
+                value={weekNumber || ''}
+                onChange={(e) =>
+                  setWeekNumber(e.target.value ? parseInt(e.target.value) : null)
+                }
+                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                disabled={isUploading}
+              >
+                <option value="">선택 안 함</option>
+                {Array.from({ length: weeks }, (_, i) => i + 1).map((week) => (
+                  <option key={week} value={week}>
+                    {week}주차
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div>
               <label className="block text-sm font-medium mb-2">
                 제목 <span className="text-red-400">*</span>
@@ -241,15 +303,20 @@ export default function CourseMaterials({ courseId, isInstructor }) {
 
       {/* Materials List */}
       <div className="bg-gray-800 p-6 rounded-lg">
-        <h3 className="text-xl font-semibold mb-4">강의 자료</h3>
+        <h3 className="text-xl font-semibold mb-4">
+          강의 자료 목록
+          {selectedWeek > 0 && ` - ${selectedWeek}주차`}
+        </h3>
 
-        {materials.length === 0 ? (
+        {filteredMaterials.length === 0 ? (
           <p className="text-gray-400 text-center py-8">
-            아직 업로드된 자료가 없습니다.
+            {selectedWeek === 0
+              ? '아직 업로드된 자료가 없습니다.'
+              : `${selectedWeek}주차 자료가 없습니다.`}
           </p>
         ) : (
           <div className="space-y-3">
-            {materials.map((material) => (
+            {filteredMaterials.map((material) => (
               <div
                 key={material.id}
                 className="flex items-center justify-between p-4 bg-gray-700 rounded-lg hover:bg-gray-650 transition"
@@ -259,7 +326,14 @@ export default function CourseMaterials({ courseId, isInstructor }) {
                     {getFileIcon(material.file_type)}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-medium truncate">{material.title}</h4>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className="font-medium truncate">{material.title}</h4>
+                      {material.week_number && (
+                        <span className="px-2 py-0.5 text-xs bg-purple-600/20 text-purple-400 rounded flex-shrink-0">
+                          {material.week_number}주차
+                        </span>
+                      )}
+                    </div>
                     {material.description && (
                       <p className="text-sm text-gray-400 truncate">
                         {material.description}
