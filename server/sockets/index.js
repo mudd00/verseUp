@@ -82,6 +82,7 @@ export function setupSocketHandlers(io) {
         socket.to(roomId).emit('room:user-left', {
           userId: user.id,
           socketId: socket.id,
+          user: user.user, // 사용자 정보 추가 (퇴장 알림용)
         })
 
         console.log(`🚪 User ${user.user.name} left room: ${roomId}`)
@@ -358,6 +359,7 @@ export function setupSocketHandlers(io) {
         socket.to(user.roomId).emit('room:user-left', {
           userId: user.id,
           socketId: socket.id,
+          user: user.user, // 사용자 정보 추가 (퇴장 알림용)
         })
 
         // If user was screen sharing, stop it

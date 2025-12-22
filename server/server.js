@@ -98,6 +98,11 @@ if (process.env.NODE_ENV === 'production') {
     if (req.path.startsWith('/api') || req.path.startsWith('/socket.io') || req.path === '/health') {
       return next()
     }
+    // 정적 파일 요청은 제외 (이미 express.static에서 처리됨, 없으면 404)
+    const staticExtensions = ['.js', '.css', '.map', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.eot', '.glb', '.gltf', '.fbx']
+    if (staticExtensions.some(ext => req.path.endsWith(ext))) {
+      return res.status(404).send('Not found')
+    }
     res.sendFile(path.join(distPath, 'index.html'))
   })
 

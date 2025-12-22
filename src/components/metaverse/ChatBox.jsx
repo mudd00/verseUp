@@ -109,8 +109,39 @@ export default function ChatBox({
             {messages
               .filter((msg) => getMessageOpacity(msg.timestamp) > 0) // opacity 0인 메시지 제외
               .map((msg) => {
+                const isSystemMessage = msg.type === 'system'
                 const isMyMessage = msg.userId === user?.id
                 const opacity = getMessageOpacity(msg.timestamp)
+
+                // 시스템 메시지 (입장/퇴장 등)
+                if (isSystemMessage) {
+                  return (
+                    <div
+                      key={msg.id}
+                      className="flex justify-center animate-fadeIn"
+                      style={{
+                        animation: 'fadeIn 0.3s ease-in',
+                        opacity: opacity,
+                        transition: 'opacity 1s ease-out',
+                      }}
+                    >
+                      <div
+                        className="px-4 py-1.5 rounded-full text-center"
+                        style={{
+                          backgroundColor: 'rgba(16, 185, 129, 0.25)',
+                          backdropFilter: 'blur(8px)',
+                          border: '1px solid rgba(16, 185, 129, 0.4)',
+                        }}
+                      >
+                        <span className="text-xs text-emerald-300 italic">
+                          {msg.message}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                }
+
+                // 일반 채팅 메시지
                 return (
                   <div
                     key={msg.id}

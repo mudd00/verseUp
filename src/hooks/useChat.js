@@ -13,15 +13,48 @@ export function useChat(roomId, isInSchool) {
   const [inputText, setInputText] = useState('')
   const messagesEndRef = useRef(null)
 
-  // 메시지 수신 핸들러
-  const handleChatMessage = useCallback((message) => {
-    console.log('💬 [Chat] Message received:', message)
+  // 메시지 추가 함수 (공통)
+  const addMessage = useCallback((message) => {
     setMessages((prev) => {
       // 최근 8개 메시지만 유지
       const newMessages = [...prev, message]
       return newMessages.slice(-8)
     })
   }, [])
+
+  // 시스템 메시지 추가 (입장/퇴장 등)
+  const addSystemMessage = useCallback((text) => {
+    const systemMessage = {
+      id: `system-${Date.now()}`,
+      type: 'system',
+      message: text,
+      timestamp: new Date().toISOString(),
+    }
+    console.log('💬 [Chat] System message:', text)
+    addMessage(systemMessage)
+  }, [addMessage])
+
+  // 메시지 수신 핸들러
+  const handleChatMessage = useCallback((message) => {
+    console.log('💬 [Chat] Message received:', message)
+    addMessage(message)
+  }, [addMessage])
+
+  // 사용자 입장 핸들러
+  const handleUserJoined = useCallback(({ user }) => {
+    if (user?.name) {
+      addSystemMessage(`${user.name}님이 입장하셨습니다.`)
+    }
+  }, [addSystemMessage])
+
+  // 사용자 퇴장 핸들러
+  const handleUserLeft = useCallback(({ user }) => {
+    if (user?.name) {
+      addSystemMessage(`${user.name}님이 퇴장하셨습니다.`)
+    } else {
+      addSystemMessage(`누군가가 퇴장하셨습니다.`)
+    }
+  }, [addSystemMessage])
 
   // Socket 이벤트 리스너 등록
   useEffect(() => {
@@ -30,12 +63,16 @@ export function useChat(roomId, isInSchool) {
     console.log('💬 [Chat] Setting up chat for room:', roomId)
 
     socketService.on('chat:message', handleChatMessage)
+    socketService.on('room:user-joined', handleUserJoined)
+    socketService.on('room:user-left', handleUserLeft)
 
     return () => {
       socketService.off('chat:message', handleChatMessage)
+      socketService.off('room:user-joined', handleUserJoined)
+      socketService.off('room:user-left', handleUserLeft)
       console.log('💬 [Chat] Cleanup')
     }
-  }, [isInSchool, roomId, handleChatMessage])
+  }, [isInSchool, roomId, handleChatMessage, handleUserJoined, handleUserLeft])
 
   // 새 메시지가 오면 자동 스크롤
   useEffect(() => {
