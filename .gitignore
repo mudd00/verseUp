@@ -40,4 +40,5 @@ tsconfig.tsbuildinfo
 .branches
 .temp
 .supabase
-supabase/
+supabase/old_migrations
+supabase/old_scripts
