@@ -38,26 +38,6 @@ export default function Blackboard({ targetMesh, roomId = 'metaverse-classroom-1
     const texture = new THREE.CanvasTexture(canvas)
     texture.needsUpdate = true
 
-    // ⭐ UV 범위 보정 (측정된 실제 UV 범위 기준)
-    // 측정 결과: U(0.502~0.759, 25.7%), V(0.010~0.991, 98.1%)
-    const UV_MIN_U = 0.502
-    const UV_MAX_U = 0.759
-    const UV_RANGE_U = UV_MAX_U - UV_MIN_U  // 0.257
-
-    const UV_MIN_V = 0.010
-    const UV_MAX_V = 0.991
-    const UV_RANGE_V = UV_MAX_V - UV_MIN_V  // 0.981
-
-    // 270도 회전: 원 U → 새 V (세로), 원 V → 새 U (가로)
-    texture.repeat.set(
-      1 / UV_RANGE_V,  // X축: 원 V 범위 확대 (≈1.02)
-      1 / UV_RANGE_U   // Y축: 원 U 범위 확대 (≈3.89) ← 핵심!
-    )
-    texture.offset.set(
-      -UV_MIN_V / UV_RANGE_V,  // X축: 원 V 시작점 보정 (≈-0.01)
-      -UV_MIN_U / UV_RANGE_U   // Y축: 원 U 시작점 보정 (≈-1.95)
-    )
-
     // Texture를 270도 회전 (90도 + 180도 추가)
     texture.rotation = (Math.PI / 2) + Math.PI // 270도 시계방향
     texture.center.set(0.5, 0.5) // 중심점을 텍스처 중앙으로 설정
@@ -91,8 +71,11 @@ export default function Blackboard({ targetMesh, roomId = 'metaverse-classroom-1
 
   // Socket 이벤트 리스너
   useEffect(() => {
+    console.log('🎨 [Blackboard] Socket 리스너 등록 중...')
+
     // 그리기 데이터 수신
     const handleDraw = (data) => {
+      console.log('🎨 [Blackboard] whiteboard:draw 수신!', data)
       const { drawData } = data
       const canvas = canvasRef.current
       if (!canvas) return

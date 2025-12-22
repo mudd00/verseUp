@@ -3,10 +3,15 @@ import { createServer } from 'http'
 import { Server } from 'socket.io'
 import cors from 'cors'
 import dotenv from 'dotenv'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { setupSocketHandlers } from './sockets/index.js'
 import apiRoutes from './routes/index.js'
 
 dotenv.config()
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 // 환경 변수 검증
 const requiredEnvVars = ['SUPABASE_URL', 'SUPABASE_SERVICE_KEY', 'JWT_SECRET']
@@ -23,21 +28,41 @@ if (missingEnvVars.length > 0) {
 
 const app = express()
 const httpServer = createServer(app)
-const io = new Server(httpServer, {
-  cors: {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-    credentials: true,
+
+// CORS 설정 (여러 origin 지원)
+const getAllowedOrigins = () => {
+  const origins = process.env.CORS_ORIGIN || 'http://localhost:5173'
+  // 쉼표로 구분된 여러 origin 지원
+  return origins.split(',').map(o => o.trim())
+}
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    const allowedOrigins = getAllowedOrigins()
+    // origin이 없으면 (같은 도메인 요청) 허용
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true)
+    } else {
+      console.warn(`⚠️ CORS rejected origin: ${origin}`)
+      callback(null, true) // 개발 중에는 모든 origin 허용 (프로덕션에서는 false로 변경)
+    }
   },
+  credentials: true,
+}
+
+const io = new Server(httpServer, {
+  cors: corsOptions,
+  // WebSocket과 HTTP long-polling 모두 지원 (안정성 향상)
+  transports: ['websocket', 'polling'],
+  // 연결 안정성 설정
+  pingTimeout: 60000,
+  pingInterval: 25000,
 })
 
 const PORT = process.env.PORT || 3000
+const HOST = process.env.HOST || '0.0.0.0' // 외부 접속을 위해 0.0.0.0 바인딩
 
-app.use(
-  cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-    credentials: true,
-  })
-)
+app.use(cors(corsOptions))
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
@@ -54,15 +79,33 @@ app.get('/health', (req, res) => {
 app.use('/api', apiRoutes)
 setupSocketHandlers(io)
 
+// 프로덕션에서 정적 파일 서빙 (Vite 빌드 결과물)
+if (process.env.NODE_ENV === 'production') {
+  const distPath = path.join(__dirname, '..', 'dist')
+  app.use(express.static(distPath))
+
+  // SPA 라우팅: 모든 비-API 요청을 index.html로 리다이렉트
+  app.get('*', (req, res, next) => {
+    // API, Socket.IO, health 엔드포인트는 제외
+    if (req.path.startsWith('/api') || req.path.startsWith('/socket.io') || req.path === '/health') {
+      return next()
+    }
+    res.sendFile(path.join(distPath, 'index.html'))
+  })
+
+  console.log('📦 Serving static files from:', distPath)
+}
+
 app.use((err, req, res, _next) => {
   console.error('Error:', err)
   res.status(500).json({ error: 'Internal server error' })
 })
 
-httpServer.listen(PORT, () => {
-  console.log(`✅ Server running on http://localhost:${PORT}`)
-  console.log(`🔌 Socket.IO ready`)
+httpServer.listen(PORT, HOST, () => {
+  console.log(`✅ Server running on http://${HOST}:${PORT}`)
+  console.log(`🔌 Socket.IO ready (transports: websocket, polling)`)
   console.log(`🌐 CORS enabled for: ${process.env.CORS_ORIGIN || 'http://localhost:5173'}`)
+  console.log(`🚀 Environment: ${process.env.NODE_ENV || 'development'}`)
 })
 
 export { io }

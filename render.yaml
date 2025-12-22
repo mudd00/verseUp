@@ -1,0 +1,29 @@
+services:
+  # 백엔드 API + Socket.IO 서버
+  - type: web
+    name: verseup-server
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build:client
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CORS_ORIGIN
+        sync: false  # Render 대시보드에서 수동 설정 필요
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: VITE_API_URL
+        sync: false
+      - key: VITE_SOCKET_URL
+        sync: false
+    healthCheckPath: /health
+    autoDeploy: true

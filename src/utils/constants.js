@@ -1,6 +1,10 @@
 // API endpoints
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
-export const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000'
+// 프로덕션에서는 빈 문자열이면 같은 도메인 사용 (상대 경로)
+const apiUrl = import.meta.env.VITE_API_URL
+const socketUrl = import.meta.env.VITE_SOCKET_URL
+
+export const API_BASE_URL = apiUrl || (import.meta.env.PROD ? '/api' : 'http://localhost:3000/api')
+export const SOCKET_URL = socketUrl || (import.meta.env.PROD ? '' : 'http://localhost:3000')
 
 // WebRTC configuration
 export const TURN_SERVER_CONFIG = {

@@ -13,7 +13,15 @@ class SocketService {
 
     this.socket = io(SOCKET_URL, {
       auth: { token },
-      transports: ['websocket'],
+      // WebSocket 우선, HTTP long-polling 폴백 (네트워크 안정성)
+      transports: ['websocket', 'polling'],
+      // 재연결 설정
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      // 타임아웃 설정
+      timeout: 20000,
     })
 
     this.socket.on('connect', () => {

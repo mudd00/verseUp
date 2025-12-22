@@ -45,17 +45,26 @@ export function setupSocketHandlers(io) {
 
       console.log(`🚪 User ${user.user.name} joined room: ${roomId}`)
 
-      // Notify others in the room
+      // Notify others in the room (with position for initial sync)
       socket.to(roomId).emit('room:user-joined', {
         user: user.user,
         socketId: socket.id,
+        position: user.position || [0, 2, 0],
+        rotation: user.rotation || 0,
+        animation: user.animation || 'idle',
       })
 
-      // Send current room users to the new user
+      // Send current room users to the new user (with positions for multiplayer sync)
       const roomUsers = Array.from(rooms.get(roomId) || [])
         .map(id => connectedUsers.get(id))
         .filter(Boolean)
-        .map(u => ({ user: u?.user, socketId: u?.socketId }))
+        .map(u => ({
+          user: u?.user,
+          socketId: u?.socketId,
+          position: u?.position || [0, 2, 0],
+          rotation: u?.rotation || 0,
+          animation: u?.animation || 'idle',
+        }))
 
       socket.emit('room:users', { users: roomUsers })
     })

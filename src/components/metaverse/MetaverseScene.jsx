@@ -244,12 +244,32 @@ export default function MetaverseScene({ onReady }) {
 
     let isMounted = true
 
-    // 방 사용자 목록 수신
+    // 방 사용자 목록 수신 (초기 접속 시 기존 유저들의 위치 포함)
     const handleRoomUsers = ({ users }) => {
       console.log('📚 [Room Join] Received room:users event:', users)
-      setStudents(users.filter(u => u.user?.id !== effectiveUser.id)) // 본인 제외
+      const otherUsers = users.filter(u => u.user?.id !== effectiveUser.id)
+      setStudents(otherUsers) // 본인 제외
+
+      // 다른 플레이어들의 위치 정보로 otherPlayers 초기화
+      setOtherPlayers(prev => {
+        const newMap = new Map(prev)
+        otherUsers.forEach(u => {
+          if (u.socketId) {
+            newMap.set(u.socketId, {
+              socketId: u.socketId,
+              userId: u.user?.id,
+              user: u.user,
+              position: u.position || [0, 2, 0],
+              rotation: u.rotation || 0,
+              animation: u.animation || 'idle',
+            })
+          }
+        })
+        return newMap
+      })
+
       console.log('📚 [Room Join] Room users:', users.length, 'total -', users.map(u => u.user?.name))
-      console.log('📚 [Room Join] Students (excluding me):', users.filter(u => u.user?.id !== effectiveUser.id).map(u => u.user?.name))
+      console.log('📚 [Room Join] Initialized otherPlayers with positions:', otherUsers.length)
     }
 
     // user:joined 응답을 받은 후 room:join 실행
@@ -261,12 +281,27 @@ export default function MetaverseScene({ onReady }) {
       }
     }
 
-    // 새 사용자 입장
-    const handleUserJoined = ({ user: newUser, socketId }) => {
-      console.log('👋 [Room Join] Received room:user-joined:', newUser.name, socketId)
+    // 새 사용자 입장 (위치 정보 포함)
+    const handleUserJoined = ({ user: newUser, socketId, position, rotation, animation }) => {
+      console.log('👋 [Room Join] Received room:user-joined:', newUser.name, socketId, { position, rotation, animation })
       if (newUser.id !== effectiveUser.id) {
         setStudents(prev => [...prev, { user: newUser, socketId }])
-        console.log('👋 [Room Join] User added to students:', newUser.name)
+
+        // 새 플레이어를 otherPlayers에 추가 (위치 정보 포함)
+        setOtherPlayers(prev => {
+          const newMap = new Map(prev)
+          newMap.set(socketId, {
+            socketId,
+            userId: newUser.id,
+            user: newUser,
+            position: position || [0, 2, 0],
+            rotation: rotation || 0,
+            animation: animation || 'idle',
+          })
+          return newMap
+        })
+
+        console.log('👋 [Room Join] User added to students and otherPlayers:', newUser.name)
       }
     }
 
