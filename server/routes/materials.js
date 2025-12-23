@@ -1,8 +1,17 @@
 import { Router } from 'express'
+import multer from 'multer'
 import { authMiddleware, requireInstructor } from '../middleware/auth.js'
 import { supabase } from '../utils/supabase.js'
 
 const router = Router()
+
+// Multer 설정 (메모리 스토리지 사용)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB
+  },
+})
 
 // Get all materials for a course
 // 수강 중인 학생 또는 강사만 조회 가능
@@ -67,24 +76,26 @@ router.get('/courses/:courseId/materials', authMiddleware, async (req, res) => {
   }
 })
 
-// Upload a material (metadata only - file upload happens on client)
+// Upload a material with file (백엔드에서 Supabase Storage에 업로드)
 // 강사 또는 관리자만 업로드 가능
 router.post(
-  '/courses/:courseId/materials',
+  '/courses/:courseId/materials/upload',
   authMiddleware,
   requireInstructor,
+  upload.single('file'),
   async (req, res) => {
     try {
       const { courseId } = req.params
-      const { title, description, file_url, file_name, file_size, file_type, week_number } = req.body
+      const { title, description, week_number } = req.body
+      const file = req.file
 
       if (!supabase) {
         return res.status(503).json({ error: 'Database service unavailable' })
       }
 
       // Validate required fields
-      if (!title || !file_url || !file_name || !file_size || !file_type) {
-        return res.status(400).json({ error: 'Missing required fields' })
+      if (!title || !file) {
+        return res.status(400).json({ error: 'Title and file are required' })
       }
 
       // Verify user is the instructor of this course (관리자는 모든 강의에 업로드 가능)
@@ -104,6 +115,30 @@ router.post(
         }
       }
 
+      // Generate unique file path
+      const fileExt = file.originalname.split('.').pop()
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
+      const filePath = `${courseId}/${fileName}`
+
+      // Upload file to Supabase Storage (Service Role Key - RLS 우회)
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('course-materials')
+        .upload(filePath, file.buffer, {
+          contentType: file.mimetype,
+          cacheControl: '3600',
+          upsert: false,
+        })
+
+      if (uploadError) {
+        console.error('Storage upload error:', uploadError)
+        return res.status(500).json({ error: 'Failed to upload file to storage' })
+      }
+
+      // Get public URL
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from('course-materials').getPublicUrl(filePath)
+
       // Insert material metadata
       const { data: material, error: insertError } = await supabase
         .from('course_materials')
@@ -111,24 +146,26 @@ router.post(
           course_id: courseId,
           title,
           description: description || null,
-          file_url,
-          file_name,
-          file_size,
-          file_type,
+          file_url: publicUrl,
+          file_name: file.originalname,
+          file_size: file.size,
+          file_type: file.mimetype,
+          week_number: week_number ? parseInt(week_number) : null,
           uploaded_by: req.user.id,
-          week_number: week_number || null,
         })
         .select()
         .single()
 
       if (insertError) {
         console.error('Error inserting material:', insertError)
-        return res.status(500).json({ error: 'Failed to save material' })
+        // 파일은 이미 업로드되었으므로 삭제 시도
+        await supabase.storage.from('course-materials').remove([filePath])
+        return res.status(500).json({ error: 'Failed to save material metadata' })
       }
 
       res.status(201).json({ material })
     } catch (error) {
-      console.error('Error in POST /courses/:courseId/materials:', error)
+      console.error('Error in POST /courses/:courseId/materials/upload:', error)
       res.status(500).json({ error: 'Internal server error' })
     }
   }

@@ -9,8 +9,12 @@ class ApiService {
     const url = `${this.baseUrl}${endpoint}`
     const token = localStorage.getItem('accessToken')
 
-    const headers = {
-      'Content-Type': 'application/json',
+    const headers = {}
+
+    // FormData가 아닌 경우에만 Content-Type을 JSON으로 설정
+    // FormData는 브라우저가 자동으로 Content-Type과 boundary를 설정
+    if (!(options?.body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json'
     }
 
     // 기존 옵션 헤더를 Record로 병합

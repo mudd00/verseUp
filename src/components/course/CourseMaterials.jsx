@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase.js'
 import toast from 'react-hot-toast'
 import { apiService } from '@/services/api.js'
 
@@ -59,43 +58,26 @@ export default function CourseMaterials({ courseId, isInstructor, weeks = 8 }) {
       setIsUploading(true)
       setUploadProgress(0)
 
-      // Generate unique file path
-      const fileExt = selectedFile.name.split('.').pop()
-      const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
-      const filePath = `${courseId}/${fileName}`
-
-      // Upload file to Supabase Storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('course-materials')
-        .upload(filePath, selectedFile, {
-          cacheControl: '3600',
-          upsert: false,
-        })
-
-      if (uploadError) {
-        console.error('Upload error:', uploadError)
-        throw new Error('파일 업로드에 실패했습니다.')
+      // FormData 생성 (백엔드로 파일 전송)
+      const formData = new FormData()
+      formData.append('file', selectedFile)
+      formData.append('title', title.trim())
+      formData.append('description', description.trim() || '')
+      if (weekNumber) {
+        formData.append('week_number', weekNumber.toString())
       }
 
-      setUploadProgress(50)
+      setUploadProgress(25)
 
-      // Get public URL
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from('course-materials').getPublicUrl(filePath)
-
-      setUploadProgress(75)
-
-      // Save metadata to database via API
-      const response = await apiService.post(`/courses/${courseId}/materials`, {
-        title: title.trim(),
-        description: description.trim() || null,
-        file_url: publicUrl,
-        file_name: selectedFile.name,
-        file_size: selectedFile.size,
-        file_type: selectedFile.type || 'application/octet-stream',
-        week_number: weekNumber || null,
-      })
+      // 백엔드로 파일 업로드 (Service Role Key 사용, RLS 우회)
+      // FormData 사용 시 Content-Type 헤더를 설정하지 않아야 브라우저가 boundary를 자동 추가
+      const response = await apiService.request(
+        `/courses/${courseId}/materials/upload`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      )
 
       setUploadProgress(100)
 
