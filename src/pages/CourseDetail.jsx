@@ -43,8 +43,9 @@ export default function CourseDetail() {
   }, [isEnrolled, id])
 
   useEffect(() => {
-    // 강사인 경우에도 과제 목록 로드
+    // 강사인 경우에도 자료 및 과제 목록 로드
     if (course && user && course.instructorId === user.id && id) {
+      loadMaterials()
       loadAssignments()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -74,28 +75,17 @@ export default function CourseDetail() {
     if (!id || !isAuthenticated) return
 
     try {
-      const enrolled = await enrollmentService.isEnrolled(id)
-      setIsEnrolled(enrolled)
+      // 백엔드 API로 수강 여부 및 enrollmentId 확인
+      const response = await apiService.get(`/courses/${id}/enrollment-status`)
+      setIsEnrolled(response.isEnrolled)
 
-      // 수강 중이면 enrollmentId도 조회
-      if (enrolled) {
-        const enrollments = await enrollmentService.getMyEnrollments()
-        console.log('수강 목록:', enrollments)
-        console.log('현재 강의 ID:', id)
-
-        const currentEnrollment = enrollments.find(e => String(e.courseId) === String(id))
-        console.log('찾은 enrollment:', currentEnrollment)
-
-        if (currentEnrollment) {
-          setEnrollmentId(currentEnrollment.id)
-          console.log('enrollmentId 설정:', currentEnrollment.id)
-        } else {
-          console.error('현재 강의에 대한 enrollment를 찾을 수 없습니다.')
-        }
+      if (response.isEnrolled && response.enrollmentId) {
+        setEnrollmentId(response.enrollmentId)
       }
     } catch (err) {
       console.error('수강 여부 확인 실패:', err)
-      toast.error('수강 정보를 확인하는데 실패했습니다.')
+      // 에러 발생 시 조용히 실패 (토스트 메시지 없이)
+      setIsEnrolled(false)
     }
   }
 
@@ -486,7 +476,7 @@ export default function CourseDetail() {
               ) : (
                 <div className="space-y-6">
                   {/* 강의 자료 */}
-                  {isEnrolled && (
+                  {(isEnrolled || isInstructor) && (
                     <div>
                       <h3 className="text-lg font-semibold text-white mb-3">
                         📚 강의 자료

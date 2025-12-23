@@ -250,6 +250,77 @@ router.post('/:id/enroll', authMiddleware, async (req, res) => {
   }
 })
 
+// Check enrollment status for a course
+router.get('/:id/enrollment-status', authMiddleware, async (req, res) => {
+  try {
+    const courseId = req.params.id
+    const userId = req.user.id
+
+    if (!supabase) {
+      return res.status(503).json({ error: 'Database service unavailable' })
+    }
+
+    const { data: enrollment, error } = await supabase
+      .from('enrollments')
+      .select('id, status, enrolled_at')
+      .eq('course_id', courseId)
+      .eq('student_id', userId)
+      .eq('status', 'active')
+      .maybeSingle()
+
+    if (error) {
+      console.error('Error checking enrollment:', error)
+      return res.status(500).json({ error: 'Failed to check enrollment status' })
+    }
+
+    res.json({
+      isEnrolled: !!enrollment,
+      enrollmentId: enrollment?.id || null,
+      enrolledAt: enrollment?.enrolled_at || null,
+    })
+  } catch (error) {
+    console.error('Error in GET /courses/:id/enrollment-status:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// Get my enrollments
+router.get('/enrollments/my', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id
+
+    if (!supabase) {
+      return res.status(503).json({ error: 'Database service unavailable' })
+    }
+
+    const { data: enrollments, error } = await supabase
+      .from('enrollments')
+      .select(
+        `
+        *,
+        course:courses(
+          *,
+          instructor:profiles!instructor_id(id, name, email, avatar_url),
+          time_slot:time_slots(id, day_of_week, start_time, end_time)
+        )
+      `
+      )
+      .eq('student_id', userId)
+      .eq('status', 'active')
+      .order('enrolled_at', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching enrollments:', error)
+      return res.status(500).json({ error: 'Failed to fetch enrollments' })
+    }
+
+    res.json({ enrollments: enrollments || [] })
+  } catch (error) {
+    console.error('Error in GET /courses/enrollments/my:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 // Create new course (requires auth + instructor role)
 router.post('/', authMiddleware, async (req, res) => {
   try {
