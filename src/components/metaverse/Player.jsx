@@ -10,7 +10,7 @@ const RUN_SPEED = 18
 
 // 맵별 시작 위치
 const START_POSITIONS = {
-  main: [-1.91, 10, 32.55],      // 메인 맵 시작 위치 (바닥 콜라이더 로딩 대기)
+  main: [-1.91, 2, 32.55],       // 메인 맵 시작 위치 (물리 일시정지로 낮춰도 안전)
   school: [-1.32, 2, -14.63],    // 학교 맵 시작 위치
 }
 
@@ -24,7 +24,7 @@ const CAPSULE_Y_OFFSET = 1.28
 const STEP_UP_SPEED = 4 // 계단 오를 때 상승 속도 (중력 -20 기준)
 const BLOCKED_THRESHOLD = 0.45 // 이 비율 이하로 움직이면 막힌 것으로 판단
 
-const Player = forwardRef(({ currentMap = 'main', cameraAngle = 0, onPositionChange, bodyRef: externalBodyRef, isInputDisabled = false, isFirstPerson = false }, ref) => {
+const Player = forwardRef(({ currentMap = 'main', cameraAngleRef, onPositionChange, bodyRef: externalBodyRef, isInputDisabled = false, isFirstPerson = false }, ref) => {
   const START_POS = START_POSITIONS[currentMap] || START_POSITIONS.main
   const bodyRef = useRef(null)
   const characterRef = useRef(null)
@@ -127,6 +127,14 @@ const Player = forwardRef(({ currentMap = 'main', cameraAngle = 0, onPositionCha
     const linvel = body.linvel()
     const pos = body.translation()
 
+    // 맵 밑으로 떨어졌을 때 자동 리스폰 (안전망 Y=-5 이전에 감지)
+    if (pos.y < -3) {
+      console.log('⚠️ 캐릭터가 맵 밖으로 떨어짐, 리스폰 중...')
+      body.setTranslation({ x: START_POS[0], y: START_POS[1], z: START_POS[2] }, true)
+      body.setLinvel({ x: 0, y: 0, z: 0 }, true)
+      return
+    }
+
     // 앉아있을 때는 이동 불가, 위치 및 회전 고정
     if (isSitting && sittingPositionRef.current && sittingRotationRef.current) {
       body.setLinvel({ x: 0, y: 0, z: 0 }, true)
@@ -172,6 +180,7 @@ const Player = forwardRef(({ currentMap = 'main', cameraAngle = 0, onPositionCha
       direction.normalize()
 
       // 카메라 각도만큼 방향 벡터를 회전 (Y축 기준)
+      const cameraAngle = cameraAngleRef?.current ?? 0
       const rotatedDirection = new THREE.Vector3()
       rotatedDirection.x = direction.x * Math.cos(cameraAngle) + direction.z * Math.sin(cameraAngle)
       rotatedDirection.z = direction.z * Math.cos(cameraAngle) - direction.x * Math.sin(cameraAngle)

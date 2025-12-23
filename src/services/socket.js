@@ -8,7 +8,8 @@ class SocketService {
   }
 
   connect(token) {
-    if (this.socket?.connected) {
+    // 소켓이 이미 존재하면 (연결 중이든 연결됐든) 기존 소켓 반환
+    if (this.socket) {
       return this.socket
     }
 
@@ -27,6 +28,16 @@ class SocketService {
 
     this.socket.on('connect', () => {
       console.log('Socket connected:', this.socket?.id)
+
+      // 소켓 연결 후 대기 중인 리스너들 등록
+      if (this.pendingListeners.length > 0) {
+        console.log(`📌 [SOCKET] (on connect) Registering ${this.pendingListeners.length} pending listeners`)
+        this.pendingListeners.forEach(({ event, callback }) => {
+          console.log(`📌 [SOCKET] (on connect) Registering: ${event}`)
+          this.socket.on(event, callback)
+        })
+        this.pendingListeners = []
+      }
     })
 
     this.socket.on('disconnect', () => {
@@ -39,19 +50,8 @@ class SocketService {
 
     // Debug: Log all incoming events
     this.socket.onAny((eventName, ...args) => {
-      if (eventName.startsWith('screenshare:')) {
-        console.log(`🔔 [SOCKET EVENT] ${eventName}:`, ...args)
-      }
+      console.log(`🔔 [SOCKET EVENT] ${eventName}:`, ...args)
     })
-
-    // 대기 중인 리스너들 등록
-    if (this.pendingListeners.length > 0) {
-      console.log(`📌 [SOCKET] Registering ${this.pendingListeners.length} pending listeners`)
-      this.pendingListeners.forEach(({ event, callback }) => {
-        this.socket.on(event, callback)
-      })
-      this.pendingListeners = []
-    }
 
     return this.socket
   }
@@ -104,13 +104,12 @@ class SocketService {
 
   on(event, callback) {
     if (this.socket) {
+      // 소켓이 존재하면 바로 등록 (연결 여부 무관 - Socket.IO가 내부적으로 처리)
+      console.log(`📌 [SOCKET] Registering handler for: ${event}`)
       this.socket.on(event, callback)
-      if (event.startsWith('screenshare:') || event.startsWith('chat:') || event.startsWith('location:')) {
-        console.log(`📌 [SOCKET] Handler registered for: ${event}`)
-      }
     } else {
       // 소켓이 없으면 대기열에 추가
-      console.log(`📌 [SOCKET] Queuing handler for: ${event} (socket not ready)`)
+      console.log(`📌 [SOCKET] Queuing handler for: ${event} (no socket)`)
       this.pendingListeners.push({ event, callback })
     }
   }

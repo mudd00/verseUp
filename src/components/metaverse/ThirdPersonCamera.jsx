@@ -7,13 +7,18 @@ const DEFAULT_CAMERA_HEIGHT = 6
 const SMOOTH_FACTOR_XZ = 5 // 수평 이동 부드러움
 const SMOOTH_FACTOR_Y = 2 // 수직 이동 부드러움 (흔들림 감소)
 const MOUSE_SENSITIVITY = 0.002
+const ROTATION_SMOOTHING = 10 // 회전 스무딩
 
 export default function ThirdPersonCamera({ target, onCameraRotate, distance = DEFAULT_CAMERA_DISTANCE, height = DEFAULT_CAMERA_HEIGHT }) {
   const { camera, gl } = useThree()
   const currentPosition = useRef(new THREE.Vector3())
   const smoothTargetY = useRef(0) // Y축 별도 스무딩
-  const azimuthAngle = useRef(0) // 수평 각도 (Y축 회전)
-  const elevationAngle = useRef(0.3) // 수직 각도 (위/아래)
+
+  // 목표 각도와 현재 각도 분리 (스무딩용)
+  const targetAzimuth = useRef(0)
+  const targetElevation = useRef(0.3)
+  const currentAzimuth = useRef(0)
+  const currentElevation = useRef(0.3)
 
   // 포인터 락으로 카메라 회전
   useEffect(() => {
@@ -25,10 +30,10 @@ export default function ThirdPersonCamera({ target, onCameraRotate, distance = D
 
     const handleMouseMove = (e) => {
       if (document.pointerLockElement === canvas) {
-        azimuthAngle.current -= e.movementX * MOUSE_SENSITIVITY
-        elevationAngle.current += e.movementY * MOUSE_SENSITIVITY // 상하 정상 (마우스 위로 = 카메라 위로)
+        targetAzimuth.current -= e.movementX * MOUSE_SENSITIVITY
+        targetElevation.current += e.movementY * MOUSE_SENSITIVITY
         // 수직 각도 제한 (너무 위나 아래 보지 않게)
-        elevationAngle.current = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, elevationAngle.current))
+        targetElevation.current = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, targetElevation.current))
       }
     }
 
@@ -44,34 +49,38 @@ export default function ThirdPersonCamera({ target, onCameraRotate, distance = D
   useFrame((_, delta) => {
     if (!target?.current) return
 
+    const safeDelta = Math.min(delta, 0.1)
+
+    // 회전 스무딩 적용
+    const rotationAlpha = 1 - Math.exp(-ROTATION_SMOOTHING * safeDelta)
+    currentAzimuth.current += (targetAzimuth.current - currentAzimuth.current) * rotationAlpha
+    currentElevation.current += (targetElevation.current - currentElevation.current) * rotationAlpha
+
     const targetPosition = new THREE.Vector3()
     target.current.getWorldPosition(targetPosition)
 
     // Y축은 별도로 더 부드럽게 추적
-    const yLerpAlpha = 1 - Math.exp(-SMOOTH_FACTOR_Y * delta)
+    const yLerpAlpha = 1 - Math.exp(-SMOOTH_FACTOR_Y * safeDelta)
     smoothTargetY.current += (targetPosition.y - smoothTargetY.current) * yLerpAlpha
 
     if (distance < 1) {
-      // ===== 1인칭 모드: 일반 FPS 게임 방식 =====
-      // 카메라를 캐릭터 눈 높이에 정확히 배치
+      // ===== 1인칭 모드 =====
       camera.position.set(
         targetPosition.x,
         smoothTargetY.current + height,
         targetPosition.z
       )
 
-      // 카메라 rotation을 직접 설정 (lookAt 대신)
-      camera.rotation.order = 'YXZ' // Yaw-Pitch-Roll 순서
-      camera.rotation.y = azimuthAngle.current + Math.PI // Yaw (좌우)
-      camera.rotation.x = -elevationAngle.current // Pitch (상하)
-      camera.rotation.z = 0 // Roll (기울기 없음)
+      camera.rotation.order = 'YXZ'
+      camera.rotation.y = currentAzimuth.current
+      camera.rotation.x = -currentElevation.current
+      camera.rotation.z = 0
     } else {
-      // ===== 3인칭 모드: 기존 방식 =====
-      // 마우스 회전 각도를 기반으로 카메라 오프셋 계산
-      const horizontalDistance = distance * Math.cos(elevationAngle.current)
-      const offsetX = horizontalDistance * Math.sin(azimuthAngle.current)
-      const offsetZ = horizontalDistance * Math.cos(azimuthAngle.current)
-      const offsetY = height + distance * Math.sin(elevationAngle.current)
+      // ===== 3인칭 모드 =====
+      const horizontalDistance = distance * Math.cos(currentElevation.current)
+      const offsetX = horizontalDistance * Math.sin(currentAzimuth.current)
+      const offsetZ = horizontalDistance * Math.cos(currentAzimuth.current)
+      const offsetY = height + distance * Math.sin(currentElevation.current)
 
       const desiredPosition = new THREE.Vector3(
         targetPosition.x + offsetX,
@@ -79,19 +88,17 @@ export default function ThirdPersonCamera({ target, onCameraRotate, distance = D
         targetPosition.z + offsetZ
       )
 
-      const xzLerpAlpha = 1 - Math.exp(-SMOOTH_FACTOR_XZ * delta)
+      const xzLerpAlpha = 1 - Math.exp(-SMOOTH_FACTOR_XZ * safeDelta)
       currentPosition.current.lerp(desiredPosition, xzLerpAlpha)
       camera.position.copy(currentPosition.current)
 
-      // 3인칭: 캐릭터를 바라봄
+      // 캐릭터를 바라봄
       camera.lookAt(targetPosition.x, smoothTargetY.current, targetPosition.z)
     }
 
     // 카메라 회전 각도를 Player에 전달
     if (onCameraRotate) {
-      // 1인칭일 때는 카메라가 180도 회전되어 있으므로 같은 각도 전달
-      const playerAngle = distance < 1 ? azimuthAngle.current + Math.PI : azimuthAngle.current
-      onCameraRotate(playerAngle)
+      onCameraRotate(currentAzimuth.current)
     }
   })
 

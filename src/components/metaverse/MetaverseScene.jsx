@@ -30,7 +30,7 @@ export default function MetaverseScene({ onReady }) {
   const [doorInfo, setDoorInfo] = useState({ isNear: false, doorId: null, label: null })
   const [objectInfo, setObjectInfo] = useState({ isNear: false, objectId: null, label: null, type: null, position: null })
   const [resetTrigger, setResetTrigger] = useState(0)
-  const [cameraAngle, setCameraAngle] = useState(0)
+  const cameraAngleRef = useRef(0) // useRef로 변경 - 매 프레임 리렌더링 방지
   const [isSitting, setIsSitting] = useState(false)
   const [sittingPosition, setSittingPosition] = useState(null) // 앉았을 때의 의자 위치
   const [isAtDesk, setIsAtDesk] = useState(false) // 교탁에 서 있는지
@@ -46,6 +46,14 @@ export default function MetaverseScene({ onReady }) {
   const [currentClassroom, setCurrentClassroom] = useState(null) // 현재 위치한 교실 (예: 'A', 'B', null)
   const lastPositionSentRef = useRef({ x: 0, y: 0, z: 0 })
   const positionSendIntervalRef = useRef(null)
+  const hasJoinedRef = useRef(false) // 이미 입장했는지 추적 (중복 방지)
+  const [isMapLoaded, setIsMapLoaded] = useState(false) // 맵 로딩 완료 여부
+
+  // 맵 로딩 완료 핸들러
+  const handleMapLoad = useCallback(() => {
+    console.log('🗺️ [MetaverseScene] Map loaded, enabling physics')
+    setIsMapLoaded(true)
+  }, [])
 
   // 사용자 역할 확인 (개발 환경에서만 테스트용 URL 파라미터 지원)
   const urlParams = new URLSearchParams(window.location.search)
@@ -137,11 +145,12 @@ export default function MetaverseScene({ onReady }) {
   }, [currentMap, effectiveUser, roomId])
 
   const handleCameraRotate = useCallback((angle) => {
-    setCameraAngle(angle)
+    cameraAngleRef.current = angle // ref 업데이트 - 리렌더링 없음
   }, [])
 
   const handleMapChange = useCallback((targetMap) => {
     setCurrentMap(targetMap)
+    setIsMapLoaded(false) // 맵 변경 시 로딩 상태 리셋 (물리 일시정지)
     setResetTrigger((prev) => prev + 1) // 플레이어 위치 리셋 트리거
     setPortalInfo({ isNear: false, targetMap: null, label: null }) // 포탈 UI 숨기기
     setDoorInfo({ isNear: false, doorId: null, label: null }) // 문 UI 숨기기
@@ -278,12 +287,11 @@ export default function MetaverseScene({ onReady }) {
       console.log('📚 [Room Join] Initialized otherPlayers with positions:', otherUsers.length)
     }
 
-    // user:joined 응답을 받은 후 room:join 실행
+    // user:joined 응답을 받은 후 location:change 실행 (room:join은 서버에서 자동 처리)
     const handleUserJoinedConfirmation = ({ success }) => {
-      if (success && isMounted) {
-        console.log('✅ [Room Join] user:join confirmed, now joining room')
-        socketService.emit('room:join', { roomId })
-        console.log('📤 [Room Join] Emitted room:join')
+      if (success && isMounted && !hasJoinedRef.current) {
+        hasJoinedRef.current = true // 중복 방지
+        console.log('✅ [Room Join] user:join confirmed (room auto-joined by server)')
 
         // 학교 입장 알림 (초기 입장)
         socketService.emit('location:change', { roomId, location: 'school' })
@@ -335,7 +343,7 @@ export default function MetaverseScene({ onReady }) {
     socketService.on('room:user-left', handleUserLeft)
     console.log('✅ [Room Join] Room event handlers registered')
 
-    // Socket 연결 후 user:join 실행
+    // Socket 연결 후 user:join 실행 (roomId 포함하여 서버에서 한 번에 처리)
     const joinRoom = async () => {
       try {
         console.log('⏳ [Room Join] Waiting for socket connection...')
@@ -343,9 +351,9 @@ export default function MetaverseScene({ onReady }) {
 
         if (!isMounted) return
 
-        console.log('✅ [Room Join] Socket connected, joining as:', effectiveUser.name)
-        socketService.emit('user:join', { user: effectiveUser })
-        console.log('📤 [Room Join] Emitted user:join')
+        console.log('✅ [Room Join] Socket connected, joining as:', effectiveUser.name, 'to room:', roomId)
+        socketService.emit('user:join', { user: effectiveUser, roomId })
+        console.log('📤 [Room Join] Emitted user:join with roomId')
       } catch (error) {
         console.error('❌ [Room Join] Failed to join room:', error)
       }
@@ -639,19 +647,20 @@ export default function MetaverseScene({ onReady }) {
         <Environment preset="sunset" />
         <fog attach="fog" args={['#87CEEB', 10, 100]} />
 
-        <Physics gravity={[0, -20, 0]} key={resetTrigger}>
+        <Physics gravity={[0, -20, 0]} paused={!isMapLoaded} key={resetTrigger}>
           <MapModel
             currentMap={currentMap}
             onMapChange={handleMapChange}
             onPortalNearChange={handlePortalNearChange}
             onDoorNearChange={handleDoorNearChange}
             onObjectNearChange={handleObjectNearChange}
+            onLoad={handleMapLoad}
           />
           <Player
             ref={playerRef}
             bodyRef={playerBodyRef}
             currentMap={currentMap}
-            cameraAngle={cameraAngle}
+            cameraAngleRef={cameraAngleRef}
             onPositionChange={handlePositionChange}
             isInputDisabled={chat.isInputActive || isMenuOpen}
             isFirstPerson={isFirstPerson}

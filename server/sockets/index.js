@@ -7,7 +7,7 @@ export function setupSocketHandlers(io) {
   io.on('connection', (socket) => {
     console.log(`✅ Client connected: ${socket.id}`)
 
-    // Handle user join
+    // Handle user join (with optional room join)
     socket.on('user:join', (userData) => {
       const socketUser = {
         id: userData.user.id,
@@ -21,6 +21,43 @@ export function setupSocketHandlers(io) {
       const userRoom = `user:${userData.user.id}`
       socket.join(userRoom)
       console.log(`👤 User joined: ${userData.user.name} (${socket.id}) - Joined room ${userRoom}`)
+
+      // roomId가 함께 전달되면 바로 room에도 join
+      if (userData.roomId) {
+        const roomId = userData.roomId
+        socket.join(roomId)
+        socketUser.roomId = roomId
+
+        if (!rooms.has(roomId)) {
+          rooms.set(roomId, new Set())
+        }
+        rooms.get(roomId)?.add(socket.id)
+
+        console.log(`🚪 User ${userData.user.name} auto-joined room: ${roomId}`)
+
+        // Notify all users in the room
+        io.to(roomId).emit('room:user-joined', {
+          user: userData.user,
+          socketId: socket.id,
+          position: socketUser.position || [0, 2, 0],
+          rotation: socketUser.rotation || 0,
+          animation: socketUser.animation || 'idle',
+        })
+
+        // Send current room users to the new user
+        const roomUsers = Array.from(rooms.get(roomId) || [])
+          .map(id => connectedUsers.get(id))
+          .filter(Boolean)
+          .map(u => ({
+            user: u?.user,
+            socketId: u?.socketId,
+            position: u?.position || [0, 2, 0],
+            rotation: u?.rotation || 0,
+            animation: u?.animation || 'idle',
+          }))
+
+        socket.emit('room:users', { users: roomUsers })
+      }
 
       socket.emit('user:joined', { success: true })
     })

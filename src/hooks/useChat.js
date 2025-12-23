@@ -13,16 +13,16 @@ export function useChat(roomId, isInSchool) {
   const [inputText, setInputText] = useState('')
   const messagesEndRef = useRef(null)
 
-  // 메시지 추가 함수 (공통)
-  const addMessage = useCallback((message) => {
+  // 메시지 수신 핸들러 - 의존성 없이 setMessages 직접 사용
+  const handleChatMessage = useCallback((message) => {
+    console.log('💬 [Chat] Message received:', message)
     setMessages((prev) => {
-      // 최근 8개 메시지만 유지
       const newMessages = [...prev, message]
       return newMessages.slice(-8)
     })
   }, [])
 
-  // 시스템 메시지 추가 (입장/퇴장 등)
+  // 시스템 메시지 추가 - 의존성 없이 setMessages 직접 사용
   const addSystemMessage = useCallback((text) => {
     const systemMessage = {
       id: `system-${Date.now()}`,
@@ -31,61 +31,67 @@ export function useChat(roomId, isInSchool) {
       timestamp: new Date().toISOString(),
     }
     console.log('💬 [Chat] System message:', text)
-    addMessage(systemMessage)
-  }, [addMessage])
-
-  // 메시지 수신 핸들러
-  const handleChatMessage = useCallback((message) => {
-    console.log('💬 [Chat] Message received:', message)
-    addMessage(message)
-  }, [addMessage])
-
-  // 사용자 입장 핸들러 (멀티플레이어 동기화용, 시스템 메시지는 location:entered에서 처리)
-  const handleUserJoined = useCallback((data) => {
-    console.log('💬 [Chat] room:user-joined received (no message):', data)
-    // 시스템 메시지는 location:entered 이벤트에서 처리
+    setMessages((prev) => {
+      const newMessages = [...prev, systemMessage]
+      return newMessages.slice(-8)
+    })
   }, [])
 
-  // 사용자 퇴장 핸들러
+  // 사용자 퇴장 핸들러 - 의존성 없이 setMessages 직접 사용
   const handleUserLeft = useCallback(({ user }) => {
-    if (user?.name) {
-      addSystemMessage(`${user.name}님이 퇴장하셨습니다.`)
-    } else {
-      addSystemMessage(`누군가가 퇴장하셨습니다.`)
+    const text = user?.name
+      ? `${user.name}님이 퇴장하셨습니다.`
+      : `누군가가 퇴장하셨습니다.`
+    const systemMessage = {
+      id: `system-${Date.now()}`,
+      type: 'system',
+      message: text,
+      timestamp: new Date().toISOString(),
     }
-  }, [addSystemMessage])
+    setMessages((prev) => {
+      const newMessages = [...prev, systemMessage]
+      return newMessages.slice(-8)
+    })
+  }, [])
 
-  // 위치 변경 핸들러 (학교/강의실 입장)
+  // 위치 변경 핸들러 (학교/강의실 입장) - 의존성 없이 setMessages 직접 사용
   const handleLocationEntered = useCallback((data) => {
     console.log('💬 [Chat] location:entered received:', data)
     const { userName, locationName } = data
     if (userName && locationName) {
-      addSystemMessage(`${userName}님이 ${locationName}에 입장하셨습니다.`)
+      const systemMessage = {
+        id: `system-${Date.now()}`,
+        type: 'system',
+        message: `${userName}님이 ${locationName}에 입장하셨습니다.`,
+        timestamp: new Date().toISOString(),
+      }
+      setMessages((prev) => {
+        const newMessages = [...prev, systemMessage]
+        return newMessages.slice(-8)
+      })
     }
-  }, [addSystemMessage])
+  }, [])
 
   // Socket 이벤트 리스너 등록
   useEffect(() => {
     if (!isInSchool || !roomId) return
 
     console.log('💬 [Chat] Setting up chat for room:', roomId)
-    console.log('💬 [Chat] Registering room:user-joined listener')
 
     socketService.on('chat:message', handleChatMessage)
-    socketService.on('room:user-joined', handleUserJoined)
     socketService.on('room:user-left', handleUserLeft)
     socketService.on('location:entered', handleLocationEntered)
 
     console.log('💬 [Chat] All listeners registered')
 
     return () => {
+      // callback 참조로 해당 핸들러만 제거 (다른 컴포넌트의 핸들러는 유지)
       socketService.off('chat:message', handleChatMessage)
-      socketService.off('room:user-joined', handleUserJoined)
       socketService.off('room:user-left', handleUserLeft)
       socketService.off('location:entered', handleLocationEntered)
       console.log('💬 [Chat] Cleanup')
     }
-  }, [isInSchool, roomId, handleChatMessage, handleUserJoined, handleUserLeft, handleLocationEntered])
+  }, [isInSchool, roomId, handleChatMessage, handleUserLeft, handleLocationEntered])
 
   // 새 메시지가 오면 자동 스크롤
   useEffect(() => {

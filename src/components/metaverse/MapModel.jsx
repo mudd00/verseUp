@@ -50,11 +50,19 @@ function LoadingPlaceholder() {
   )
 }
 
-function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNearChange, onObjectNearChange }) {
+function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNearChange, onObjectNearChange, onLoad }) {
   const config = MAP_CONFIG[currentMap] || MAP_CONFIG.main
   const { scene } = useGLTF(config.path)
   const [doorPositions, setDoorPositions] = useState([])
   const [interactiveObjects, setInteractiveObjects] = useState([])
+
+  // 맵 로딩 완료 알림
+  useEffect(() => {
+    console.log('🗺️ [MapModel] Map loaded:', currentMap)
+    if (onLoad) {
+      onLoad()
+    }
+  }, [currentMap, onLoad])
 
   // 3DCommunity 방식: useMemo로 씬 복제, 그림자 설정, 위치 조정을 모두 처리
   // (useEffect에서 하면 콜라이더와 메시 위치가 불일치함)
@@ -311,7 +319,7 @@ function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNe
   )
 }
 
-export default function MapModel({ currentMap, onMapChange, onPortalNearChange, onDoorNearChange, onObjectNearChange }) {
+export default function MapModel({ currentMap, onMapChange, onPortalNearChange, onDoorNearChange, onObjectNearChange, onLoad }) {
   return (
     <ErrorBoundary fallback={<DefaultFloor />}>
       <Suspense fallback={<LoadingPlaceholder />}>
@@ -321,6 +329,7 @@ export default function MapModel({ currentMap, onMapChange, onPortalNearChange, 
           onPortalNearChange={onPortalNearChange}
           onDoorNearChange={onDoorNearChange}
           onObjectNearChange={onObjectNearChange}
+          onLoad={onLoad}
         />
       </Suspense>
     </ErrorBoundary>
