@@ -1,4 +1,3 @@
-import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { apiService } from './api'
 
@@ -86,136 +85,81 @@ class CourseService {
    * 내 강의 목록 조회 (강사용)
    */
   async getMyCourses() {
-    // zustand store에서 인증된 사용자 정보 가져오기
     const currentUser = useAuthStore.getState().user
 
     if (!currentUser) {
       throw new Error('로그인이 필요합니다.')
     }
 
-    const { data, error } = await supabase
-      .from('courses')
-      .select(
-        `
-        *,
-        instructor:profiles!instructor_id(id, name, email, avatar_url),
-        classroom:classrooms(id, name, description, capacity),
-        time_slot:time_slots(id, day_of_week, start_time, end_time, slot_order)
-      `
-      )
-      .eq('instructor_id', currentUser.id)
-      .order('created_at', { ascending: false })
-
-    if (error) {
+    try {
+      const response = await apiService.get('/courses/my')
+      return response.courses.map((course) => this.mapCourseFromAPI(course))
+    } catch (error) {
       console.error('내 강의 조회 실패:', error)
       throw new Error('강의 목록을 불러오는데 실패했습니다.')
     }
-
-    return data.map((course) => this.mapCourseFromDB(course))
   }
 
   /**
    * 강의 상세 조회
    */
   async getCourseById(id) {
-    const { data, error } = await supabase
-      .from('courses')
-      .select(
-        `
-        *,
-        instructor:profiles!instructor_id(id, name, email, avatar_url),
-        classroom:classrooms(id, name, description, capacity),
-        time_slot:time_slots(id, day_of_week, start_time, end_time, slot_order),
-        schedules:course_schedules(id, week_number, session_date, start_time, end_time, status)
-      `
-      )
-      .eq('id', id)
-      .single()
-
-    if (error) {
+    try {
+      const response = await apiService.get(`/courses/${id}`)
+      return this.mapCourseFromAPI(response.course)
+    } catch (error) {
       console.error('강의 조회 실패:', error)
       throw new Error('강의를 찾을 수 없습니다.')
     }
-
-    return this.mapCourseFromDB(data)
   }
 
   /**
    * 강의 업데이트 (강사/관리자용)
    */
   async updateCourse(id, data) {
-    // zustand store에서 인증된 사용자 정보 가져오기
     const currentUser = useAuthStore.getState().user
 
     if (!currentUser) {
       throw new Error('로그인이 필요합니다.')
     }
 
-    const updateData = {}
-    if (data.title) updateData.title = data.title
-    if (data.description) updateData.description = data.description
-    if (data.courseCode) updateData.course_code = data.courseCode
-    if (data.category) updateData.category = data.category
-    if (data.level) updateData.level = data.level
-    if (data.maxStudents) updateData.max_students = data.maxStudents
-    if (data.startDate) updateData.start_date = data.startDate
-    if (data.endDate) updateData.end_date = data.endDate
-    if (data.schedule !== undefined) updateData.schedule = data.schedule
-    if (data.thumbnail !== undefined) updateData.thumbnail = data.thumbnail
-    if (data.price !== undefined) updateData.price = data.price
-    if (data.status) updateData.status = data.status
+    try {
+      const updateData = {}
+      if (data.title !== undefined) updateData.title = data.title
+      if (data.description !== undefined) updateData.description = data.description
+      if (data.maxStudents !== undefined) updateData.maxStudents = data.maxStudents
+      if (data.thumbnail !== undefined) updateData.thumbnail = data.thumbnail
+      if (data.price !== undefined) updateData.price = data.price
+      if (data.status !== undefined) updateData.status = data.status
 
-    const { data: course, error } = await supabase
-      .from('courses')
-      .update(updateData)
-      .eq('id', id)
-      .select(
-        `
-        *,
-        instructor:profiles!instructor_id(id, name, email, avatar_url)
-      `
-      )
-      .single()
-
-    if (error) {
+      const response = await apiService.put(`/courses/${id}`, updateData)
+      return this.mapCourseFromAPI(response.course)
+    } catch (error) {
       console.error('강의 업데이트 실패:', error)
       throw new Error('강의 업데이트에 실패했습니다.')
     }
-
-    return this.mapCourseFromDB(course)
   }
 
   /**
    * 강의 삭제 (강사/관리자용)
    */
   async deleteCourse(id) {
-    // zustand store에서 인증된 사용자 정보 가져오기
     const currentUser = useAuthStore.getState().user
 
     if (!currentUser) {
       throw new Error('로그인이 필요합니다.')
     }
 
-    // 수강생 확인
-    const { data: course, error: fetchError } = await supabase
-      .from('courses')
-      .select('enrolled_count')
-      .eq('id', id)
-      .single()
-
-    if (fetchError) {
-      console.error('강의 조회 실패:', fetchError)
-      throw new Error('강의 정보를 가져오는데 실패했습니다.')
-    }
-
-    if (course && course.enrolled_count > 0) {
-      throw new Error('수강 중인 학생이 있어 삭제할 수 없습니다. 먼저 모든 수강생의 수강을 취소해주세요.')
-    }
-
-    const { error } = await supabase.from('courses').delete().eq('id', id)
-
-    if (error) {
+    try {
+      await apiService.delete(`/courses/${id}`)
+    } catch (error) {
       console.error('강의 삭제 실패:', error)
+
+      // 백엔드에서 에러 메시지를 반환하면 그대로 사용
+      if (error.response?.data?.error) {
+        throw new Error(error.response.data.error)
+      }
+
       throw new Error('강의 삭제에 실패했습니다.')
     }
   }
@@ -242,92 +186,26 @@ class CourseService {
       throw new Error('강사 권한이 필요합니다.')
     }
 
-    // 내 강의 목록 조회
-    const { data: courses, error: coursesError } = await supabase
-      .from('courses')
-      .select('id, status, enrolled_count, start_date, end_date')
-      .eq('instructor_id', currentUser.id)
-
-    if (coursesError) {
-      console.error('강사 통계 조회 실패:', coursesError)
+    try {
+      const response = await apiService.get('/courses/instructors/stats')
+      return {
+        totalCourses: response.totalCourses,
+        totalStudents: response.totalStudents,
+        activeCourses: response.activeCourses,
+      }
+    } catch (error) {
+      console.error('강사 통계 조회 실패:', error)
       throw new Error('통계 정보를 불러오는데 실패했습니다.')
-    }
-
-    // 통계 계산
-    const totalCourses = courses.length
-    const totalStudents = courses.reduce((sum, course) => sum + (course.enrolled_count || 0), 0)
-
-    // 진행 중인 강의 (현재 날짜 기준으로 start_date <= 현재 <= end_date)
-    const now = new Date()
-    const activeCourses = courses.filter((course) => {
-      if (course.status !== 'published') return false
-      const startDate = new Date(course.start_date)
-      const endDate = new Date(course.end_date)
-      return startDate <= now && now <= endDate
-    }).length
-
-    return {
-      totalCourses,
-      totalStudents,
-      activeCourses,
     }
   }
 
   /**
-   * 강의 자료 업로드
+   * 강의 자료 업로드 - 백엔드 API 사용 (POST /api/courses/:courseId/materials/upload)
+   * 이 메서드는 더 이상 사용되지 않습니다. 대신 백엔드 API를 직접 호출하세요.
+   * @deprecated Use backend API POST /api/courses/:courseId/materials/upload instead
    */
   async uploadMaterial(courseId, materialData) {
-    const currentUser = useAuthStore.getState().user
-
-    if (!currentUser) {
-      throw new Error('로그인이 필요합니다.')
-    }
-
-    // Generate unique file path
-    const fileExt = materialData.file.name.split('.').pop()
-    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
-    const filePath = `${courseId}/${fileName}`
-
-    // Upload file to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('course-materials')
-      .upload(filePath, materialData.file, {
-        cacheControl: '3600',
-        upsert: false,
-      })
-
-    if (uploadError) {
-      console.error('Upload error:', uploadError)
-      throw new Error('파일 업로드에 실패했습니다.')
-    }
-
-    // Get public URL
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from('course-materials').getPublicUrl(filePath)
-
-    // Save metadata to database
-    const { data: material, error } = await supabase
-      .from('course_materials')
-      .insert({
-        course_id: courseId,
-        title: materialData.title,
-        description: materialData.description,
-        file_url: publicUrl,
-        file_name: materialData.file_name,
-        file_size: materialData.file_size,
-        file_type: materialData.file_type,
-        uploaded_by: currentUser.id,
-      })
-      .select()
-      .single()
-
-    if (error) {
-      console.error('자료 메타데이터 저장 실패:', error)
-      throw new Error('자료 정보 저장에 실패했습니다.')
-    }
-
-    return material
+    throw new Error('이 메서드는 더 이상 사용되지 않습니다. 백엔드 API를 직접 사용하세요.')
   }
 
   /**
