@@ -29,6 +29,7 @@
 2. **학업 모니터링**: 수강 강의, 과제, 성적, 출석 확인
 3. **진도율 추적**: 강의별 학습 진행 상황 시각화
 4. **성적 관리**: 과제 점수 및 피드백 확인
+5. **실시간 수업 참관**: 메타버스 교실 CCTV로 자녀 수업 실시간 관찰
 
 ---
 
@@ -67,6 +68,26 @@
 - FR-5.3: 학습 자료 완료율을 표시
 - FR-5.4: 마지막 활동 시간을 기록
 
+#### FR-6: 실시간 수업 참관 (CCTV)
+- FR-6.1: 각 교실에 1개의 고정 CCTV 카메라 설치 (후방)
+  - 위치: 교실 뒤쪽 천장
+  - 시점: 칠판/교탁 방향 (학생들의 뒷모습 + 강사/칠판)
+- FR-6.2: 부모는 자녀가 수업 중인 교실의 CCTV를 시청할 수 있음
+- FR-6.3: 자녀가 해당 교실에 있을 때만 시청 가능 (privacy)
+- FR-6.4: 부모는 음성을 들을 수 없음 (영상만 제공, 프라이버시 보호)
+- FR-6.5: 동시에 여러 부모가 같은 교실 CCTV 시청 가능
+- FR-6.6: 부모 시청 시 학생에게 알림 표시 (선택적)
+- FR-6.7: 강사가 CCTV 스트리밍을 활성화/비활성화할 수 있음
+
+#### FR-7: 학생 화면 공유 (부모에게 보여주기)
+- FR-7.1: **학생이 동의해야만** 부모가 화면을 볼 수 있음 (옵트인 방식)
+- FR-7.2: 학생이 "부모님께 화면 공유" 버튼을 눌러 활성화
+- FR-7.3: 학생은 언제든 화면 공유를 중단할 수 있음
+- FR-7.4: 부모는 자녀의 화면 공유 상태를 실시간으로 확인 가능
+- FR-7.5: 부모는 CCTV와 학생 화면을 탭으로 전환하며 볼 수 있음
+- FR-7.6: 학생 화면 시청 시에도 음성은 제공되지 않음
+- FR-7.7: 용도: 자녀가 배운 내용, 만든 작품 등을 부모에게 자랑/공유
+
 ### 비기능 요구사항
 
 #### NFR-1: 보안
@@ -85,6 +106,12 @@
 - NFR-3.2: 직관적인 네비게이션
 - NFR-3.3: 다크 테마 지원
 
+#### NFR-4: CCTV 스트리밍 성능
+- NFR-4.1: 영상 지연 시간 < 3초
+- NFR-4.2: 최소 720p 해상도 지원
+- NFR-4.3: 교실당 최대 50명 동시 시청 지원
+- NFR-4.4: 네트워크 불안정 시 자동 화질 조절
+
 ---
 
 ## 시스템 아키텍처
@@ -98,6 +125,7 @@
 │  RegisterParent.jsx  │  ParentDashboard.jsx  │  Profile.jsx │
 │  InviteCodeManager   │  ChildSelector        │  CourseList  │
 │  AttendanceView      │  ProgressTracker      │  GradeReport │
+│  ClassroomObserver   │  CCTVViewer           │              │
 └──────────────────┬──────────────────────────────────────────┘
                    │ REST API (JWT)
 ┌──────────────────┴──────────────────────────────────────────┐
@@ -108,6 +136,11 @@
 │  - validate         │  - dashboard        │  - student/:id  │
 │  - revoke           │  - courses          │  - bulk         │
 │                     │  - assignments      │                 │
+│                     │  - observe/:classId │                 │
+├─────────────────────────────────────────────────────────────┤
+│  Socket.IO Events (CCTV 스트리밍)                             │
+│  - cctv:request     │  cctv:stream        │  cctv:stop      │
+│  - cctv:viewers     │  cctv:child-status  │                 │
 └──────────────────┬──────────────────────────────────────────┘
                    │ SQL + RLS
 ┌──────────────────┴──────────────────────────────────────────┐
@@ -145,6 +178,100 @@
    → validateParentStudentLink: Verify active link
    → Supabase: Query with RLS filtering
    → Response: { courses: [...] }
+```
+
+### CCTV 참관 시스템 흐름
+
+```
+1. 부모가 자녀 위치 확인
+   Parent → GET /api/parents/children/:studentId/location
+   → Response: { isInClassroom: true, classroomId: "classroom-A", classroomName: "강의실 A" }
+
+2. CCTV 시청 권한 확인 및 요청
+   Parent → Socket.IO: cctv:request { classroomId, studentId }
+   → Server: 부모-자녀 연결 확인 + 자녀 위치 확인
+   → Server → Parent: cctv:authorized { classroomId, streamUrl }
+   (또는 cctv:denied { reason: "자녀가 해당 교실에 없습니다" })
+
+3. CCTV 스트림 수신 (WebRTC)
+   Server → Parent: cctv:stream { offer }
+   Parent → Server: cctv:answer { answer }
+   → WebRTC 연결 수립
+   → 부모 화면에 교실 CCTV 영상 표시
+
+4. 강사 CCTV 제어
+   Instructor → Socket.IO: cctv:toggle { classroomId, enabled: false }
+   → Server → All Parents: cctv:stopped { classroomId, reason: "강사가 비활성화함" }
+
+5. 시청자 알림 (선택적)
+   Server → Classroom Students: cctv:viewer-joined { viewerCount: 3 }
+   → 학생 화면에 "👁️ 3명 참관 중" 표시
+```
+
+### CCTV 카메라 구조 (메타버스)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      메타버스 교실                            │
+│                                                              │
+│   ┌─────────────────────────────────────────────────────┐   │
+│   │                      칠판                             │   │
+│   └─────────────────────────────────────────────────────┘   │
+│                        🎓 교탁                               │
+│                                                              │
+│        💺  💺  💺  💺  💺  💺                              │
+│        💺  💺  💺  💺  💺  💺  ← 학생 좌석                  │
+│        💺  💺  💺  💺  💺  💺                              │
+│                                                              │
+│                         📹                                   │
+│                     CCTV 카메라                              │
+│                  (교실 뒤쪽 천장)                            │
+│                  → 칠판/교탁 방향                            │
+└─────────────────────────────────────────────────────────────┘
+
+카메라 상세:
+┌─────────────┬──────────────────────┬─────────────────────────┐
+│ 카메라 ID    │ 위치                  │ 시점                     │
+├─────────────┼──────────────────────┼─────────────────────────┤
+│ cam_back    │ 교실 뒤쪽 천장         │ 칠판/교탁 방향           │
+└─────────────┴──────────────────────┴─────────────────────────┘
+
+※ 추후 필요시 전방 카메라 추가 가능 (확장성 고려)
+```
+
+### 학생 화면 공유 참관 (동의 기반)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  1. 학생이 책상에 앉음 → 화면 공유 시작 (강사용)                │
+│  2. 학생이 "부모님께 화면 공유" 버튼 클릭 → 부모에게 공유 시작    │
+│                                                              │
+│  ┌──────────────┐     Socket.IO      ┌──────────────┐       │
+│  │   학생 PC     │ ──────────────────► │    서버      │       │
+│  │  (화면 공유)   │  parent:screen     │              │       │
+│  │              │  -consent: true     │              │       │
+│  └──────────────┘                     └──────┬───────┘       │
+│         │                                    │               │
+│         │ [부모님께 화면 공유] 버튼            │               │
+│         │ (학생이 직접 클릭)                   │               │
+│         ▼                                    ▼               │
+│  ┌──────────────┐                   ┌──────────────┐        │
+│  │ 👨‍👩‍👧 공유 중  │                   │   부모 PC     │        │
+│  │ 👁️ 1명 시청   │                   │  (시청 가능)   │        │
+│  └──────────────┘                   └──────────────┘        │
+│                                                              │
+│  학생 화면:                          부모 화면:               │
+│  ┌─────────────────┐               ┌─────────────────────┐  │
+│  │ 부모님께 공유 중  │               │ [CCTV] [자녀 화면]   │  │
+│  │ 👁️ 1명 시청 중   │               │ ┌─────────────────┐ │  │
+│  │ [공유 중지]      │               │ │ 📺 자녀 화면     │ │  │
+│  └─────────────────┘               │ │   공유 영상      │ │  │
+│                                    │ └─────────────────┘ │  │
+│                                    └─────────────────────┘  │
+│                                                              │
+│  ※ 학생이 "부모님께 화면 공유" 버튼을 누르지 않으면             │
+│     부모는 자녀 화면을 볼 수 없음 (프라이버시 보호)             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -257,6 +384,35 @@
 **제약 조건**:
 - UNIQUE(enrollment_id): 수강당 하나의 진도 기록
 
+#### cctv_sessions
+
+| 컬럼명 | 타입 | 제약 | 설명 |
+|-------|------|------|------|
+| id | UUID | PK | 고유 식별자 |
+| classroom_id | TEXT | NOT NULL | 교실 ID (room:door1_enter 등) |
+| is_enabled | BOOLEAN | DEFAULT true | CCTV 활성화 여부 |
+| enabled_by | UUID | FK → profiles(id) | 활성화한 강사 |
+| viewer_count | INTEGER | DEFAULT 0 | 현재 시청자 수 |
+| created_at | TIMESTAMPTZ | DEFAULT NOW() | 생성 시간 |
+| updated_at | TIMESTAMPTZ | DEFAULT NOW() | 수정 시간 |
+
+**제약 조건**:
+- UNIQUE(classroom_id): 교실당 하나의 CCTV 세션
+
+#### cctv_view_logs (감사용, 선택적)
+
+| 컬럼명 | 타입 | 제약 | 설명 |
+|-------|------|------|------|
+| id | UUID | PK | 고유 식별자 |
+| parent_id | UUID | FK → profiles(id) | 시청한 부모 |
+| student_id | UUID | FK → profiles(id) | 대상 자녀 |
+| classroom_id | TEXT | NOT NULL | 교실 ID |
+| started_at | TIMESTAMPTZ | DEFAULT NOW() | 시청 시작 시간 |
+| ended_at | TIMESTAMPTZ | NULL | 시청 종료 시간 |
+| duration_seconds | INTEGER | NULL | 시청 시간 (초) |
+
+**용도**: 프라이버시 감사, 시청 기록 추적
+
 ### 함수 및 트리거
 
 #### generate_invite_code()
@@ -331,6 +487,32 @@ SELECT:
 SELECT:
   EXISTS (parent_student_links
     WHERE parent_id = auth.uid() AND status = 'active')
+```
+
+#### cctv_sessions
+```sql
+-- 강사: 본인 수업 교실 CCTV 제어
+SELECT/UPDATE:
+  EXISTS (courses WHERE instructor_id = auth.uid())
+
+-- 부모: 자녀가 있는 교실 CCTV 정보 조회
+SELECT:
+  EXISTS (
+    SELECT 1 FROM parent_student_links psl
+    JOIN student_locations sl ON sl.student_id = psl.student_id
+    WHERE psl.parent_id = auth.uid()
+      AND psl.status = 'active'
+      AND sl.classroom_id = cctv_sessions.classroom_id
+  )
+```
+
+#### cctv_view_logs
+```sql
+-- 부모: 본인 시청 기록만 조회
+SELECT: parent_id = auth.uid()
+
+-- 시스템: 로그 기록 (서버에서만)
+INSERT: service_role 사용
 ```
 
 ---
@@ -667,6 +849,123 @@ SELECT:
 - **인증**: 필요 (강사 role)
 - **설명**: 출석 기록 수정
 
+#### CCTV 참관 (/api/cctv)
+
+**GET /api/parents/children/:studentId/location**
+- **인증**: 필요 (부모 role + link 검증)
+- **설명**: 자녀 현재 위치 및 화면 공유 상태 확인
+- **응답**:
+  ```json
+  {
+    "studentId": "uuid",
+    "isOnline": true,
+    "isInClassroom": true,
+    "classroom": {
+      "id": "room:door1_enter",
+      "name": "강의실 A",
+      "cctvEnabled": true,
+      "viewerCount": 2
+    },
+    "screenShare": {
+      "isSharing": true,
+      "hasConsent": true,
+      "startedAt": "2025-12-24T10:05:00Z"
+    },
+    "lastSeen": "2025-12-24T10:00:00Z"
+  }
+  ```
+
+**GET /api/cctv/classrooms/:classroomId**
+- **인증**: 필요 (부모 role)
+- **설명**: 교실 CCTV 상태 조회
+- **응답**:
+  ```json
+  {
+    "classroomId": "room:door1_enter",
+    "classroomName": "강의실 A",
+    "isEnabled": true,
+    "instructorName": "김강사",
+    "viewerCount": 3,
+    "canWatch": true,
+    "reason": null
+  }
+  ```
+
+**POST /api/cctv/classrooms/:classroomId/toggle**
+- **인증**: 필요 (강사 role)
+- **설명**: CCTV 활성화/비활성화
+- **요청**:
+  ```json
+  {
+    "enabled": false,
+    "reason": "개인 상담 중"
+  }
+  ```
+- **응답**:
+  ```json
+  {
+    "success": true,
+    "isEnabled": false,
+    "message": "CCTV가 비활성화되었습니다."
+  }
+  ```
+
+#### CCTV Socket.IO 이벤트 (단일 카메라)
+
+**클라이언트 → 서버**:
+
+| 이벤트 | 데이터 | 설명 |
+|-------|--------|------|
+| `cctv:request` | `{ classroomId, studentId }` | CCTV 시청 요청 |
+| `cctv:answer` | `{ classroomId, answer }` | WebRTC answer |
+| `cctv:ice-candidate` | `{ classroomId, candidate }` | ICE candidate |
+| `cctv:stop` | `{ classroomId }` | 시청 종료 |
+| `cctv:toggle` | `{ classroomId, enabled }` | 강사 CCTV 제어 |
+
+**서버 → 클라이언트**:
+
+| 이벤트 | 데이터 | 설명 |
+|-------|--------|------|
+| `cctv:authorized` | `{ classroomId }` | 시청 승인 |
+| `cctv:denied` | `{ classroomId, reason }` | 시청 거부 |
+| `cctv:offer` | `{ classroomId, offer }` | WebRTC offer |
+| `cctv:ice-candidate` | `{ classroomId, candidate }` | ICE candidate |
+| `cctv:stopped` | `{ classroomId, reason }` | 스트림 중단 알림 |
+| `cctv:viewer-joined` | `{ classroomId, viewerCount }` | 시청자 입장 알림 |
+| `cctv:viewer-left` | `{ classroomId, viewerCount }` | 시청자 퇴장 알림 |
+
+#### 학생 화면 공유 참관 Socket.IO 이벤트 (학생 동의 필요)
+
+**학생 클라이언트 → 서버**:
+
+| 이벤트 | 데이터 | 설명 |
+|-------|--------|------|
+| `parent:screen-consent` | `{ enabled }` | 학생이 부모에게 화면 공유 동의/해제 |
+
+**부모 클라이언트 → 서버**:
+
+| 이벤트 | 데이터 | 설명 |
+|-------|--------|------|
+| `parent:screen-request` | `{ studentId }` | 자녀 화면 시청 요청 |
+| `parent:screen-answer` | `{ studentId, answer }` | WebRTC answer |
+| `parent:screen-stop` | `{ studentId }` | 화면 시청 종료 |
+
+**서버 → 부모 클라이언트**:
+
+| 이벤트 | 데이터 | 설명 |
+|-------|--------|------|
+| `parent:screen-authorized` | `{ studentId, isSharing, hasConsent }` | 시청 승인 (동의 여부 포함) |
+| `parent:screen-denied` | `{ studentId, reason }` | 시청 거부 |
+| `parent:screen-offer` | `{ studentId, offer }` | WebRTC offer (학생 화면) |
+| `parent:screen-started` | `{ studentId, hasConsent }` | 자녀가 화면 공유 시작 (동의 포함) |
+| `parent:screen-stopped` | `{ studentId }` | 자녀가 화면 공유 종료 |
+
+**서버 → 학생 클라이언트**:
+
+| 이벤트 | 데이터 | 설명 |
+|-------|--------|------|
+| `parent:viewer-count` | `{ count }` | 부모 시청자 수 (동의 시) |
+
 ### 미들웨어
 
 #### validateParentStudentLink
@@ -725,7 +1024,8 @@ src/
 ├── pages/
 │   ├── RegisterParent.jsx          # 부모 회원가입
 │   ├── Dashboard.jsx               # role 분기
-│   └── Profile.jsx                 # 초대 코드 관리 섹션 추가
+│   ├── Profile.jsx                 # 초대 코드 관리 섹션 추가
+│   └── ClassroomObserver.jsx       # 부모 CCTV 시청 페이지
 │
 ├── components/
 │   ├── dashboard/
@@ -736,15 +1036,26 @@ src/
 │   │   ├── ChildCourseList.jsx     # 자녀 강의 목록
 │   │   ├── AttendanceView.jsx      # 출석 캘린더
 │   │   ├── ProgressTracker.jsx     # 진도율 시각화
-│   │   └── GradeReport.jsx         # 성적표
+│   │   ├── GradeReport.jsx         # 성적표
+│   │   ├── ChildLocationCard.jsx   # 자녀 현재 위치 카드
+│   │   └── CCTVViewer.jsx          # CCTV 영상 플레이어
 │   │
-│   └── student/
-│       └── InviteCodeManager.jsx   # 초대 코드 생성/관리
+│   ├── student/
+│   │   └── InviteCodeManager.jsx   # 초대 코드 생성/관리
+│   │
+│   ├── metaverse/
+│   │   ├── CCTVCamera.jsx          # 교실 내 CCTV 카메라 (3D)
+│   │   ├── ViewerIndicator.jsx     # "👁️ 참관 중" UI 표시
+│   │   └── ParentShareButton.jsx   # "부모님께 화면 공유" 버튼 (학생용)
+│   │
+│   └── instructor/
+│       └── CCTVControl.jsx         # 강사용 CCTV 제어 패널
 │
 └── services/
     ├── inviteService.js            # 초대 코드 API
     ├── parentService.js            # 부모 데이터 API
-    └── attendanceService.js        # 출석 API
+    ├── attendanceService.js        # 출석 API
+    └── cctvService.js              # CCTV API + WebRTC
 ```
 
 ### 주요 컴포넌트 명세
@@ -954,6 +1265,440 @@ export default function AttendanceView({ studentId }) {
 }
 ```
 
+#### ChildLocationCard.jsx
+```javascript
+/**
+ * 자녀 현재 위치 + CCTV 시청 버튼
+ */
+export default function ChildLocationCard({ studentId, studentName }) {
+  const [location, setLocation] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchLocation = async () => {
+      const data = await parentService.getChildLocation(studentId)
+      setLocation(data)
+      setIsLoading(false)
+    }
+    fetchLocation()
+
+    // 30초마다 위치 갱신
+    const interval = setInterval(fetchLocation, 30000)
+    return () => clearInterval(interval)
+  }, [studentId])
+
+  if (isLoading) return <Skeleton />
+
+  return (
+    <div className="bg-gray-800 p-4 rounded-lg">
+      <h4 className="text-lg font-semibold">{studentName}</h4>
+
+      {location?.isOnline ? (
+        <>
+          <div className="flex items-center gap-2 mt-2">
+            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+            <span>온라인</span>
+          </div>
+
+          {location.isInClassroom ? (
+            <div className="mt-3">
+              <p className="text-gray-400">현재 위치:</p>
+              <p className="text-xl">{location.classroom.name}</p>
+
+              {location.classroom.cctvEnabled && (
+                <Link
+                  to={`/observe/${studentId}/${location.classroom.id}`}
+                  className="mt-3 inline-flex items-center gap-2 bg-purple-600 px-4 py-2 rounded-lg hover:bg-purple-700"
+                >
+                  📹 수업 참관하기
+                </Link>
+              )}
+
+              {!location.classroom.cctvEnabled && (
+                <p className="mt-2 text-yellow-500 text-sm">
+                  ⚠️ 강사가 CCTV를 비활성화했습니다
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="mt-2 text-gray-400">교실 밖에 있습니다</p>
+          )}
+        </>
+      ) : (
+        <div className="flex items-center gap-2 mt-2">
+          <span className="w-2 h-2 bg-gray-500 rounded-full" />
+          <span className="text-gray-400">오프라인</span>
+        </div>
+      )}
+    </div>
+  )
+}
+```
+
+#### CCTVViewer.jsx
+```javascript
+/**
+ * CCTV 영상 플레이어 (단일 카메라 + 학생 화면 지원)
+ * - CCTV: 교실 후방 1대 카메라
+ * - 학생 화면: 학생이 동의한 경우에만 시청 가능
+ */
+export default function CCTVViewer({ classroomId, studentId, studentName, onClose }) {
+  const cctvVideoRef = useRef(null)
+  const screenVideoRef = useRef(null)
+  const cctvPeerConnection = useRef(null)
+  const screenPeerConnection = useRef(null)
+
+  const [activeTab, setActiveTab] = useState('cctv') // 'cctv' | 'screen'
+  const [status, setStatus] = useState('connecting')
+  const [errorMessage, setErrorMessage] = useState('')
+  const [viewerCount, setViewerCount] = useState(0)
+
+  // 학생 화면 공유 상태 (학생 동의 필요)
+  const [isScreenSharing, setIsScreenSharing] = useState(false)
+  const [screenStatus, setScreenStatus] = useState('idle') // idle, connecting, streaming
+  const [hasStudentConsent, setHasStudentConsent] = useState(false) // 학생이 공유 버튼을 눌렀는지
+
+  useEffect(() => {
+    initCCTV()
+    initScreenShare()
+    return () => cleanup()
+  }, [classroomId, studentId])
+
+  // CCTV 초기화 (단일 카메라)
+  const initCCTV = async () => {
+    socketService.emit('cctv:request', { classroomId, studentId })
+
+    socketService.on('cctv:authorized', () => {
+      setStatus('authorized')
+      setupCCTVConnection()
+    })
+    socketService.on('cctv:denied', ({ reason }) => {
+      setStatus('denied')
+      setErrorMessage(reason)
+    })
+    socketService.on('cctv:offer', handleCCTVOffer)
+    socketService.on('cctv:stopped', ({ reason }) => {
+      setStatus('stopped')
+      setErrorMessage(reason)
+    })
+    socketService.on('cctv:viewer-joined', ({ viewerCount }) => setViewerCount(viewerCount))
+  }
+
+  // 학생 화면 공유 초기화 (학생 동의 필요)
+  const initScreenShare = () => {
+    // 학생이 "부모님께 화면 공유" 버튼을 눌렀을 때
+    socketService.on('parent:screen-started', ({ hasConsent }) => {
+      setIsScreenSharing(true)
+      setHasStudentConsent(hasConsent)
+    })
+    socketService.on('parent:screen-stopped', () => {
+      setIsScreenSharing(false)
+      setScreenStatus('idle')
+      setHasStudentConsent(false)
+    })
+    socketService.on('parent:screen-offer', handleScreenOffer)
+
+    // 현재 화면 공유 상태 확인
+    socketService.emit('parent:screen-request', { studentId })
+    socketService.on('parent:screen-authorized', ({ isSharing, hasConsent }) => {
+      setIsScreenSharing(isSharing)
+      setHasStudentConsent(hasConsent)
+      if (isSharing && hasConsent) {
+        setScreenStatus('connecting')
+        setupScreenConnection()
+      }
+    })
+  }
+
+  // WebRTC 연결 설정 (CCTV)
+  const setupCCTVConnection = () => {
+    cctvPeerConnection.current = new RTCPeerConnection(config)
+    cctvPeerConnection.current.ontrack = (event) => {
+      cctvVideoRef.current.srcObject = event.streams[0]
+      setStatus('streaming')
+    }
+  }
+
+  // WebRTC 연결 설정 (학생 화면)
+  const setupScreenConnection = () => {
+    screenPeerConnection.current = new RTCPeerConnection(config)
+    screenPeerConnection.current.ontrack = (event) => {
+      screenVideoRef.current.srcObject = event.streams[0]
+      setScreenStatus('streaming')
+    }
+  }
+
+  const handleCCTVOffer = async ({ offer }) => {
+    await cctvPeerConnection.current.setRemoteDescription(offer)
+    const answer = await cctvPeerConnection.current.createAnswer()
+    await cctvPeerConnection.current.setLocalDescription(answer)
+    socketService.emit('cctv:answer', { classroomId, answer })
+  }
+
+  const handleScreenOffer = async ({ offer }) => {
+    if (!screenPeerConnection.current) setupScreenConnection()
+    await screenPeerConnection.current.setRemoteDescription(offer)
+    const answer = await screenPeerConnection.current.createAnswer()
+    await screenPeerConnection.current.setLocalDescription(answer)
+    socketService.emit('parent:screen-answer', { studentId, answer })
+  }
+
+  const cleanup = () => {
+    socketService.emit('cctv:stop', { classroomId })
+    socketService.emit('parent:screen-stop', { studentId })
+    // ... off 이벤트들
+    cctvPeerConnection.current?.close()
+    screenPeerConnection.current?.close()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50">
+      <div className="bg-gray-900 rounded-lg overflow-hidden max-w-5xl w-full">
+        {/* 헤더 */}
+        <div className="flex justify-between items-center p-4 border-b border-gray-700">
+          <div>
+            <h3 className="text-lg font-semibold">📹 {studentName} 수업 참관</h3>
+            <p className="text-sm text-gray-400">👁️ {viewerCount}명 시청 중</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl">
+            ✕
+          </button>
+        </div>
+
+        {/* 탭 전환 */}
+        <div className="flex border-b border-gray-700">
+          <button
+            onClick={() => setActiveTab('cctv')}
+            className={`flex-1 py-3 text-center ${
+              activeTab === 'cctv'
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            📹 교실 CCTV
+          </button>
+          <button
+            onClick={() => setActiveTab('screen')}
+            className={`flex-1 py-3 text-center relative ${
+              activeTab === 'screen'
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            💻 자녀 화면
+            {isScreenSharing && (
+              <span className="absolute top-2 right-4 w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+            )}
+          </button>
+        </div>
+
+        {/* CCTV 탭 (단일 후방 카메라) */}
+        {activeTab === 'cctv' && (
+          <div className="aspect-video bg-black relative">
+            {/* 카메라 위치 표시 */}
+            <div className="absolute top-3 left-3 bg-black/60 px-3 py-1 rounded text-sm">
+              📹 후방 카메라 (칠판 방향)
+            </div>
+
+            {status === 'streaming' ? (
+              <video ref={cctvVideoRef} autoPlay playsInline muted className="w-full h-full object-contain" />
+            ) : status === 'connecting' ? (
+              <div className="absolute inset-0 flex items-center justify-center">연결 중...</div>
+            ) : (
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-4xl mb-4">🚫</span>
+                <p>{errorMessage}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 학생 화면 탭 (학생 동의 필요) */}
+        {activeTab === 'screen' && (
+          <div className="aspect-video bg-black relative">
+            {!isScreenSharing || !hasStudentConsent ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+                <span className="text-6xl mb-4">💻</span>
+                <p className="text-lg">자녀가 화면을 공유하고 있지 않습니다</p>
+                <p className="text-sm mt-2 text-center px-4">
+                  자녀가 "부모님께 화면 공유" 버튼을 누르면<br/>
+                  배운 내용이나 만든 작품을 볼 수 있습니다
+                </p>
+              </div>
+            ) : screenStatus === 'streaming' ? (
+              <video ref={screenVideoRef} autoPlay playsInline muted className="w-full h-full object-contain" />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center">
+                화면 연결 중...
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 안내 문구 */}
+        <div className="p-4 bg-gray-800 text-sm text-gray-400">
+          <p>※ 프라이버시 보호를 위해 음성은 제공되지 않습니다.</p>
+          <p>※ 자녀가 교실을 떠나면 자동으로 시청이 종료됩니다.</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+```
+
+#### ViewerIndicator.jsx (메타버스 내 UI)
+```javascript
+/**
+ * 학생 화면에 "부모님 참관 중" 표시
+ * MetaverseScene에서 사용
+ */
+export default function ViewerIndicator({ viewerCount }) {
+  if (viewerCount === 0) return null
+
+  return (
+    <div className="fixed top-4 right-4 bg-purple-600/80 px-3 py-2 rounded-lg flex items-center gap-2 z-50">
+      <span className="animate-pulse">👁️</span>
+      <span className="text-sm">{viewerCount}명 참관 중</span>
+    </div>
+  )
+}
+```
+
+#### ParentShareButton.jsx (학생용 화면 공유 동의 버튼)
+```javascript
+/**
+ * 학생이 부모에게 화면을 공유하기 위한 동의 버튼
+ * 책상에 앉아 화면 공유 중일 때만 표시
+ *
+ * 용도: 자녀가 배운 내용, 만든 작품 등을 부모에게 자랑/공유
+ */
+export default function ParentShareButton({ isSharing, hasConnectedParent }) {
+  const [isEnabled, setIsEnabled] = useState(false)
+  const [parentViewerCount, setParentViewerCount] = useState(0)
+
+  useEffect(() => {
+    socketService.on('parent:viewer-count', ({ count }) => {
+      setParentViewerCount(count)
+    })
+    return () => socketService.off('parent:viewer-count')
+  }, [])
+
+  // 연결된 부모가 없으면 표시하지 않음
+  if (!hasConnectedParent) return null
+
+  // 화면 공유 중이 아니면 표시하지 않음
+  if (!isSharing) return null
+
+  const toggleParentShare = () => {
+    if (isEnabled) {
+      socketService.emit('parent:screen-consent', { enabled: false })
+      setIsEnabled(false)
+    } else {
+      socketService.emit('parent:screen-consent', { enabled: true })
+      setIsEnabled(true)
+    }
+  }
+
+  return (
+    <div className="fixed bottom-4 left-4 z-50">
+      <button
+        onClick={toggleParentShare}
+        className={`flex items-center gap-2 px-4 py-3 rounded-lg font-medium transition-all ${
+          isEnabled
+            ? 'bg-green-600 hover:bg-green-700 text-white'
+            : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+        }`}
+      >
+        <span>{isEnabled ? '👨‍👩‍👧' : '👨‍👩‍👧'}</span>
+        <div className="text-left">
+          <p className="text-sm">
+            {isEnabled ? '부모님께 공유 중' : '부모님께 화면 공유'}
+          </p>
+          {isEnabled && parentViewerCount > 0 && (
+            <p className="text-xs text-green-200">
+              👁️ {parentViewerCount}명 시청 중
+            </p>
+          )}
+        </div>
+      </button>
+
+      {/* 처음 공유할 때 안내 툴팁 */}
+      {!isEnabled && (
+        <div className="absolute bottom-full left-0 mb-2 bg-gray-800 p-2 rounded-lg text-xs text-gray-300 w-48">
+          배운 내용이나 만든 작품을<br/>부모님께 보여주세요!
+        </div>
+      )}
+    </div>
+  )
+}
+```
+
+#### CCTVControl.jsx (강사용)
+```javascript
+/**
+ * 강사용 CCTV 제어 패널
+ */
+export default function CCTVControl({ classroomId }) {
+  const [isEnabled, setIsEnabled] = useState(true)
+  const [viewerCount, setViewerCount] = useState(0)
+  const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    loadCCTVStatus()
+
+    socketService.on('cctv:viewer-joined', ({ viewerCount }) => setViewerCount(viewerCount))
+    socketService.on('cctv:viewer-left', ({ viewerCount }) => setViewerCount(viewerCount))
+
+    return () => {
+      socketService.off('cctv:viewer-joined')
+      socketService.off('cctv:viewer-left')
+    }
+  }, [classroomId])
+
+  const toggleCCTV = async () => {
+    setIsLoading(true)
+    try {
+      await cctvService.toggle(classroomId, !isEnabled)
+      setIsEnabled(!isEnabled)
+    } catch (error) {
+      console.error('CCTV toggle failed:', error)
+    }
+    setIsLoading(false)
+  }
+
+  return (
+    <div className="bg-gray-800 p-4 rounded-lg">
+      <div className="flex justify-between items-center">
+        <div>
+          <h4 className="font-semibold">📹 CCTV 참관</h4>
+          <p className="text-sm text-gray-400">
+            {isEnabled ? `👁️ ${viewerCount}명 시청 중` : '비활성화됨'}
+          </p>
+        </div>
+
+        <button
+          onClick={toggleCCTV}
+          disabled={isLoading}
+          className={`px-4 py-2 rounded-lg ${
+            isEnabled
+              ? 'bg-red-600 hover:bg-red-700'
+              : 'bg-green-600 hover:bg-green-700'
+          }`}
+        >
+          {isLoading ? '...' : isEnabled ? 'CCTV 끄기' : 'CCTV 켜기'}
+        </button>
+      </div>
+
+      {isEnabled && viewerCount > 0 && (
+        <p className="mt-2 text-yellow-500 text-sm">
+          ⚠️ 현재 학부모님이 참관 중입니다
+        </p>
+      )}
+    </div>
+  )
+}
+```
+
 ### 서비스 계층
 
 #### inviteService.js
@@ -1018,6 +1763,67 @@ class ParentService {
 }
 
 export const parentService = new ParentService()
+```
+
+#### cctvService.js
+```javascript
+import { socketService } from './socket'
+import { apiService } from './api'
+
+class CCTVService {
+  // 자녀 위치 조회
+  async getChildLocation(studentId) {
+    return apiService.get(`/parents/children/${studentId}/location`)
+  }
+
+  // 교실 CCTV 상태 조회
+  async getClassroomStatus(classroomId) {
+    return apiService.get(`/cctv/classrooms/${classroomId}`)
+  }
+
+  // CCTV 활성화/비활성화 (강사용)
+  async toggle(classroomId, enabled) {
+    return apiService.post(`/cctv/classrooms/${classroomId}/toggle`, { enabled })
+  }
+
+  // CCTV 시청 시작
+  startWatching(classroomId, studentId, callbacks) {
+    socketService.emit('cctv:request', { classroomId, studentId })
+
+    socketService.on('cctv:authorized', callbacks.onAuthorized)
+    socketService.on('cctv:denied', callbacks.onDenied)
+    socketService.on('cctv:offer', callbacks.onOffer)
+    socketService.on('cctv:ice-candidate', callbacks.onIceCandidate)
+    socketService.on('cctv:stopped', callbacks.onStopped)
+    socketService.on('cctv:viewer-joined', callbacks.onViewerJoined)
+    socketService.on('cctv:viewer-left', callbacks.onViewerLeft)
+  }
+
+  // CCTV 시청 종료
+  stopWatching(classroomId) {
+    socketService.emit('cctv:stop', { classroomId })
+
+    socketService.off('cctv:authorized')
+    socketService.off('cctv:denied')
+    socketService.off('cctv:offer')
+    socketService.off('cctv:ice-candidate')
+    socketService.off('cctv:stopped')
+    socketService.off('cctv:viewer-joined')
+    socketService.off('cctv:viewer-left')
+  }
+
+  // WebRTC answer 전송
+  sendAnswer(classroomId, answer) {
+    socketService.emit('cctv:answer', { classroomId, answer })
+  }
+
+  // ICE candidate 전송
+  sendIceCandidate(classroomId, candidate) {
+    socketService.emit('cctv:ice-candidate', { classroomId, candidate })
+  }
+}
+
+export const cctvService = new CCTVService()
 ```
 
 ---
@@ -1140,6 +1946,52 @@ export const parentService = new ParentService()
 
 ---
 
+### Phase 4: CCTV 실시간 참관 (2-3주)
+
+**Week 8: CCTV 백엔드 & 메타버스 통합**
+- [ ] Day 1: 데이터베이스
+  - cctv_sessions 테이블 추가
+  - cctv_view_logs 테이블 추가 (선택)
+  - RLS 정책 설정
+- [ ] Day 2-3: Socket.IO CCTV 이벤트 핸들러
+  - server/sockets/cctv.js 생성
+  - cctv:request, cctv:authorized, cctv:denied
+  - cctv:toggle, cctv:stop
+  - 시청자 수 관리 로직
+- [ ] Day 4-5: 메타버스 CCTV 카메라
+  - src/components/metaverse/CCTVCamera.jsx
+  - 교실별 고정 카메라 위치 설정
+  - WebRTC MediaStream 캡처
+
+**Week 9: CCTV API & 부모 클라이언트**
+- [ ] Day 1: REST API
+  - GET /api/parents/children/:studentId/location
+  - GET /api/cctv/classrooms/:classroomId
+  - POST /api/cctv/classrooms/:classroomId/toggle
+- [ ] Day 2-3: 부모 CCTV 뷰어
+  - src/components/parent/ChildLocationCard.jsx
+  - src/components/parent/CCTVViewer.jsx
+  - WebRTC 연결 및 영상 재생
+- [ ] Day 4-5: 서비스 레이어
+  - src/services/cctvService.js
+  - 테스트 및 디버깅
+
+**Week 10: 강사 제어 & 학생 알림**
+- [ ] Day 1-2: 강사 CCTV 제어
+  - src/components/instructor/CCTVControl.jsx
+  - MetaverseScene에 제어 UI 통합
+- [ ] Day 3-4: 학생 참관 알림
+  - src/components/metaverse/ViewerIndicator.jsx
+  - Socket 이벤트로 실시간 시청자 수 동기화
+- [ ] Day 5: 통합 테스트
+  - 부모-학생-강사 시나리오 테스트
+  - 권한 검증 테스트
+  - 성능 테스트 (다중 시청자)
+
+**마일스톤 4 완료**: CCTV 실시간 참관 시스템 완성
+
+---
+
 ## 보안 설계
 
 ### 인증 & 권한 체계
@@ -1239,12 +2091,54 @@ USING (
 - 각 부모는 독립적으로 데이터 조회
 - 부모 간 정보 공유 없음
 
+### CCTV 프라이버시 보호
+
+#### 접근 제어
+- **부모 권한 검증**: 자녀가 해당 교실에 있을 때만 시청 가능
+- **강사 제어권**: 강사가 언제든 CCTV 비활성화 가능 (개인 상담 등)
+- **음성 차단**: 프라이버시 보호를 위해 영상만 제공
+
+#### 시청 조건
+```javascript
+// 서버에서 CCTV 시청 승인 조건
+const canWatchCCTV = async (parentId, studentId, classroomId) => {
+  // 1. 부모-자녀 연결 확인
+  const link = await checkParentStudentLink(parentId, studentId)
+  if (!link || link.status !== 'active') return { allowed: false, reason: '연결되지 않은 자녀입니다' }
+
+  // 2. 자녀가 해당 교실에 있는지 확인
+  const studentLocation = await getStudentLocation(studentId)
+  if (studentLocation.classroomId !== classroomId) {
+    return { allowed: false, reason: '자녀가 해당 교실에 없습니다' }
+  }
+
+  // 3. CCTV 활성화 상태 확인
+  const cctvSession = await getCCTVSession(classroomId)
+  if (!cctvSession?.isEnabled) {
+    return { allowed: false, reason: '강사가 CCTV를 비활성화했습니다' }
+  }
+
+  return { allowed: true }
+}
+```
+
+#### 학생 알림
+- 부모가 시청 중일 때 학생 화면에 `👁️ N명 참관 중` 표시
+- 선택적: 시청 시작 시 알림 ("부모님이 참관을 시작했습니다")
+
+#### 자동 종료 조건
+1. 자녀가 교실을 떠날 때
+2. 강사가 CCTV를 비활성화할 때
+3. 수업이 종료될 때
+4. 부모가 연결을 끊을 때
+
 ### 감사 로깅 (선택적)
 
 **로그 대상**:
 - 부모 가입 (초대 코드 사용)
 - 부모 데이터 조회 (자녀 정보 접근)
 - 연결 해제 (학생 또는 부모)
+- **CCTV 시청 시작/종료** (시청 시간 기록)
 
 **로그 테이블** (선택):
 ```sql
@@ -1520,5 +2414,14 @@ supabase/migrations/
 ---
 
 **작성일**: 2025-12-24
-**버전**: 1.0
+**버전**: 1.3
 **작성자**: Claude Code (AI Assistant)
+
+### 변경 이력
+
+| 버전 | 날짜 | 변경 내용 |
+|-----|------|----------|
+| 1.0 | 2025-12-24 | 초기 버전 (부모 계정, 초대 코드, 학업 모니터링) |
+| 1.1 | 2025-12-24 | CCTV 실시간 참관 기능 추가 (FR-6, NFR-4, Phase 4) |
+| 1.2 | 2025-12-24 | 다중 카메라(4대) 지원 + 학생 화면 공유 참관 기능 추가 (FR-7) |
+| 1.3 | 2025-12-24 | CCTV 단일 카메라(후방 1대)로 단순화, 학생 화면 공유 동의 필수화 (옵트인) |

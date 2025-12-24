@@ -2,6 +2,7 @@ import { useAuthStore } from '@/stores/authStore.js'
 import StudentDashboard from '@/components/dashboard/StudentDashboard.jsx'
 import InstructorDashboard from '@/components/dashboard/InstructorDashboard.jsx'
 import AdminDashboard from '@/components/dashboard/AdminDashboard.jsx'
+import ParentDashboard from '@/components/dashboard/ParentDashboard.jsx'
 
 export default function Dashboard() {
   const { user } = useAuthStore()
@@ -20,6 +21,10 @@ export default function Dashboard() {
 
   if (user.role === 'admin') {
     return <AdminDashboard />
+  }
+
+  if (user.role === 'parent') {
+    return <ParentDashboard />
   }
 
   return <StudentDashboard />

@@ -6,6 +6,7 @@ import Layout from './components/layout/Layout.jsx'
 import Home from './pages/Home.jsx'
 import Login from './pages/Login.jsx'
 import Register from './pages/Register.jsx'
+import RegisterParent from './pages/RegisterParent.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Courses from './pages/Courses.jsx'
 import CourseDetail from './pages/CourseDetail.jsx'
@@ -173,6 +174,7 @@ function App() {
             <Route path={ROUTES.HOME} element={<Home />} />
             <Route path={ROUTES.LOGIN} element={<Login />} />
             <Route path={ROUTES.REGISTER} element={<Register />} />
+            <Route path="/register-parent" element={<RegisterParent />} />
             <Route path={ROUTES.COURSES} element={<Courses />} />
             <Route path={ROUTES.COURSE_DETAIL} element={<CourseDetail />} />
             <Route

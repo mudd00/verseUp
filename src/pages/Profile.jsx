@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/authStore.js'
 import { supabase } from '@/lib/supabase.js'
 import { apiService } from '@/services/api.js'
 import { ROUTES } from '@/utils/constants.js'
+import InviteCodeManager from '@/components/student/InviteCodeManager.jsx'
 
 
 
@@ -171,9 +172,19 @@ export default function Profile() {
     }
   }
 
-  const tabs = [
+  const baseTabs = [
     { id: 'profile', label: '프로필 정보', icon: '👤' },
     { id: 'password', label: '비밀번호 변경', icon: '🔒' },
+  ]
+
+  // 학생인 경우 부모 연결 탭 추가
+  const studentTabs = user?.role === 'student'
+    ? [{ id: 'parent', label: '부모 연결', icon: '👨‍👩‍👧' }]
+    : []
+
+  const tabs = [
+    ...baseTabs,
+    ...studentTabs,
     { id: 'danger', label: '계정 관리', icon: '⚠️' },
   ]
 
@@ -270,6 +281,11 @@ export default function Profile() {
               </button>
             </form>
           </div>
+        )}
+
+        {/* Parent Connection Tab (Students only) */}
+        {activeTab === 'parent' && user?.role === 'student' && (
+          <InviteCodeManager />
         )}
 
         {/* Password Change Tab */}

@@ -3,11 +3,15 @@ import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore.js'
 import { courseService } from '@/services/courseService.js'
 import { ROUTES } from '@/utils/constants.js'
+import AttendanceManager from '@/components/instructor/AttendanceManager.jsx'
+import ProgressManager from '@/components/instructor/ProgressManager.jsx'
 
 export default function InstructorDashboard() {
   const { user } = useAuthStore()
   const [courses, setCourses] = useState([])
   const [isLoading, setIsLoading] = useState(true)
+  const [selectedCourseForAttendance, setSelectedCourseForAttendance] = useState(null)
+  const [selectedCourseForProgress, setSelectedCourseForProgress] = useState(null)
 
   useEffect(() => {
     loadCourses()
@@ -145,6 +149,84 @@ export default function InstructorDashboard() {
       <div className="mt-8 bg-gray-800 p-6 rounded-lg">
         <h3 className="text-xl font-semibold mb-4">학생 활동</h3>
         <p className="text-gray-400">최근 학생 활동이 없습니다.</p>
+      </div>
+
+      {/* Attendance Management Section */}
+      <div className="mt-8">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-semibold">출석 관리</h3>
+          {courses.length > 0 && (
+            <select
+              value={selectedCourseForAttendance?.id || ''}
+              onChange={(e) => {
+                const course = courses.find((c) => c.id === e.target.value)
+                setSelectedCourseForAttendance(course || null)
+              }}
+              className="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">강의 선택</option>
+              {courses.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.title}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        {selectedCourseForAttendance ? (
+          <AttendanceManager
+            courseId={selectedCourseForAttendance.id}
+            courseTitle={selectedCourseForAttendance.title}
+          />
+        ) : (
+          <div className="bg-gray-800 p-6 rounded-lg text-center">
+            <p className="text-gray-400">
+              {courses.length === 0
+                ? '출석을 관리할 강의가 없습니다.'
+                : '출석을 관리할 강의를 선택해주세요.'}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Progress Management Section */}
+      <div className="mt-8">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-semibold">진도율 관리</h3>
+          {courses.length > 0 && (
+            <select
+              value={selectedCourseForProgress?.id || ''}
+              onChange={(e) => {
+                const course = courses.find((c) => c.id === e.target.value)
+                setSelectedCourseForProgress(course || null)
+              }}
+              className="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="">강의 선택</option>
+              {courses.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.title}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        {selectedCourseForProgress ? (
+          <ProgressManager
+            courseId={selectedCourseForProgress.id}
+            courseTitle={selectedCourseForProgress.title}
+          />
+        ) : (
+          <div className="bg-gray-800 p-6 rounded-lg text-center">
+            <p className="text-gray-400">
+              {courses.length === 0
+                ? '진도율을 관리할 강의가 없습니다.'
+                : '진도율을 관리할 강의를 선택해주세요.'}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )
