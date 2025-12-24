@@ -2,6 +2,7 @@ import { useFrame } from '@react-three/fiber'
 import { CapsuleCollider, RigidBody } from '@react-three/rapier'
 import { forwardRef, useImperativeHandle, useRef, useState, useEffect } from 'react'
 import * as THREE from 'three'
+import { Text } from '@react-three/drei'
 import { useKeyboardControls } from './useKeyboardControls.js'
 import CharacterModel from './CharacterModel.jsx'
 
@@ -24,7 +25,7 @@ const CAPSULE_Y_OFFSET = 1.28
 const STEP_UP_SPEED = 4 // 계단 오를 때 상승 속도 (중력 -20 기준)
 const BLOCKED_THRESHOLD = 0.45 // 이 비율 이하로 움직이면 막힌 것으로 판단
 
-const Player = forwardRef(({ currentMap = 'main', cameraAngleRef, onPositionChange, bodyRef: externalBodyRef, isInputDisabled = false, isFirstPerson = false }, ref) => {
+const Player = forwardRef(({ currentMap = 'main', cameraAngleRef, onPositionChange, bodyRef: externalBodyRef, isInputDisabled = false, isFirstPerson = false, userName = '' }, ref) => {
   const START_POS = START_POSITIONS[currentMap] || START_POSITIONS.main
   const bodyRef = useRef(null)
   const characterRef = useRef(null)
@@ -258,6 +259,24 @@ const Player = forwardRef(({ currentMap = 'main', cameraAngleRef, onPositionChan
       />
       <group ref={characterRef} visible={!isFirstPerson}>
         <CharacterModel isMoving={isMoving} isSitting={isSitting} />
+        {/* 내 닉네임 표시 */}
+        {userName && (
+          <>
+            <mesh position={[0, 2.5, 0]}>
+              <planeGeometry args={[1.5, 0.3]} />
+              <meshBasicMaterial color="#1e293b" transparent opacity={0.8} />
+            </mesh>
+            <Text
+              position={[0, 2.5, 0.01]}
+              fontSize={0.15}
+              color="#4ade80"
+              anchorX="center"
+              anchorY="middle"
+            >
+              {userName}
+            </Text>
+          </>
+        )}
       </group>
     </RigidBody>
   )

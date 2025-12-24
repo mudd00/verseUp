@@ -664,6 +664,7 @@ export default function MetaverseScene({ onReady }) {
             onPositionChange={handlePositionChange}
             isInputDisabled={chat.isInputActive || isMenuOpen}
             isFirstPerson={isFirstPerson}
+            userName={effectiveUser?.name || ''}
           />
           {/* 다른 플레이어들 렌더링 */}
           {Array.from(otherPlayers.values()).map((player) => (
