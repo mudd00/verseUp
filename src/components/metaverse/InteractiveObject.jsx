@@ -20,11 +20,6 @@ export default function InteractiveObject({
         onIntersectionEnter={() => onNearChange?.({ isNear: true, objectId, label, type, position: actualSittingPosition })}
         onIntersectionExit={() => onNearChange?.({ isNear: false, objectId: null, label: null, type: null, position: null })}
       />
-      {/* 디버그용 시각화 */}
-      <mesh position={[0, size[1] / 2, 0]}>
-        <boxGeometry args={size} />
-        <meshStandardMaterial color={type === 'sit' ? '#00ffff' : '#ff00ff'} transparent opacity={0.3} />
-      </mesh>
     </RigidBody>
   )
 }
