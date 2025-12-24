@@ -136,7 +136,7 @@ export function setupSocketHandlers(io) {
         return
       }
 
-      const locationName = location === 'classroom' ? '강의실' : '학교'
+      const locationName = location === 'classroom' ? '강의실' : '서버'
       console.log(`📍 ${user.user.name} entered ${locationName} in room ${roomId}`)
 
       // Broadcast to all users in the room (including sender)
