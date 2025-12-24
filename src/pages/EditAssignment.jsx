@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/services/api'
+import { courseService } from '@/services/courseService'
 import toast from 'react-hot-toast'
 import { ArrowLeftIcon } from '@heroicons/react/24/outline'
 
@@ -18,6 +19,7 @@ export default function EditAssignment() {
     due_date: '',
     allow_late_submission: false,
     late_penalty_percent: 0,
+    week_number: '',
   })
 
   // 과제 데이터 조회
@@ -28,6 +30,15 @@ export default function EditAssignment() {
       return res
     },
     enabled: !!id,
+  })
+
+  // 강의 정보 조회 (주차 수 확인)
+  const { data: course } = useQuery({
+    queryKey: ['course', assignment?.course_id],
+    queryFn: async () => {
+      return await courseService.getCourseById(assignment.course_id)
+    },
+    enabled: !!assignment?.course_id,
   })
 
   // 폼 데이터 초기화
@@ -43,6 +54,7 @@ export default function EditAssignment() {
           : '',
         allow_late_submission: assignment.allow_late_submission || false,
         late_penalty_percent: assignment.late_penalty_percent || 0,
+        week_number: assignment.week_number || '',
       })
     }
   }, [assignment])
@@ -70,7 +82,16 @@ export default function EditAssignment() {
     },
     onSuccess: () => {
       toast.success('과제가 삭제되었습니다')
-      navigate(-1)
+      // 모든 관련 쿼리 무효화
+      queryClient.invalidateQueries({ queryKey: ['assignment', id] })
+      queryClient.invalidateQueries({ queryKey: ['assignments'] })
+      queryClient.invalidateQueries({ queryKey: ['courses'] })
+      // 강의 상세 페이지로 이동
+      if (assignment?.course_id) {
+        navigate(`/courses/${assignment.course_id}`)
+      } else {
+        navigate('/my-courses')
+      }
     },
     onError: (error) => {
       toast.error(error.response?.data?.error || '과제 삭제에 실패했습니다')
@@ -102,6 +123,7 @@ export default function EditAssignment() {
       ...formData,
       max_score: Number(formData.max_score),
       late_penalty_percent: Number(formData.late_penalty_percent),
+      week_number: formData.week_number ? Number(formData.week_number) : null,
     })
   }
 
@@ -166,6 +188,31 @@ export default function EditAssignment() {
               required
             />
           </div>
+
+          {/* 주차 선택 */}
+          {course && course.weeks > 0 && (
+            <div>
+              <label className="block text-gray-300 mb-2">
+                주차 선택 (선택사항)
+              </label>
+              <select
+                name="week_number"
+                value={formData.week_number}
+                onChange={handleChange}
+                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500"
+              >
+                <option value="">전체 (주차 미지정)</option>
+                {Array.from({ length: course.weeks }, (_, i) => i + 1).map((week) => (
+                  <option key={week} value={week}>
+                    {week}주차
+                  </option>
+                ))}
+              </select>
+              <p className="text-sm text-gray-400 mt-2">
+                주차를 선택하면 해당 주차의 과제로 분류됩니다.
+              </p>
+            </div>
+          )}
 
           {/* 설명 */}
           <div>

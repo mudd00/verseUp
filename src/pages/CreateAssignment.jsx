@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/services/api'
+import { courseService } from '@/services/courseService'
 import toast from 'react-hot-toast'
 import { ArrowLeftIcon } from '@heroicons/react/24/outline'
 
@@ -18,6 +19,16 @@ export default function CreateAssignment() {
     due_date: '',
     allow_late_submission: false,
     late_penalty_percent: 0,
+    week_number: '',
+  })
+
+  // 강의 정보 조회 (주차 수 확인)
+  const { data: course } = useQuery({
+    queryKey: ['course', courseId],
+    queryFn: async () => {
+      return await courseService.getCourseById(courseId)
+    },
+    enabled: !!courseId,
   })
 
   // 과제 생성 mutation
@@ -60,6 +71,7 @@ export default function CreateAssignment() {
       ...formData,
       max_score: Number(formData.max_score),
       late_penalty_percent: Number(formData.late_penalty_percent),
+      week_number: formData.week_number ? Number(formData.week_number) : null,
     })
   }
 
@@ -93,6 +105,31 @@ export default function CreateAssignment() {
               required
             />
           </div>
+
+          {/* 주차 선택 */}
+          {course && course.weeks > 0 && (
+            <div>
+              <label className="block text-gray-300 mb-2">
+                주차 선택 (선택사항)
+              </label>
+              <select
+                name="week_number"
+                value={formData.week_number}
+                onChange={handleChange}
+                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500"
+              >
+                <option value="">전체 (주차 미지정)</option>
+                {Array.from({ length: course.weeks }, (_, i) => i + 1).map((week) => (
+                  <option key={week} value={week}>
+                    {week}주차
+                  </option>
+                ))}
+              </select>
+              <p className="text-sm text-gray-400 mt-2">
+                주차를 선택하면 해당 주차의 과제로 분류됩니다.
+              </p>
+            </div>
+          )}
 
           {/* 설명 */}
           <div>

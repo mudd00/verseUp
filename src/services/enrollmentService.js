@@ -1,4 +1,3 @@
-import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { apiService } from '@/services/api'
 
@@ -94,28 +93,13 @@ class EnrollmentService {
       throw new Error('로그인이 필요합니다.')
     }
 
-    const { data, error } = await supabase
-      .from('enrollments')
-      .select(
-        `
-        *,
-        course:courses(
-          *,
-          instructor:profiles!instructor_id(id, name, email, avatar_url),
-          time_slot:time_slots(id, day_of_week, start_time, end_time)
-        )
-      `
-      )
-      .eq('student_id', currentUser.id)
-      .eq('status', 'active')
-      .order('enrolled_at', { ascending: false })
-
-    if (error) {
+    try {
+      const response = await apiService.get('/courses/enrollments/my')
+      return response.enrollments.map((enrollment) => this.mapEnrollmentFromDB(enrollment))
+    } catch (error) {
       console.error('수강 목록 조회 실패:', error)
       throw new Error('수강 목록을 불러오는데 실패했습니다.')
     }
-
-    return data.map((enrollment) => this.mapEnrollmentFromDB(enrollment))
   }
 
   /**
@@ -128,15 +112,13 @@ class EnrollmentService {
       return false
     }
 
-    const { data } = await supabase
-      .from('enrollments')
-      .select('id')
-      .eq('student_id', currentUser.id)
-      .eq('course_id', courseId)
-      .eq('status', 'active')
-      .single()
-
-    return !!data
+    try {
+      const response = await apiService.get(`/courses/${courseId}/enrollment-status`)
+      return response.isEnrolled
+    } catch (error) {
+      console.error('수강 여부 확인 실패:', error)
+      return false
+    }
   }
 
   /**

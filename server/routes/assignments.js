@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import multer from 'multer'
 import { authMiddleware, requireInstructor } from '../middleware/auth.js'
 import { supabase } from '../utils/supabase.js'
 import {
@@ -7,6 +8,14 @@ import {
 } from '../services/notificationService.js'
 
 const router = Router()
+
+// Multer 설정 (메모리 스토리지 사용)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 20 * 1024 * 1024, // 20MB
+  },
+})
 
 // 모든 라우트에 인증 필요
 router.use(authMiddleware)
@@ -165,6 +174,7 @@ router.post(
         due_date,
         allow_late_submission = false,
         late_penalty_percent = 0,
+        week_number,
       } = req.body
 
       if (!supabase) {
@@ -208,6 +218,7 @@ router.post(
           due_date,
           allow_late_submission,
           late_penalty_percent,
+          week_number: week_number || null,
         })
         .select()
         .single()
@@ -266,6 +277,7 @@ router.put('/assignments/:id', requireInstructor, async (req, res) => {
       due_date,
       allow_late_submission,
       late_penalty_percent,
+      week_number,
     } = req.body
 
     if (!supabase) {
@@ -300,6 +312,7 @@ router.put('/assignments/:id', requireInstructor, async (req, res) => {
         due_date,
         allow_late_submission,
         late_penalty_percent,
+        week_number: week_number || null,
       })
       .eq('id', id)
       .select()
@@ -352,6 +365,86 @@ router.delete('/assignments/:id', requireInstructor, async (req, res) => {
   } catch (error) {
     console.error('Failed to delete assignment:', error)
     res.status(500).json({ error: error.message || 'Internal server error' })
+  }
+})
+
+/**
+ * POST /api/assignments/:id/upload
+ * 과제 파일 업로드 (학생만) - 파일을 Supabase Storage에 업로드하고 URL 반환
+ */
+router.post('/assignments/:id/upload', upload.single('file'), async (req, res) => {
+  try {
+    const { id } = req.params
+    const userId = req.user.id
+    const file = req.file
+
+    if (!file) {
+      return res.status(400).json({ error: 'File is required' })
+    }
+
+    if (!supabase) {
+      return res.status(503).json({ error: 'Database service unavailable' })
+    }
+
+    // 과제 조회
+    const { data: assignment } = await supabase
+      .from('assignments')
+      .select('course_id')
+      .eq('id', id)
+      .single()
+
+    if (!assignment) {
+      return res.status(404).json({ error: 'Assignment not found' })
+    }
+
+    // 수강생 확인
+    const { data: enrollment } = await supabase
+      .from('enrollments')
+      .select('id')
+      .eq('course_id', assignment.course_id)
+      .eq('student_id', userId)
+      .eq('status', 'active')
+      .maybeSingle()
+
+    if (!enrollment) {
+      return res
+        .status(403)
+        .json({ error: 'Only enrolled students can upload assignment files' })
+    }
+
+    // Generate unique file path
+    const fileExt = file.originalname.split('.').pop()
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
+    const filePath = `assignments/${id}/${userId}/${fileName}`
+
+    // Upload file to Supabase Storage (Service Role Key - RLS 우회)
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('assignment-files')
+      .upload(filePath, file.buffer, {
+        contentType: file.mimetype,
+        cacheControl: '3600',
+        upsert: false,
+      })
+
+    if (uploadError) {
+      console.error('Storage upload error:', uploadError)
+      return res.status(500).json({ error: 'Failed to upload file to storage' })
+    }
+
+    // Get public URL
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from('assignment-files').getPublicUrl(filePath)
+
+    res.status(200).json({
+      file_url: publicUrl,
+      file_name: file.originalname,
+      file_size: file.size,
+      file_type: file.mimetype,
+    })
+  } catch (error) {
+    console.error('Error in POST /assignments/:id/upload:', error)
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -459,16 +552,32 @@ router.get('/assignments/:id/submissions', requireInstructor, async (req, res) =
       return res.status(403).json({ error: 'Access denied' })
     }
 
-    // 제출 목록 조회 (학생 정보 포함)
+    // 제출 목록 조회
     const { data: submissions, error } = await supabase
       .from('assignment_submissions')
-      .select('*, student:student_id(id, name, email)')
+      .select('*')
       .eq('assignment_id', id)
       .order('submitted_at', { ascending: false })
 
     if (error) throw error
 
-    res.json({ submissions: submissions || [] })
+    // 각 제출에 대해 학생 정보를 profiles 테이블에서 조회
+    const submissionsWithStudentInfo = await Promise.all(
+      (submissions || []).map(async (submission) => {
+        const { data: student } = await supabase
+          .from('profiles')
+          .select('id, name, email')
+          .eq('id', submission.student_id)
+          .single()
+
+        return {
+          ...submission,
+          student: student || { id: submission.student_id, name: '알 수 없음', email: '' },
+        }
+      })
+    )
+
+    res.json({ submissions: submissionsWithStudentInfo })
   } catch (error) {
     console.error('Failed to fetch submissions:', error)
     res.status(500).json({ error: error.message || 'Internal server error' })
