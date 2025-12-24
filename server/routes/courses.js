@@ -4,6 +4,46 @@ import { supabase } from '../utils/supabase.js'
 
 const router = Router()
 
+// Get my courses (courses I'm teaching) - requires auth + instructor role
+router.get('/my', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id
+    const userRole = req.user?.user_metadata?.role || req.user?.role
+
+    // Check if user is instructor or admin
+    if (userRole !== 'instructor' && userRole !== 'admin') {
+      return res.status(403).json({ error: 'Instructor access required' })
+    }
+
+    if (!supabase) {
+      return res.status(503).json({ error: 'Database service unavailable' })
+    }
+
+    const { data: courses, error } = await supabase
+      .from('courses')
+      .select(
+        `
+        *,
+        instructor:profiles!courses_instructor_id_fkey(id, name, email, avatar_url),
+        classroom:classrooms(id, name, description, capacity),
+        time_slot:time_slots(id, day_of_week, start_time, end_time, slot_order)
+      `
+      )
+      .eq('instructor_id', userId)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching my courses:', error)
+      return res.status(500).json({ error: 'Failed to fetch courses' })
+    }
+
+    res.json({ courses: courses || [] })
+  } catch (error) {
+    console.error('Error in GET /courses/my:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 // Get all courses with filtering and search
 router.get('/', async (req, res) => {
   try {
@@ -69,6 +109,56 @@ router.get('/', async (req, res) => {
   } catch (error) {
     console.error('Error fetching courses:', error)
     res.status(500).json({ error: 'Failed to fetch courses' })
+  }
+})
+
+// Get instructor stats (requires auth + instructor role)
+router.get('/instructors/stats', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id
+    const userRole = req.user?.user_metadata?.role || req.user?.role
+
+    // Check if user is instructor or admin
+    if (userRole !== 'instructor' && userRole !== 'admin') {
+      return res.status(403).json({ error: 'Instructor access required' })
+    }
+
+    if (!supabase) {
+      return res.status(503).json({ error: 'Database service unavailable' })
+    }
+
+    // Get instructor's courses
+    const { data: courses, error } = await supabase
+      .from('courses')
+      .select('id, status, enrolled_count, start_date, end_date')
+      .eq('instructor_id', userId)
+
+    if (error) {
+      console.error('Error fetching instructor stats:', error)
+      return res.status(500).json({ error: 'Failed to fetch instructor stats' })
+    }
+
+    // Calculate statistics
+    const totalCourses = courses.length
+    const totalStudents = courses.reduce((sum, course) => sum + (course.enrolled_count || 0), 0)
+
+    // Active courses (currently running: start_date <= now <= end_date)
+    const now = new Date()
+    const activeCourses = courses.filter((course) => {
+      if (course.status !== 'published') return false
+      const startDate = new Date(course.start_date)
+      const endDate = new Date(course.end_date)
+      return startDate <= now && now <= endDate
+    }).length
+
+    res.json({
+      totalCourses,
+      totalStudents,
+      activeCourses,
+    })
+  } catch (error) {
+    console.error('Error in GET /courses/instructors/stats:', error)
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -247,6 +337,77 @@ router.post('/:id/enroll', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('Error enrolling:', error)
     res.status(500).json({ error: 'Failed to enroll' })
+  }
+})
+
+// Check enrollment status for a course
+router.get('/:id/enrollment-status', authMiddleware, async (req, res) => {
+  try {
+    const courseId = req.params.id
+    const userId = req.user.id
+
+    if (!supabase) {
+      return res.status(503).json({ error: 'Database service unavailable' })
+    }
+
+    const { data: enrollment, error } = await supabase
+      .from('enrollments')
+      .select('id, status, enrolled_at')
+      .eq('course_id', courseId)
+      .eq('student_id', userId)
+      .eq('status', 'active')
+      .maybeSingle()
+
+    if (error) {
+      console.error('Error checking enrollment:', error)
+      return res.status(500).json({ error: 'Failed to check enrollment status' })
+    }
+
+    res.json({
+      isEnrolled: !!enrollment,
+      enrollmentId: enrollment?.id || null,
+      enrolledAt: enrollment?.enrolled_at || null,
+    })
+  } catch (error) {
+    console.error('Error in GET /courses/:id/enrollment-status:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// Get my enrollments
+router.get('/enrollments/my', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id
+
+    if (!supabase) {
+      return res.status(503).json({ error: 'Database service unavailable' })
+    }
+
+    const { data: enrollments, error } = await supabase
+      .from('enrollments')
+      .select(
+        `
+        *,
+        course:courses(
+          *,
+          instructor:profiles!instructor_id(id, name, email, avatar_url),
+          time_slot:time_slots(id, day_of_week, start_time, end_time)
+        )
+      `
+      )
+      .eq('student_id', userId)
+      .eq('status', 'active')
+      .order('enrolled_at', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching enrollments:', error)
+      return res.status(500).json({ error: 'Failed to fetch enrollments' })
+    }
+
+    res.json({ enrollments: enrollments || [] })
+  } catch (error) {
+    console.error('Error in GET /courses/enrollments/my:', error)
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 

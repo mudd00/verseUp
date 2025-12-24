@@ -1,13 +1,12 @@
-import { supabase } from '@/lib/supabase'
+import { apiService } from './api'
 
 /**
- * 과제 파일 업로드
+ * 과제 파일 업로드 - 백엔드 API 사용 (POST /api/assignments/:id/upload)
  * @param {File} file - 업로드할 파일
  * @param {string} assignmentId - 과제 ID
- * @param {string} studentId - 학생 ID
  * @returns {Promise<{file_url: string, file_name: string, file_size: number, file_type: string}>}
  */
-export async function uploadAssignmentFile(file, assignmentId, studentId) {
+export async function uploadAssignmentFile(file, assignmentId) {
   if (!file) {
     throw new Error('파일이 선택되지 않았습니다')
   }
@@ -18,35 +17,32 @@ export async function uploadAssignmentFile(file, assignmentId, studentId) {
     throw new Error('파일 크기는 20MB를 초과할 수 없습니다')
   }
 
-  // 파일 확장자 추출
-  const fileExt = file.name.split('.').pop()
-  const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
-  const filePath = `assignments/${assignmentId}/${studentId}/${fileName}`
-
   try {
-    // Supabase Storage에 업로드
-    const { data, error } = await supabase.storage
-      .from('assignment-files')
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: false,
-      })
+    // Create FormData for file upload
+    const formData = new FormData()
+    formData.append('file', file)
 
-    if (error) {
-      console.error('File upload error:', error)
-      throw new Error('파일 업로드에 실패했습니다')
+    // Use fetch directly for FormData upload
+    const token = localStorage.getItem('authToken')
+    const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/assignments/${assignmentId}/upload`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || '파일 업로드에 실패했습니다')
     }
 
-    // 공개 URL 가져오기
-    const { data: urlData } = supabase.storage
-      .from('assignment-files')
-      .getPublicUrl(filePath)
-
+    const data = await response.json()
     return {
-      file_url: urlData.publicUrl,
-      file_name: file.name,
-      file_size: file.size,
-      file_type: file.type,
+      file_url: data.file_url,
+      file_name: data.file_name,
+      file_size: data.file_size,
+      file_type: data.file_type,
     }
   } catch (error) {
     console.error('Upload service error:', error)
@@ -55,84 +51,21 @@ export async function uploadAssignmentFile(file, assignmentId, studentId) {
 }
 
 /**
- * 강의 자료 파일 업로드 (기존 materials 시스템과 동일)
- * @param {File} file - 업로드할 파일
- * @param {string} courseId - 강의 ID
- * @param {string} uploaderId - 업로더 ID
- * @returns {Promise<{file_url: string, file_name: string, file_size: number, file_type: string}>}
+ * 강의 자료 파일 업로드 - 백엔드 API 사용 (POST /api/courses/:courseId/materials/upload)
+ * 이 함수는 더 이상 사용되지 않습니다. 대신 백엔드 API를 직접 호출하세요.
+ * @deprecated Use backend API POST /api/courses/:courseId/materials/upload instead
  */
 export async function uploadCourseMaterial(file, courseId, uploaderId) {
-  if (!file) {
-    throw new Error('파일이 선택되지 않았습니다')
-  }
-
-  // 파일 크기 제한 (50MB)
-  const MAX_FILE_SIZE = 50 * 1024 * 1024
-  if (file.size > MAX_FILE_SIZE) {
-    throw new Error('파일 크기는 50MB를 초과할 수 없습니다')
-  }
-
-  const fileExt = file.name.split('.').pop()
-  const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
-  const filePath = `courses/${courseId}/${fileName}`
-
-  try {
-    const { data, error } = await supabase.storage
-      .from('course-materials')
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: false,
-      })
-
-    if (error) {
-      console.error('File upload error:', error)
-      throw new Error('파일 업로드에 실패했습니다')
-    }
-
-    const { data: urlData } = supabase.storage
-      .from('course-materials')
-      .getPublicUrl(filePath)
-
-    return {
-      file_url: urlData.publicUrl,
-      file_name: file.name,
-      file_size: file.size,
-      file_type: file.type,
-    }
-  } catch (error) {
-    console.error('Upload service error:', error)
-    throw error
-  }
+  throw new Error('이 함수는 더 이상 사용되지 않습니다. 백엔드 API POST /api/courses/:courseId/materials/upload를 직접 사용하세요.')
 }
 
 /**
- * 파일 삭제
- * @param {string} fileUrl - 삭제할 파일 URL
- * @param {string} bucketName - 버킷 이름 ('assignment-files' 또는 'course-materials')
- * @returns {Promise<boolean>}
+ * 파일 삭제 - 백엔드 API 사용
+ * 이 함수는 더 이상 사용되지 않습니다. 파일 삭제는 각 리소스 삭제 API에서 처리됩니다.
+ * @deprecated Files are deleted automatically when deleting the parent resource (material, assignment, etc.)
  */
 export async function deleteFile(fileUrl, bucketName = 'assignment-files') {
-  try {
-    // URL에서 파일 경로 추출
-    const urlParts = fileUrl.split(`/${bucketName}/`)
-    if (urlParts.length < 2) {
-      throw new Error('잘못된 파일 URL입니다')
-    }
-
-    const filePath = urlParts[1]
-
-    const { error } = await supabase.storage.from(bucketName).remove([filePath])
-
-    if (error) {
-      console.error('File delete error:', error)
-      throw new Error('파일 삭제에 실패했습니다')
-    }
-
-    return true
-  } catch (error) {
-    console.error('Delete service error:', error)
-    throw error
-  }
+  throw new Error('이 함수는 더 이상 사용되지 않습니다. 파일 삭제는 리소스 삭제 시 자동으로 처리됩니다.')
 }
 
 /**
