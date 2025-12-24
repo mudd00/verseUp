@@ -2,7 +2,7 @@ import { useFrame } from '@react-three/fiber'
 import { CapsuleCollider, RigidBody } from '@react-three/rapier'
 import { forwardRef, useImperativeHandle, useRef, useState, useEffect } from 'react'
 import * as THREE from 'three'
-import { Text } from '@react-three/drei'
+import { Text, Billboard } from '@react-three/drei'
 import { useKeyboardControls } from './useKeyboardControls.js'
 import CharacterModel from './CharacterModel.jsx'
 
@@ -259,23 +259,25 @@ const Player = forwardRef(({ currentMap = 'main', cameraAngleRef, onPositionChan
       />
       <group ref={characterRef} visible={!isFirstPerson}>
         <CharacterModel isMoving={isMoving} isSitting={isSitting} />
-        {/* 내 닉네임 표시 */}
+        {/* 내 닉네임 표시 (항상 카메라를 바라봄) */}
         {userName && (
-          <>
-            <mesh position={[0, 2.5, 0]}>
-              <planeGeometry args={[1.5, 0.3]} />
-              <meshBasicMaterial color="#1e293b" transparent opacity={0.8} />
+          <Billboard position={[0, 2.8, 0]} follow={true} lockX={false} lockY={false} lockZ={false}>
+            <mesh position={[0, 0, -0.01]}>
+              <planeGeometry args={[1.8, 0.4]} />
+              <meshBasicMaterial color="#1e293b" transparent opacity={0.85} />
             </mesh>
             <Text
-              position={[0, 2.5, 0.01]}
-              fontSize={0.15}
+              fontSize={0.2}
               color="#4ade80"
               anchorX="center"
               anchorY="middle"
+              fontWeight="bold"
+              outlineWidth={0.02}
+              outlineColor="#000000"
             >
               {userName}
             </Text>
-          </>
+          </Billboard>
         )}
       </group>
     </RigidBody>

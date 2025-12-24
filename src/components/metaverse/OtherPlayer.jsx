@@ -1,6 +1,6 @@
 import { useRef, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { Text } from '@react-three/drei'
+import { Text, Billboard } from '@react-three/drei'
 import CharacterModel from './CharacterModel.jsx'
 import * as THREE from 'three'
 
@@ -52,20 +52,24 @@ export default function OtherPlayer({ socketId, user, position, rotation, animat
       {/* 캐릭터 모델 */}
       <CharacterModel isMoving={animation === 'walk'} />
 
-      {/* 이름표 */}
-      <mesh position={[0, 2.5, 0]}>
-        <planeGeometry args={[1.5, 0.3]} />
-        <meshBasicMaterial color="#1e293b" transparent opacity={0.8} />
-      </mesh>
-      <Text
-        position={[0, 2.5, 0.01]}
-        fontSize={0.15}
-        color="#ffffff"
-        anchorX="center"
-        anchorY="middle"
-      >
-        {user?.name || 'Player'}
-      </Text>
+      {/* 이름표 (항상 카메라를 바라봄) */}
+      <Billboard position={[0, 2.8, 0]} follow={true} lockX={false} lockY={false} lockZ={false}>
+        <mesh position={[0, 0, -0.01]}>
+          <planeGeometry args={[1.8, 0.4]} />
+          <meshBasicMaterial color="#1e293b" transparent opacity={0.85} />
+        </mesh>
+        <Text
+          fontSize={0.2}
+          color="#ffffff"
+          anchorX="center"
+          anchorY="middle"
+          fontWeight="bold"
+          outlineWidth={0.02}
+          outlineColor="#000000"
+        >
+          {user?.name || 'Player'}
+        </Text>
+      </Billboard>
     </group>
   )
 }
