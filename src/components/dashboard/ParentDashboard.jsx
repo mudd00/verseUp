@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { parentService } from '@/services/parentService'
+import { socketService } from '@/services/socket'
 import CCTVViewer from '@/components/parent/CCTVViewer'
 import ChildLocationCard from '@/components/parent/ChildLocationCard'
+import StudentScreenViewer from '@/components/parent/StudentScreenViewer'
 
 export default function ParentDashboard() {
   const [children, setChildren] = useState([])
@@ -12,6 +14,7 @@ export default function ParentDashboard() {
   const [activeTab, setActiveTab] = useState('courses')
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false)
+  const [isSocketConnected, setIsSocketConnected] = useState(false)
 
   // Tab-specific data
   const [courses, setCourses] = useState([])
@@ -23,6 +26,41 @@ export default function ParentDashboard() {
   useEffect(() => {
     loadChildren()
   }, [])
+
+  // Connect socket when "live" tab is active (for CCTV and student screen sharing)
+  useEffect(() => {
+    if (activeTab === 'live') {
+      console.log('🔌 [ParentDashboard] Connecting socket for live monitoring...')
+      const socket = socketService.connect(null)
+
+      const handleConnect = () => {
+        console.log('🔌 [ParentDashboard] Socket connected')
+        setIsSocketConnected(true)
+      }
+
+      const handleDisconnect = () => {
+        console.log('🔌 [ParentDashboard] Socket disconnected')
+        setIsSocketConnected(false)
+      }
+
+      if (socket) {
+        socket.on('connect', handleConnect)
+        socket.on('disconnect', handleDisconnect)
+
+        // Check if already connected
+        if (socket.connected) {
+          setIsSocketConnected(true)
+        }
+      }
+
+      return () => {
+        if (socket) {
+          socket.off('connect', handleConnect)
+          socket.off('disconnect', handleDisconnect)
+        }
+      }
+    }
+  }, [activeTab])
 
   useEffect(() => {
     if (selectedChildId) {
@@ -230,19 +268,34 @@ export default function ParentDashboard() {
       <div className="space-y-6">
         {/* Live Monitoring Tab */}
         {activeTab === 'live' && selectedChild && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="space-y-6">
             {/* Child Location */}
             <ChildLocationCard
               studentId={selectedChild.id}
               studentName={selectedChild.nickname || selectedChild.name}
             />
 
-            {/* CCTV Viewer */}
-            <CCTVViewer
-              classroomId={childLocation?.classroomId}
-              studentId={selectedChild.id}
-              studentName={selectedChild.nickname || selectedChild.name}
-            />
+            {/* CCTV and Student Screen Viewers */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* CCTV Viewer */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-400 mb-3">교실 CCTV</h4>
+                <CCTVViewer
+                  classroomId={childLocation?.classroomId}
+                  studentId={selectedChild.id}
+                  studentName={selectedChild.nickname || selectedChild.name}
+                />
+              </div>
+
+              {/* Student Screen Viewer (FR-7) */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-400 mb-3">학생 화면 공유</h4>
+                <StudentScreenViewer
+                  studentId={selectedChild.id}
+                  studentName={selectedChild.nickname || selectedChild.name}
+                />
+              </div>
+            </div>
           </div>
         )}
 

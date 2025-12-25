@@ -749,6 +749,15 @@ export function setupSocketHandlers(io) {
       })
     })
 
+    // Handle parent requesting to view student screen (FR-7)
+    socket.on('student:screen-request', (data) => {
+      const { targetSocketId } = data
+      console.log(`🖥️ Parent ${socket.id} requesting screen from student ${targetSocketId}`)
+      io.to(targetSocketId).emit('student:screen-request', {
+        targetSocketId: socket.id, // Tell student to send offer to this socket
+      })
+    })
+
     // Handle disconnect
     socket.on('disconnect', () => {
       const user = connectedUsers.get(socket.id)
