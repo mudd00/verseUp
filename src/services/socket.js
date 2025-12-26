@@ -143,6 +143,10 @@ class SocketService {
   getSocket() {
     return this.socket
   }
+
+  isConnected() {
+    return this.socket?.connected || false
+  }
 }
 
 export const socketService = new SocketService()

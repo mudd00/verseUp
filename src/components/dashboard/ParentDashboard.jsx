@@ -3,11 +3,13 @@ import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { parentService } from '@/services/parentService'
 import { socketService } from '@/services/socket'
+import { useAuthStore } from '@/stores/authStore'
 import CCTVViewer from '@/components/parent/CCTVViewer'
 import ChildLocationCard from '@/components/parent/ChildLocationCard'
 import StudentScreenViewer from '@/components/parent/StudentScreenViewer'
 
 export default function ParentDashboard() {
+  const { user } = useAuthStore()
   const [children, setChildren] = useState([])
   const [selectedChildId, setSelectedChildId] = useState(null)
   const [dashboardData, setDashboardData] = useState(null)
@@ -29,13 +31,24 @@ export default function ParentDashboard() {
 
   // Connect socket when "live" tab is active (for CCTV and student screen sharing)
   useEffect(() => {
-    if (activeTab === 'live') {
+    if (activeTab === 'live' && user) {
       console.log('🔌 [ParentDashboard] Connecting socket for live monitoring...')
-      const socket = socketService.connect(null)
+      const token = localStorage.getItem('accessToken')
+      const socket = socketService.connect(token)
 
       const handleConnect = () => {
         console.log('🔌 [ParentDashboard] Socket connected')
         setIsSocketConnected(true)
+
+        // 부모 정보를 서버에 등록 (user:join)
+        socketService.emit('user:join', { user })
+        console.log('👤 [ParentDashboard] Sent user:join for parent:', user.name)
+
+        // 선택된 자녀가 있으면 위치 추적 시작
+        if (selectedChildId) {
+          socketService.emit('parent:watch-student', { studentId: selectedChildId })
+          console.log('👁️ [ParentDashboard] Started watching student:', selectedChildId)
+        }
       }
 
       const handleDisconnect = () => {
@@ -43,13 +56,31 @@ export default function ParentDashboard() {
         setIsSocketConnected(false)
       }
 
+      // 자녀 위치 업데이트 수신
+      const handleStudentLocation = (data) => {
+        console.log('📍 [ParentDashboard] Student location update:', data)
+        if (data.studentId === selectedChildId) {
+          setChildLocation(data)
+        }
+      }
+
       if (socket) {
         socket.on('connect', handleConnect)
         socket.on('disconnect', handleDisconnect)
+        socketService.on('student:location', handleStudentLocation)
 
         // Check if already connected
         if (socket.connected) {
           setIsSocketConnected(true)
+          // 이미 연결된 경우에도 user:join 전송
+          socketService.emit('user:join', { user })
+          console.log('👤 [ParentDashboard] Sent user:join for parent (already connected):', user.name)
+
+          // 선택된 자녀가 있으면 위치 추적 시작
+          if (selectedChildId) {
+            socketService.emit('parent:watch-student', { studentId: selectedChildId })
+            console.log('👁️ [ParentDashboard] Started watching student:', selectedChildId)
+          }
         }
       }
 
@@ -57,10 +88,15 @@ export default function ParentDashboard() {
         if (socket) {
           socket.off('connect', handleConnect)
           socket.off('disconnect', handleDisconnect)
+          socketService.off('student:location', handleStudentLocation)
+        }
+        // 위치 추적 중지
+        if (selectedChildId) {
+          socketService.emit('parent:unwatch-student', { studentId: selectedChildId })
         }
       }
     }
-  }, [activeTab])
+  }, [activeTab, user, selectedChildId])
 
   useEffect(() => {
     if (selectedChildId) {

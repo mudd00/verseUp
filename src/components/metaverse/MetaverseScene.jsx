@@ -44,6 +44,8 @@ export default function MetaverseScene({ onReady }) {
   const [isFirstPerson, setIsFirstPerson] = useState(false) // 1인칭/3인칭 시야 전환
   const [classroomAId, setClassroomAId] = useState(null) // 강의실 A의 ID
   const [currentClassroom, setCurrentClassroom] = useState(null) // 현재 위치한 교실 (예: 'A', 'B', null)
+  const [isCCTVEnabled, setIsCCTVEnabled] = useState(false) // CCTV 활성화 여부
+  const [cctvViewerCount, setCCTVViewerCount] = useState(0) // CCTV 시청 중인 학부모 수
   const lastPositionSentRef = useRef({ x: 0, y: 0, z: 0 })
   const positionSendIntervalRef = useRef(null)
   const hasJoinedRef = useRef(false) // 이미 입장했는지 추적 (중복 방지)
@@ -141,6 +143,14 @@ export default function MetaverseScene({ onReady }) {
         rotation: rotationY,
         animation: playerRef.current?.isMoving?.() ? 'walk' : 'idle',
       })
+
+      // 학생인 경우 부모 추적용 위치 업데이트 전송
+      if (effectiveUser.role === 'student') {
+        socketService.emit('student:location-update', {
+          classroomId: roomId,
+          position: [position.x, position.y, position.z],
+        })
+      }
     }
   }, [currentMap, effectiveUser, roomId])
 
@@ -296,6 +306,16 @@ export default function MetaverseScene({ onReady }) {
         // 학교 입장 알림 (초기 입장)
         socketService.emit('location:change', { roomId, location: 'school' })
         console.log('📍 [Location] Initial entry to school')
+
+        // 학생인 경우 부모 추적용 초기 위치 전송
+        if (effectiveUser?.role === 'student') {
+          const startPos = currentMap === 'school' ? [-1.32, 2, -14.63] : [-1.91, 2, 32.55]
+          socketService.emit('student:location-update', {
+            classroomId: roomId,
+            position: startPos,
+          })
+          console.log('📍 [Parent Tracking] Initial student location sent')
+        }
       }
     }
 
@@ -335,12 +355,48 @@ export default function MetaverseScene({ onReady }) {
       console.log('👋 [Room Join] User removed from students and otherPlayers')
     }
 
+    // CCTV 이벤트 핸들러
+    const handleCCTVEnabled = (data) => {
+      if (data.classroomId === roomId) {
+        setIsCCTVEnabled(true)
+        console.log('📹 [CCTV] Enabled')
+      }
+    }
+
+    const handleCCTVDisabled = (data) => {
+      if (data.classroomId === roomId) {
+        setIsCCTVEnabled(false)
+        setCCTVViewerCount(0)
+        console.log('📹 [CCTV] Disabled')
+      }
+    }
+
+    const handleCCTVViewerJoined = (data) => {
+      setCCTVViewerCount(data.viewerCount)
+    }
+
+    const handleCCTVViewerLeft = (data) => {
+      setCCTVViewerCount(data.viewerCount)
+    }
+
+    const handleCCTVStatus = (data) => {
+      if (data.classroomId === roomId) {
+        setIsCCTVEnabled(data.isEnabled)
+        setCCTVViewerCount(data.viewerCount || 0)
+      }
+    }
+
     // 이벤트 핸들러 등록
     console.log('📌 [Room Join] Registering room event handlers')
     socketService.on('user:joined', handleUserJoinedConfirmation)
     socketService.on('room:users', handleRoomUsers)
     socketService.on('room:user-joined', handleUserJoined)
     socketService.on('room:user-left', handleUserLeft)
+    socketService.on('cctv:enabled', handleCCTVEnabled)
+    socketService.on('cctv:disabled', handleCCTVDisabled)
+    socketService.on('cctv:viewer-joined', handleCCTVViewerJoined)
+    socketService.on('cctv:viewer-left', handleCCTVViewerLeft)
+    socketService.on('cctv:status', handleCCTVStatus)
     console.log('✅ [Room Join] Room event handlers registered')
 
     // Socket 연결 후 user:join 실행 (roomId 포함하여 서버에서 한 번에 처리)
@@ -367,10 +423,24 @@ export default function MetaverseScene({ onReady }) {
       socketService.off('room:users', handleRoomUsers)
       socketService.off('room:user-joined', handleUserJoined)
       socketService.off('room:user-left', handleUserLeft)
+      socketService.off('cctv:enabled', handleCCTVEnabled)
+      socketService.off('cctv:disabled', handleCCTVDisabled)
+      socketService.off('cctv:viewer-joined', handleCCTVViewerJoined)
+      socketService.off('cctv:viewer-left', handleCCTVViewerLeft)
+      socketService.off('cctv:status', handleCCTVStatus)
       socketService.emit('room:leave', { roomId })
       console.log('🚪 [Room Join] Cleanup: left room and removed handlers')
     }
   }, [effectiveUser, roomId])
+
+  // CCTV 토글 (강사용)
+  const handleCCTVToggle = useCallback(() => {
+    if (isCCTVEnabled) {
+      socketService.emit('cctv:disable', { classroomId: roomId })
+    } else {
+      socketService.emit('cctv:enable', { classroomId: roomId })
+    }
+  }, [isCCTVEnabled, roomId])
 
   // 화면 공유 토글 (강사용)
   const handleScreenShareToggle = useCallback(() => {
@@ -1230,12 +1300,62 @@ export default function MetaverseScene({ onReady }) {
         </button>
       )}
 
+      {/* 교탁에 섰을 때 CCTV 버튼 (강사만) - 학부모 참관용 */}
+      {isAtDesk && isInstructor && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '140px',
+            right: '20px',
+            zIndex: 9999,
+          }}
+        >
+          <button
+            onClick={handleCCTVToggle}
+            style={{
+              background: isCCTVEnabled ? '#ef4444' : '#f59e0b',
+              color: '#fff',
+              padding: '12px 24px',
+              borderRadius: '8px',
+              border: 'none',
+              fontSize: '16px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.transform = 'scale(1.05)'
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.transform = 'scale(1)'
+            }}
+          >
+            {isCCTVEnabled ? '📹 CCTV 종료' : '📹 CCTV 시작'}
+          </button>
+          {isCCTVEnabled && (
+            <div
+              style={{
+                marginTop: '8px',
+                fontSize: '12px',
+                color: '#9ca3af',
+                textAlign: 'center',
+              }}
+            >
+              {cctvViewerCount > 0
+                ? `👁️ ${cctvViewerCount}명 시청 중`
+                : '학부모 대기 중'}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 판서 컨트롤러 링크 (판서 활성화 시) */}
       {isAtDesk && isInstructor && isWhiteboardActive && (
         <div
           style={{
             position: 'absolute',
-            top: '140px',
+            top: '220px',
             right: '20px',
             background: 'rgba(0, 0, 0, 0.9)',
             color: '#fff',

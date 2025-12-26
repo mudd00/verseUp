@@ -19,7 +19,7 @@ router.get('/course/:courseId', requireInstructor, async (req, res) => {
     // Verify instructor owns this course
     const { data: course, error: courseError } = await supabase
       .from('courses')
-      .select('id, instructor_id, title')
+      .select('id, instructor_id, title, weeks')
       .eq('id', courseId)
       .single()
 
@@ -36,15 +36,18 @@ router.get('/course/:courseId', requireInstructor, async (req, res) => {
       .from('course_progress')
       .select(`
         *,
-        student:profiles!course_progress_student_id_fkey(id, name, email, avatar_url)
+        student:profiles!student_id(id, name, email, avatar_url)
       `)
       .eq('course_id', courseId)
       .order('student_id')
 
-    if (error) throw error
+    if (error) {
+      console.error('Supabase query error:', error)
+      throw error
+    }
 
     res.json({
-      course: { id: course.id, title: course.title },
+      course: { id: course.id, title: course.title, weeks: course.weeks || 10 },
       progress,
     })
   } catch (error) {
@@ -76,11 +79,14 @@ router.get('/student/:studentId', async (req, res) => {
       .from('course_progress')
       .select(`
         *,
-        course:courses!course_progress_course_id_fkey(id, title, instructor_id)
+        course:courses!course_id(id, title, instructor_id)
       `)
       .eq('student_id', studentId)
 
-    if (error) throw error
+    if (error) {
+      console.error('Supabase query error:', error)
+      throw error
+    }
 
     // If instructor, filter to only their courses
     let filteredProgress = progress
@@ -110,12 +116,13 @@ router.put('/:id', requireInstructor, async (req, res) => {
       .from('course_progress')
       .select(`
         *,
-        course:courses!course_progress_course_id_fkey(id, instructor_id)
+        course:courses!course_id(id, instructor_id)
       `)
       .eq('id', id)
       .single()
 
     if (progressError || !progress) {
+      console.error('Progress query error:', progressError)
       return res.status(404).json({ error: '진도 기록을 찾을 수 없습니다.' })
     }
 
@@ -161,22 +168,25 @@ router.post('/:id/complete-week', requireInstructor, async (req, res) => {
     const { weekNumber } = req.body
     const userId = req.user.id
 
-    if (!weekNumber || weekNumber < 1 || weekNumber > 10) {
-      return res.status(400).json({ error: '유효한 주차를 입력해주세요 (1-10).' })
-    }
-
-    // Get progress with course info
+    // Get progress with course info including weeks
     const { data: progress, error: progressError } = await supabase
       .from('course_progress')
       .select(`
         *,
-        course:courses!course_progress_course_id_fkey(id, instructor_id)
+        course:courses!course_id(id, instructor_id, weeks)
       `)
       .eq('id', id)
       .single()
 
     if (progressError || !progress) {
+      console.error('Progress query error:', progressError)
       return res.status(404).json({ error: '진도 기록을 찾을 수 없습니다.' })
+    }
+
+    const totalWeeks = progress.course.weeks || 10
+
+    if (!weekNumber || weekNumber < 1 || weekNumber > totalWeeks) {
+      return res.status(400).json({ error: `유효한 주차를 입력해주세요 (1-${totalWeeks}).` })
     }
 
     if (progress.course.instructor_id !== userId && req.user.role !== 'admin') {
@@ -190,8 +200,8 @@ router.post('/:id/complete-week', requireInstructor, async (req, res) => {
       completedWeeks.sort((a, b) => a - b)
     }
 
-    // Calculate completion percentage (10 weeks total)
-    const completionPercentage = (completedWeeks.length / 10) * 100
+    // Calculate completion percentage based on course weeks
+    const completionPercentage = (completedWeeks.length / totalWeeks) * 100
 
     // Update
     const { data: updated, error } = await supabase
@@ -229,22 +239,25 @@ router.post('/:id/uncomplete-week', requireInstructor, async (req, res) => {
     const { weekNumber } = req.body
     const userId = req.user.id
 
-    if (!weekNumber || weekNumber < 1 || weekNumber > 10) {
-      return res.status(400).json({ error: '유효한 주차를 입력해주세요 (1-10).' })
-    }
-
-    // Get progress with course info
+    // Get progress with course info including weeks
     const { data: progress, error: progressError } = await supabase
       .from('course_progress')
       .select(`
         *,
-        course:courses!course_progress_course_id_fkey(id, instructor_id)
+        course:courses!course_id(id, instructor_id, weeks)
       `)
       .eq('id', id)
       .single()
 
     if (progressError || !progress) {
+      console.error('Progress query error:', progressError)
       return res.status(404).json({ error: '진도 기록을 찾을 수 없습니다.' })
+    }
+
+    const totalWeeks = progress.course.weeks || 10
+
+    if (!weekNumber || weekNumber < 1 || weekNumber > totalWeeks) {
+      return res.status(400).json({ error: `유효한 주차를 입력해주세요 (1-${totalWeeks}).` })
     }
 
     if (progress.course.instructor_id !== userId && req.user.role !== 'admin') {
@@ -254,8 +267,8 @@ router.post('/:id/uncomplete-week', requireInstructor, async (req, res) => {
     // Remove week from completed weeks
     const completedWeeks = (progress.completed_weeks || []).filter((w) => w !== weekNumber)
 
-    // Calculate completion percentage
-    const completionPercentage = (completedWeeks.length / 10) * 100
+    // Calculate completion percentage based on course weeks
+    const completionPercentage = (completedWeeks.length / totalWeeks) * 100
 
     // Update
     const { data: updated, error } = await supabase
@@ -291,19 +304,21 @@ router.post('/course/:courseId/bulk-complete-week', requireInstructor, async (re
     const { weekNumber } = req.body
     const userId = req.user.id
 
-    if (!weekNumber || weekNumber < 1 || weekNumber > 10) {
-      return res.status(400).json({ error: '유효한 주차를 입력해주세요 (1-10).' })
-    }
-
-    // Verify instructor owns this course
+    // Verify instructor owns this course and get weeks
     const { data: course, error: courseError } = await supabase
       .from('courses')
-      .select('id, instructor_id')
+      .select('id, instructor_id, weeks')
       .eq('id', courseId)
       .single()
 
     if (courseError || !course) {
       return res.status(404).json({ error: '강의를 찾을 수 없습니다.' })
+    }
+
+    const totalWeeks = course.weeks || 10
+
+    if (!weekNumber || weekNumber < 1 || weekNumber > totalWeeks) {
+      return res.status(400).json({ error: `유효한 주차를 입력해주세요 (1-${totalWeeks}).` })
     }
 
     if (course.instructor_id !== userId && req.user.role !== 'admin') {
@@ -326,7 +341,7 @@ router.post('/course/:courseId/bulk-complete-week', requireInstructor, async (re
         completedWeeks.push(weekNumber)
         completedWeeks.sort((a, b) => a - b)
 
-        const completionPercentage = (completedWeeks.length / 10) * 100
+        const completionPercentage = (completedWeeks.length / totalWeeks) * 100
 
         await supabase
           .from('course_progress')

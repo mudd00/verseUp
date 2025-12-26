@@ -694,7 +694,15 @@ export function setupSocketHandlers(io) {
 
       console.log(`🖥️ Student ${user.user.name} started screen sharing in room ${roomId}`)
 
+      // 방에 있는 사용자들에게 알림
       io.to(roomId).emit('student:screen-started', {
+        studentId: user.id,
+        studentName: user.user.name,
+        socketId: socket.id,
+      })
+
+      // 해당 학생을 watching 중인 부모에게도 알림
+      io.to(`parent:watching:${user.id}`).emit('student:screen-started', {
         studentId: user.id,
         studentName: user.user.name,
         socketId: socket.id,
@@ -716,7 +724,14 @@ export function setupSocketHandlers(io) {
 
       console.log(`🖥️ Student ${user.user.name} stopped screen sharing in room ${roomId}`)
 
+      // 방에 있는 사용자들에게 알림
       io.to(roomId).emit('student:screen-stopped', {
+        studentId: user.id,
+        socketId: socket.id,
+      })
+
+      // 해당 학생을 watching 중인 부모에게도 알림
+      io.to(`parent:watching:${user.id}`).emit('student:screen-stopped', {
         studentId: user.id,
         socketId: socket.id,
       })
