@@ -1348,68 +1348,6 @@ export default function MetaverseScene({ onReady }) {
         </button>
       )}
 
-      {/* 교탁에 섰을 때 CCTV 버튼 (강사만) - 학부모 참관용 */}
-      {isAtDesk && isInstructor && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '140px',
-            right: '20px',
-            zIndex: 9999,
-          }}
-        >
-          <button
-            onClick={cctv.toggle}
-            style={{
-              background: cctv.isEnabled ? '#ef4444' : '#f59e0b',
-              color: '#fff',
-              padding: '12px 24px',
-              borderRadius: '8px',
-              border: 'none',
-              fontSize: '16px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.transform = 'scale(1.05)'
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.transform = 'scale(1)'
-            }}
-          >
-            {cctv.isEnabled ? '📹 CCTV 종료' : '📹 CCTV 시작'}
-          </button>
-          {cctv.isEnabled && (
-            <div
-              style={{
-                marginTop: '8px',
-                fontSize: '12px',
-                color: '#9ca3af',
-                textAlign: 'center',
-              }}
-            >
-              {cctv.viewerCount > 0
-                ? `👁️ ${cctv.viewerCount}명 시청 중`
-                : '학부모 대기 중'}
-            </div>
-          )}
-          {cctv.error && (
-            <div
-              style={{
-                marginTop: '8px',
-                fontSize: '12px',
-                color: '#ef4444',
-                textAlign: 'center',
-              }}
-            >
-              {cctv.error}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* 판서 컨트롤러 링크 (판서 활성화 시) */}
       {isAtDesk && isInstructor && isWhiteboardActive && (
         <div

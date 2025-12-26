@@ -2,7 +2,9 @@ const connectedUsers = new Map()
 const rooms = new Map()
 const screenSharing = new Map() // roomId -> { teacherId, teacherSocketId, teacherName }
 const whiteboardSessions = new Map() // roomId -> { teacherId, teacherSocketId, teacherName, isActive }
+const cctvSessions = new Map() // classroomId -> { isEnabled, enabledBy, viewers: Set<socketId> }
 const studentLocations = new Map() // socketId -> { classroomId, position, lastUpdated }
+const studentScreenSharing = new Map() // socketId -> { isSharing, consentGiven }
 const parentObservers = new Map() // socketId -> { parentId, studentId, isObserver: true }
 
 export function setupSocketHandlers(io) {

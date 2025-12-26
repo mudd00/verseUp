@@ -143,22 +143,26 @@ export default function ParentDashboard() {
   const loadTabData = async (studentId, tab) => {
     try {
       switch (tab) {
-        case 'courses':
+        case 'courses': {
           const coursesRes = await parentService.getCourses(studentId)
           setCourses(coursesRes.courses || [])
           break
-        case 'assignments':
+        }
+        case 'assignments': {
           const assignmentsRes = await parentService.getAssignments(studentId)
           setAssignments(assignmentsRes.assignments || [])
           break
-        case 'attendance':
+        }
+        case 'attendance': {
           const attendanceRes = await parentService.getAttendance(studentId)
           setAttendance(attendanceRes)
           break
-        case 'progress':
+        }
+        case 'progress': {
           const progressRes = await parentService.getProgress(studentId)
           setProgress(progressRes.progress || [])
           break
+        }
       }
     } catch (error) {
       console.error(`Error loading ${tab} data:`, error)
