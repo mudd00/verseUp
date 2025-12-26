@@ -493,6 +493,12 @@ export default function MetaverseScene({ onReady }) {
   const handleObjectInteract = useCallback((objectId, type, position) => {
     if (!playerRef.current) return
 
+    // 부모 참관자는 의자/교탁 상호작용 불가
+    if (isParentObserver) {
+      console.log('👁️ [Observer] 참관자는 앉기/서기 불가')
+      return
+    }
+
     console.log(`상호작용:`, objectId, type, position)
 
     if (type === 'sit') {
@@ -510,7 +516,7 @@ export default function MetaverseScene({ onReady }) {
     }
 
     setObjectInfo({ isNear: false, objectId: null, label: null, type: null, position: null })
-  }, [])
+  }, [isParentObserver])
 
   const handleDoorEnter = useCallback(async (doorId) => {
     if (!playerBodyRef.current) return
@@ -727,7 +733,6 @@ export default function MetaverseScene({ onReady }) {
             isInputDisabled={chat.isInputActive || isMenuOpen}
             isFirstPerson={isFirstPerson}
             userName={effectiveUser?.name || ''}
-            isInvisible={isParentObserver}
           />
           {/* 다른 플레이어들 렌더링 */}
           {Array.from(otherPlayers.values()).map((player) => (
@@ -1191,8 +1196,8 @@ export default function MetaverseScene({ onReady }) {
         </div>
       )}
 
-      {/* 상호작용 객체 안내 (의자, 교탁 등) */}
-      {objectInfo.isNear && !isSitting && (
+      {/* 상호작용 객체 안내 (의자, 교탁 등) - 부모 참관자에게는 표시 안 함 */}
+      {objectInfo.isNear && !isSitting && !isParentObserver && (
         <div
           style={{
             position: 'absolute',
