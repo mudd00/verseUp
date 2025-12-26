@@ -58,8 +58,10 @@ export default function ParentDashboard() {
 
       // 자녀 위치 업데이트 수신
       const handleStudentLocation = (data) => {
-        console.log('📍 [ParentDashboard] Student location update:', data)
+        console.log('📍 [ParentDashboard] Student location update received:', data)
+        console.log('📍 [ParentDashboard] Comparing studentId:', data.studentId, '===', selectedChildId, '?', data.studentId === selectedChildId)
         if (data.studentId === selectedChildId) {
+          console.log('📍 [ParentDashboard] Setting childLocation with classroomId:', data.classroomId)
           setChildLocation(data)
         }
       }
@@ -352,19 +354,60 @@ export default function ParentDashboard() {
               courses.map((course) => (
                 <div
                   key={course.id}
-                  className="flex items-center justify-between bg-gray-700/50 rounded-lg p-4"
+                  className="bg-gray-700/50 rounded-lg p-4"
                 >
-                  <div className="flex-1">
-                    <h4 className="text-white font-medium">{course.title}</h4>
-                    <p className="text-sm text-gray-400">
-                      강사: {course.instructor?.name} | 진도: {course.progress}%
-                    </p>
+                  {/* 상단: 제목과 통계 */}
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <h4 className="text-white font-medium text-lg">{course.title}</h4>
+                      <p className="text-sm text-gray-400">강사: {course.instructor?.name}</p>
+                    </div>
+                    <div className="flex gap-4 text-center">
+                      <div>
+                        <p className="text-xs text-gray-500">진도율</p>
+                        <p className="text-lg font-bold text-purple-400">{course.progress}%</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">출석률</p>
+                        <p className="text-lg font-bold text-green-400">{course.attendanceRate ?? '-'}%</p>
+                      </div>
+                      {course.averageGrade !== null && (
+                        <div>
+                          <p className="text-xs text-gray-500">평균점수</p>
+                          <p className="text-lg font-bold text-yellow-400">{course.averageGrade}</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm text-gray-400">출석률</p>
-                    <p className="text-lg font-medium text-green-400">
-                      {course.attendanceRate ?? '-'}%
-                    </p>
+
+                  {/* 진행 바 */}
+                  <div className="w-full bg-gray-600 rounded-full h-2 mb-3">
+                    <div
+                      className="bg-purple-500 h-2 rounded-full transition-all"
+                      style={{ width: `${course.progress}%` }}
+                    />
+                  </div>
+
+                  {/* 하단: 주차 및 일정 정보 */}
+                  <div className="flex flex-wrap gap-4 text-sm text-gray-400">
+                    <div className="flex items-center gap-1">
+                      <span className="text-purple-400">📚</span>
+                      <span>현재 {course.currentWeek || 1}주차 / 총 {course.weeks || 10}주차</span>
+                    </div>
+                    {course.startDate && (
+                      <div className="flex items-center gap-1">
+                        <span className="text-green-400">📅</span>
+                        <span>
+                          {formatDate(course.startDate)} ~ {formatDate(course.endDate)}
+                        </span>
+                      </div>
+                    )}
+                    {course.lastActivity && (
+                      <div className="flex items-center gap-1">
+                        <span className="text-blue-400">🕐</span>
+                        <span>마지막 활동: {formatDate(course.lastActivity)}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))

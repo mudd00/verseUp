@@ -5,6 +5,47 @@ class SocketService {
   constructor() {
     this.socket = null
     this.pendingListeners = [] // 소켓 연결 전에 등록된 리스너들
+    this.keepAliveInterval = null
+    this.setupVisibilityHandler()
+  }
+
+  // 탭 비활성화 시에도 연결 유지
+  setupVisibilityHandler() {
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+          // 탭이 숨겨지면 keep-alive 시작
+          this.startKeepAlive()
+        } else {
+          // 탭이 보이면 keep-alive 중지
+          this.stopKeepAlive()
+          // 연결이 끊어졌으면 재연결
+          if (this.socket && !this.socket.connected) {
+            console.log('🔌 [SOCKET] Tab visible, attempting reconnect...')
+            this.socket.connect()
+          }
+        }
+      })
+    }
+  }
+
+  startKeepAlive() {
+    if (this.keepAliveInterval) return
+    console.log('🔌 [SOCKET] Starting keep-alive (tab hidden)')
+    this.keepAliveInterval = setInterval(() => {
+      if (this.socket?.connected) {
+        // 서버에 ping을 보내 연결 유지
+        this.socket.emit('ping')
+      }
+    }, 10000) // 10초마다 ping
+  }
+
+  stopKeepAlive() {
+    if (this.keepAliveInterval) {
+      console.log('🔌 [SOCKET] Stopping keep-alive (tab visible)')
+      clearInterval(this.keepAliveInterval)
+      this.keepAliveInterval = null
+    }
   }
 
   connect(token) {

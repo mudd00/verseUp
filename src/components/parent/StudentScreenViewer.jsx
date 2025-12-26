@@ -23,10 +23,14 @@ export default function StudentScreenViewer({ studentId, studentName }) {
   const peerConnectionRef = useRef(null)
 
   useEffect(() => {
+    console.log('🖥️ [StudentScreenViewer] Effect triggered, studentId:', studentId)
+
     // Listen for student screen share events
     const handleScreenStarted = (data) => {
-      console.log('🖥️ [StudentScreenViewer] Screen started:', data)
+      console.log('🖥️ [StudentScreenViewer] Screen started event received:', data)
+      console.log('🖥️ [StudentScreenViewer] Comparing studentId:', data.studentId, '===', studentId, '?', data.studentId === studentId)
       if (data.studentId === studentId) {
+        console.log('🖥️ [StudentScreenViewer] Setting isStudentSharing=true, socketId:', data.socketId)
         setIsStudentSharing(true)
         setStudentSocketId(data.socketId)
         toast.success(`${data.studentName}님이 화면을 공유하기 시작했습니다.`)

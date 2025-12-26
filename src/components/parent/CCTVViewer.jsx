@@ -9,22 +9,32 @@ import { socketService } from '@/services/socket'
 export default function CCTVViewer({ classroomId, studentId, studentName }) {
   const videoRef = useRef(null)
   const peerConnectionRef = useRef(null)
-  const [status, setStatus] = useState('disconnected') // disconnected | connecting | connected | unavailable
+  const [status, setStatus] = useState('unavailable') // unavailable | disconnected | connecting | connected
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    console.log('📹 [CCTVViewer] Effect triggered, classroomId:', classroomId)
+
     if (!classroomId) {
+      console.log('📹 [CCTVViewer] No classroomId, setting unavailable')
       setStatus('unavailable')
       return
     }
 
     // Check if CCTV is available
+    console.log('📹 [CCTVViewer] Requesting CCTV status for:', classroomId)
     socketService.emit('cctv:status', { classroomId })
 
     // Setup socket listeners
     const handleStatus = (data) => {
+      console.log('📹 [CCTVViewer] Received cctv:status:', data)
       if (data.classroomId === classroomId) {
-        if (!data.isEnabled) {
+        if (data.isEnabled) {
+          console.log('📹 [CCTVViewer] CCTV is enabled, setting disconnected (ready to connect)')
+          setStatus('disconnected')
+          setError(null)
+        } else {
+          console.log('📹 [CCTVViewer] CCTV is not enabled')
           setStatus('unavailable')
         }
       }
@@ -144,6 +154,7 @@ export default function CCTVViewer({ classroomId, studentId, studentName }) {
   }
 
   const startViewing = () => {
+    console.log('📹 [CCTVViewer] startViewing called, classroomId:', classroomId, ', studentId:', studentId)
     setStatus('connecting')
     setError(null)
     socketService.emit('cctv:request', { classroomId, studentId })

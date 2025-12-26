@@ -10,6 +10,12 @@ export function setupSocketHandlers(io) {
   io.on('connection', (socket) => {
     console.log(`✅ Client connected: ${socket.id}`)
 
+    // Keep-alive ping handler (탭 비활성화 시 연결 유지)
+    socket.on('ping', () => {
+      // 클라이언트가 살아있음을 확인
+      socket.emit('pong')
+    })
+
     // Handle user join (with optional room join)
     socket.on('user:join', (userData) => {
       const socketUser = {
@@ -440,6 +446,7 @@ export function setupSocketHandlers(io) {
       })
 
       console.log(`📹 CCTV enabled for classroom ${classroomId} by ${user.user.name}`)
+      console.log(`📹 [CCTV] Session stored:`, cctvSessions.get(classroomId))
 
       // Notify all users in the room
       io.to(classroomId).emit('cctv:enabled', {
@@ -488,18 +495,27 @@ export function setupSocketHandlers(io) {
       const { classroomId, studentId } = data
       const user = connectedUsers.get(socket.id)
 
+      console.log(`📹 [CCTV Request] Received from socket ${socket.id}, classroomId: ${classroomId}`)
+
       if (!user) {
+        console.log(`📹 [CCTV Request] User not authenticated`)
         socket.emit('error', { message: 'User not authenticated' })
         return
       }
 
+      console.log(`📹 [CCTV Request] User: ${user.user.name}, role: ${user.user.role}`)
+
       if (user.user.role !== 'parent') {
+        console.log(`📹 [CCTV Request] Not a parent, rejecting`)
         socket.emit('error', { message: 'Only parents can request CCTV access' })
         return
       }
 
       const session = cctvSessions.get(classroomId)
+      console.log(`📹 [CCTV Request] Session for ${classroomId}:`, session ? 'found, isEnabled=' + session.isEnabled : 'not found')
+
       if (!session || !session.isEnabled) {
+        console.log(`📹 [CCTV Request] CCTV not available`)
         socket.emit('cctv:unavailable', {
           classroomId,
           reason: 'CCTV is not enabled for this classroom',
@@ -520,10 +536,11 @@ export function setupSocketHandlers(io) {
         viewerCount: session.viewers.size,
       })
 
-      // Notify instructor about new viewer
+      // Notify instructor about new viewer (include socketId for WebRTC)
       io.to(classroomId).emit('cctv:viewer-joined', {
         viewerId: user.id,
         viewerName: user.user.name,
+        viewerSocketId: socket.id, // 강사가 WebRTC 연결을 설정하기 위해 필요
         viewerCount: session.viewers.size,
       })
     })
@@ -584,6 +601,8 @@ export function setupSocketHandlers(io) {
       const { classroomId } = data
       const session = cctvSessions.get(classroomId)
 
+      console.log(`📹 [CCTV Status Request] classroomId: ${classroomId}, session:`, session ? 'found' : 'not found', ', isEnabled:', session?.isEnabled)
+
       socket.emit('cctv:status', {
         classroomId,
         isEnabled: session?.isEnabled || false,
@@ -597,27 +616,26 @@ export function setupSocketHandlers(io) {
 
     // Handle student location update (for parent monitoring)
     socket.on('student:location-update', (data) => {
-      const { classroomId, position } = data
+      const { classroomId, position, locationName, mapType, classroom } = data
       const user = connectedUsers.get(socket.id)
 
       if (!user || user.user.role !== 'student') return
 
-      studentLocations.set(socket.id, {
+      const locationData = {
         studentId: user.id,
         studentName: user.user.name,
         classroomId,
         position,
+        locationName: locationName || '알 수 없음', // 위치 이름 (운동장/복도/강의실 A 등)
+        mapType: mapType || 'main', // main 또는 school
+        classroom: classroom || null, // 교실 이름 (A, B 등) 또는 null
         lastUpdated: new Date().toISOString(),
-      })
+      }
+
+      studentLocations.set(socket.id, locationData)
 
       // Notify any watching parents in the parent room
-      io.to(`parent:watching:${user.id}`).emit('student:location', {
-        studentId: user.id,
-        studentName: user.user.name,
-        classroomId,
-        position,
-        lastUpdated: new Date().toISOString(),
-      })
+      io.to(`parent:watching:${user.id}`).emit('student:location', locationData)
     })
 
     // Handle parent subscribing to student location
@@ -637,6 +655,38 @@ export function setupSocketHandlers(io) {
       for (const [socketId, location] of studentLocations.entries()) {
         if (location.studentId === studentId) {
           socket.emit('student:location', location)
+          console.log(`📍 [Parent Watch] Sent current location to parent:`, location.locationName)
+          break
+        }
+      }
+
+      // Send current screen sharing status if student is sharing
+      for (const [socketId, screenInfo] of studentScreenSharing.entries()) {
+        if (screenInfo.studentId === studentId && screenInfo.isSharing) {
+          socket.emit('student:screen-started', {
+            studentId: screenInfo.studentId,
+            studentName: screenInfo.studentName,
+            socketId: socketId,
+          })
+          console.log(`🖥️ [Parent Watch] Sent current screen sharing status to parent: ${screenInfo.studentName} is sharing`)
+          break
+        }
+      }
+
+      // Send CCTV status for the classroom the student is in
+      for (const [socketId, location] of studentLocations.entries()) {
+        if (location.studentId === studentId && location.classroomId) {
+          const cctvSession = cctvSessions.get(location.classroomId)
+          if (cctvSession) {
+            socket.emit('cctv:status', {
+              classroomId: location.classroomId,
+              isEnabled: cctvSession.isEnabled || false,
+              viewerCount: cctvSession.viewers?.size || 0,
+              enabledBy: cctvSession.enabledBy || null,
+              enabledByName: cctvSession.enabledByName || null,
+            })
+            console.log(`📹 [Parent Watch] Sent CCTV status to parent: ${cctvSession.isEnabled ? 'enabled' : 'disabled'}`)
+          }
           break
         }
       }

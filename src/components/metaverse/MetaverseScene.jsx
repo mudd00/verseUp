@@ -14,6 +14,7 @@ import { useScreenReceive } from '../../hooks/useScreenReceive'
 import { useStudentScreen } from '../../hooks/useStudentScreen'
 import { useVoiceChat } from '../../hooks/useVoiceChat'
 import { useChat } from '../../hooks/useChat'
+import { useCCTV } from '../../hooks/useCCTV'
 import { useAuthStore } from '../../stores/authStore'
 import { socketService } from '../../services/socket'
 import api from '../../services/api'
@@ -44,8 +45,6 @@ export default function MetaverseScene({ onReady }) {
   const [isFirstPerson, setIsFirstPerson] = useState(false) // 1인칭/3인칭 시야 전환
   const [classroomAId, setClassroomAId] = useState(null) // 강의실 A의 ID
   const [currentClassroom, setCurrentClassroom] = useState(null) // 현재 위치한 교실 (예: 'A', 'B', null)
-  const [isCCTVEnabled, setIsCCTVEnabled] = useState(false) // CCTV 활성화 여부
-  const [cctvViewerCount, setCCTVViewerCount] = useState(0) // CCTV 시청 중인 학부모 수
   const lastPositionSentRef = useRef({ x: 0, y: 0, z: 0 })
   const positionSendIntervalRef = useRef(null)
   const hasJoinedRef = useRef(false) // 이미 입장했는지 추적 (중복 방지)
@@ -82,14 +81,17 @@ export default function MetaverseScene({ onReady }) {
   const screenShare = useScreenShare(roomId, students, isInstructor)
   const screenReceive = useScreenReceive(roomId, !isInstructor)
 
-  // 학생용 화면 캡처 (버튼으로 수동 제어)
-  const studentScreen = useStudentScreen(!isInstructor)
+  // 학생용 화면 캡처 및 WebRTC 스트리밍 (버튼으로 수동 제어)
+  const studentScreen = useStudentScreen(!isInstructor, roomId)
 
   // 음성 채팅 훅 (모든 맵에서 활성화)
   const voiceChat = useVoiceChat(roomId, students, true)
 
   // 텍스트 채팅 훅 (모든 맵에서 활성화)
   const chat = useChat(roomId, true)
+
+  // CCTV 훅 (강사용 - 부모에게 화면 스트리밍)
+  const cctv = useCCTV(roomId, isInstructor)
 
   // 디버깅: voiceChat 상태 모니터링
   useEffect(() => {
@@ -146,13 +148,22 @@ export default function MetaverseScene({ onReady }) {
 
       // 학생인 경우 부모 추적용 위치 업데이트 전송
       if (effectiveUser.role === 'student') {
+        // 정확한 위치 정보 생성
+        let locationName = '운동장'
+        if (currentMap === 'school') {
+          locationName = currentClassroom ? `강의실 ${currentClassroom}` : '복도'
+        }
+
         socketService.emit('student:location-update', {
           classroomId: roomId,
           position: [position.x, position.y, position.z],
+          locationName, // 위치 이름 (운동장/복도/강의실 A 등)
+          mapType: currentMap, // main 또는 school
+          classroom: currentClassroom, // 교실 이름 (A, B 등) 또는 null
         })
       }
     }
-  }, [currentMap, effectiveUser, roomId])
+  }, [currentMap, currentClassroom, effectiveUser, roomId])
 
   const handleCameraRotate = useCallback((angle) => {
     cameraAngleRef.current = angle // ref 업데이트 - 리렌더링 없음
@@ -256,23 +267,32 @@ export default function MetaverseScene({ onReady }) {
   }, [])
 
   // Socket.IO 방 참가 및 사용자 목록 관리
-  useEffect(() => {
-    console.log('🔍 [Room Join Effect] Checking conditions:', {
-      hasEffectiveUser: !!effectiveUser,
-      effectiveUser,
-      currentMap,
-      roomId,
-      socketConnected: socketService.getSocket()?.connected
-    })
+  // effectiveUser.id를 사용하여 불필요한 re-render 방지
+  const effectiveUserId = effectiveUser?.id
+  const effectiveUserRole = effectiveUser?.role
+  const effectiveUserName = effectiveUser?.name
 
-    if (!effectiveUser) return
+  useEffect(() => {
+    if (!effectiveUserId || !effectiveUserName) return
+
+    // 이미 방에 참가한 상태면 중복 참가 방지
+    if (hasJoinedRef.current) {
+      console.log('🔄 [Room Join] Already joined, skipping...')
+      return
+    }
+
+    console.log('🔍 [Room Join Effect] Joining room:', {
+      effectiveUserId,
+      effectiveUserName,
+      roomId,
+    })
 
     let isMounted = true
 
     // 방 사용자 목록 수신 (초기 접속 시 기존 유저들의 위치 포함)
     const handleRoomUsers = ({ users }) => {
       console.log('📚 [Room Join] Received room:users event:', users)
-      const otherUsers = users.filter(u => u.user?.id !== effectiveUser.id)
+      const otherUsers = users.filter(u => u.user?.id !== effectiveUserId)
       setStudents(otherUsers) // 본인 제외
 
       // 다른 플레이어들의 위치 정보로 otherPlayers 초기화
@@ -294,12 +314,11 @@ export default function MetaverseScene({ onReady }) {
       })
 
       console.log('📚 [Room Join] Room users:', users.length, 'total -', users.map(u => u.user?.name))
-      console.log('📚 [Room Join] Initialized otherPlayers with positions:', otherUsers.length)
     }
 
     // user:joined 응답을 받은 후 location:change 실행 (room:join은 서버에서 자동 처리)
     const handleUserJoinedConfirmation = ({ success }) => {
-      if (success && isMounted && !hasJoinedRef.current) {
+      if (success && isMounted) {
         hasJoinedRef.current = true // 중복 방지
         console.log('✅ [Room Join] user:join confirmed (room auto-joined by server)')
 
@@ -308,22 +327,31 @@ export default function MetaverseScene({ onReady }) {
         console.log('📍 [Location] Initial entry to school')
 
         // 학생인 경우 부모 추적용 초기 위치 전송
-        if (effectiveUser?.role === 'student') {
+        if (effectiveUserRole === 'student') {
           const startPos = currentMap === 'school' ? [-1.32, 2, -14.63] : [-1.91, 2, 32.55]
+          const initialLocationName = currentMap === 'main' ? '운동장' : '복도'
+
           socketService.emit('student:location-update', {
             classroomId: roomId,
             position: startPos,
+            locationName: initialLocationName,
+            mapType: currentMap,
+            classroom: null,
           })
-          console.log('📍 [Parent Tracking] Initial student location sent')
+          console.log('📍 [Parent Tracking] Initial student location sent:', initialLocationName)
         }
       }
     }
 
     // 새 사용자 입장 (위치 정보 포함)
     const handleUserJoined = ({ user: newUser, socketId, position, rotation, animation }) => {
-      console.log('👋 [Room Join] Received room:user-joined:', newUser.name, socketId, { position, rotation, animation })
-      if (newUser.id !== effectiveUser.id) {
-        setStudents(prev => [...prev, { user: newUser, socketId }])
+      console.log('👋 [Room Join] Received room:user-joined:', newUser.name, socketId)
+      if (newUser.id !== effectiveUserId) {
+        setStudents(prev => {
+          // 중복 방지
+          if (prev.some(s => s.socketId === socketId)) return prev
+          return [...prev, { user: newUser, socketId }]
+        })
 
         // 새 플레이어를 otherPlayers에 추가 (위치 정보 포함)
         setOtherPlayers(prev => {
@@ -338,8 +366,6 @@ export default function MetaverseScene({ onReady }) {
           })
           return newMap
         })
-
-        console.log('👋 [Room Join] User added to students and otherPlayers:', newUser.name)
       }
     }
 
@@ -352,51 +378,13 @@ export default function MetaverseScene({ onReady }) {
         newMap.delete(socketId)
         return newMap
       })
-      console.log('👋 [Room Join] User removed from students and otherPlayers')
-    }
-
-    // CCTV 이벤트 핸들러
-    const handleCCTVEnabled = (data) => {
-      if (data.classroomId === roomId) {
-        setIsCCTVEnabled(true)
-        console.log('📹 [CCTV] Enabled')
-      }
-    }
-
-    const handleCCTVDisabled = (data) => {
-      if (data.classroomId === roomId) {
-        setIsCCTVEnabled(false)
-        setCCTVViewerCount(0)
-        console.log('📹 [CCTV] Disabled')
-      }
-    }
-
-    const handleCCTVViewerJoined = (data) => {
-      setCCTVViewerCount(data.viewerCount)
-    }
-
-    const handleCCTVViewerLeft = (data) => {
-      setCCTVViewerCount(data.viewerCount)
-    }
-
-    const handleCCTVStatus = (data) => {
-      if (data.classroomId === roomId) {
-        setIsCCTVEnabled(data.isEnabled)
-        setCCTVViewerCount(data.viewerCount || 0)
-      }
     }
 
     // 이벤트 핸들러 등록
-    console.log('📌 [Room Join] Registering room event handlers')
     socketService.on('user:joined', handleUserJoinedConfirmation)
     socketService.on('room:users', handleRoomUsers)
     socketService.on('room:user-joined', handleUserJoined)
     socketService.on('room:user-left', handleUserLeft)
-    socketService.on('cctv:enabled', handleCCTVEnabled)
-    socketService.on('cctv:disabled', handleCCTVDisabled)
-    socketService.on('cctv:viewer-joined', handleCCTVViewerJoined)
-    socketService.on('cctv:viewer-left', handleCCTVViewerLeft)
-    socketService.on('cctv:status', handleCCTVStatus)
     console.log('✅ [Room Join] Room event handlers registered')
 
     // Socket 연결 후 user:join 실행 (roomId 포함하여 서버에서 한 번에 처리)
@@ -407,8 +395,11 @@ export default function MetaverseScene({ onReady }) {
 
         if (!isMounted) return
 
-        console.log('✅ [Room Join] Socket connected, joining as:', effectiveUser.name, 'to room:', roomId)
-        socketService.emit('user:join', { user: effectiveUser, roomId })
+        console.log('✅ [Room Join] Socket connected, joining as:', effectiveUserName, 'to room:', roomId)
+        socketService.emit('user:join', {
+          user: { id: effectiveUserId, name: effectiveUserName, role: effectiveUserRole },
+          roomId
+        })
         console.log('📤 [Room Join] Emitted user:join with roomId')
       } catch (error) {
         console.error('❌ [Room Join] Failed to join room:', error)
@@ -417,30 +408,26 @@ export default function MetaverseScene({ onReady }) {
 
     joinRoom()
 
+    // Cleanup은 컴포넌트 언마운트 시에만 실행
     return () => {
       isMounted = false
       socketService.off('user:joined', handleUserJoinedConfirmation)
       socketService.off('room:users', handleRoomUsers)
       socketService.off('room:user-joined', handleUserJoined)
       socketService.off('room:user-left', handleUserLeft)
-      socketService.off('cctv:enabled', handleCCTVEnabled)
-      socketService.off('cctv:disabled', handleCCTVDisabled)
-      socketService.off('cctv:viewer-joined', handleCCTVViewerJoined)
-      socketService.off('cctv:viewer-left', handleCCTVViewerLeft)
-      socketService.off('cctv:status', handleCCTVStatus)
-      socketService.emit('room:leave', { roomId })
-      console.log('🚪 [Room Join] Cleanup: left room and removed handlers')
     }
-  }, [effectiveUser, roomId])
+  }, [effectiveUserId, effectiveUserRole, effectiveUserName, roomId, currentMap])
 
-  // CCTV 토글 (강사용)
-  const handleCCTVToggle = useCallback(() => {
-    if (isCCTVEnabled) {
-      socketService.emit('cctv:disable', { classroomId: roomId })
-    } else {
-      socketService.emit('cctv:enable', { classroomId: roomId })
+  // 컴포넌트 언마운트 시에만 room:leave 전송
+  useEffect(() => {
+    return () => {
+      if (hasJoinedRef.current) {
+        console.log('🚪 [Room Leave] Component unmounting, leaving room:', roomId)
+        socketService.emit('room:leave', { roomId })
+        hasJoinedRef.current = false
+      }
     }
-  }, [isCCTVEnabled, roomId])
+  }, [roomId])
 
   // 화면 공유 토글 (강사용)
   const handleScreenShareToggle = useCallback(() => {
@@ -1020,8 +1007,8 @@ export default function MetaverseScene({ onReady }) {
             <div style={{ color: '#fff', fontWeight: 'bold', marginBottom: '4px' }}>Status:</div>
             <div style={{ fontSize: '12px' }}>
               <div>Map: {currentMap}</div>
-              <div style={{ color: currentClassroom ? '#10b981' : '#9ca3af' }}>
-                Classroom: {currentClassroom ? `강의실 ${currentClassroom}` : '복도'}
+              <div style={{ color: currentMap === 'main' ? '#10b981' : currentClassroom ? '#3b82f6' : '#fbbf24' }}>
+                Location: {currentMap === 'main' ? '운동장' : currentClassroom ? `강의실 ${currentClassroom}` : '복도'}
               </div>
               <div>Sitting: {isSitting ? '✅' : '❌'}</div>
               <div>At Desk: {isAtDesk ? '✅' : '❌'}</div>
@@ -1311,9 +1298,9 @@ export default function MetaverseScene({ onReady }) {
           }}
         >
           <button
-            onClick={handleCCTVToggle}
+            onClick={cctv.toggle}
             style={{
-              background: isCCTVEnabled ? '#ef4444' : '#f59e0b',
+              background: cctv.isEnabled ? '#ef4444' : '#f59e0b',
               color: '#fff',
               padding: '12px 24px',
               borderRadius: '8px',
@@ -1331,9 +1318,9 @@ export default function MetaverseScene({ onReady }) {
               e.target.style.transform = 'scale(1)'
             }}
           >
-            {isCCTVEnabled ? '📹 CCTV 종료' : '📹 CCTV 시작'}
+            {cctv.isEnabled ? '📹 CCTV 종료' : '📹 CCTV 시작'}
           </button>
-          {isCCTVEnabled && (
+          {cctv.isEnabled && (
             <div
               style={{
                 marginTop: '8px',
@@ -1342,9 +1329,21 @@ export default function MetaverseScene({ onReady }) {
                 textAlign: 'center',
               }}
             >
-              {cctvViewerCount > 0
-                ? `👁️ ${cctvViewerCount}명 시청 중`
+              {cctv.viewerCount > 0
+                ? `👁️ ${cctv.viewerCount}명 시청 중`
                 : '학부모 대기 중'}
+            </div>
+          )}
+          {cctv.error && (
+            <div
+              style={{
+                marginTop: '8px',
+                fontSize: '12px',
+                color: '#ef4444',
+                textAlign: 'center',
+              }}
+            >
+              {cctv.error}
             </div>
           )}
         </div>
