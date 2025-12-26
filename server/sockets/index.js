@@ -2,9 +2,8 @@ const connectedUsers = new Map()
 const rooms = new Map()
 const screenSharing = new Map() // roomId -> { teacherId, teacherSocketId, teacherName }
 const whiteboardSessions = new Map() // roomId -> { teacherId, teacherSocketId, teacherName, isActive }
-const cctvSessions = new Map() // classroomId -> { isEnabled, enabledBy, viewers: Set<socketId> }
 const studentLocations = new Map() // socketId -> { classroomId, position, lastUpdated }
-const studentScreenSharing = new Map() // socketId -> { isSharing, consentGiven }
+const parentObservers = new Map() // socketId -> { parentId, studentId, isObserver: true }
 
 export function setupSocketHandlers(io) {
   io.on('connection', (socket) => {
@@ -18,18 +17,33 @@ export function setupSocketHandlers(io) {
 
     // Handle user join (with optional room join)
     socket.on('user:join', (userData) => {
+      const isObserver = userData.isObserver === true
+      const studentId = userData.studentId // 부모가 참관할 학생 ID
+
       const socketUser = {
         id: userData.user.id,
         socketId: socket.id,
         user: userData.user,
+        isObserver, // 참관 모드 여부
+        studentId, // 참관 대상 학생 ID (부모인 경우)
       }
 
       connectedUsers.set(socket.id, socketUser)
 
+      // 부모 참관자 추적
+      if (isObserver && userData.user.role === 'parent') {
+        parentObservers.set(socket.id, {
+          parentId: userData.user.id,
+          studentId,
+          isObserver: true,
+        })
+        console.log(`👁️ Parent ${userData.user.name} joined as OBSERVER (watching student: ${studentId})`)
+      }
+
       // Join user-specific room for notifications
       const userRoom = `user:${userData.user.id}`
       socket.join(userRoom)
-      console.log(`👤 User joined: ${userData.user.name} (${socket.id}) - Joined room ${userRoom}`)
+      console.log(`👤 User joined: ${userData.user.name} (${socket.id}) - Joined room ${userRoom}${isObserver ? ' [OBSERVER]' : ''}`)
 
       // roomId가 함께 전달되면 바로 room에도 join
       if (userData.roomId) {
@@ -42,21 +56,25 @@ export function setupSocketHandlers(io) {
         }
         rooms.get(roomId)?.add(socket.id)
 
-        console.log(`🚪 User ${userData.user.name} auto-joined room: ${roomId}`)
+        console.log(`🚪 User ${userData.user.name} auto-joined room: ${roomId}${isObserver ? ' [OBSERVER - NO BROADCAST]' : ''}`)
 
-        // Notify all users in the room
-        io.to(roomId).emit('room:user-joined', {
-          user: userData.user,
-          socketId: socket.id,
-          position: socketUser.position || [0, 2, 0],
-          rotation: socketUser.rotation || 0,
-          animation: socketUser.animation || 'idle',
-        })
+        // 참관자가 아닌 경우에만 다른 사용자에게 알림
+        if (!isObserver) {
+          io.to(roomId).emit('room:user-joined', {
+            user: userData.user,
+            socketId: socket.id,
+            position: socketUser.position || [0, 2, 0],
+            rotation: socketUser.rotation || 0,
+            animation: socketUser.animation || 'idle',
+          })
+        }
 
-        // Send current room users to the new user
+        // Send current room users to the new user (참관자도 다른 사용자는 볼 수 있음)
+        // 단, 다른 참관자는 제외
         const roomUsers = Array.from(rooms.get(roomId) || [])
           .map(id => connectedUsers.get(id))
           .filter(Boolean)
+          .filter(u => !u.isObserver) // 다른 참관자는 제외
           .map(u => ({
             user: u?.user,
             socketId: u?.socketId,
@@ -89,21 +107,25 @@ export function setupSocketHandlers(io) {
       }
       rooms.get(roomId)?.add(socket.id)
 
-      console.log(`🚪 User ${user.user.name} joined room: ${roomId}`)
+      console.log(`🚪 User ${user.user.name} joined room: ${roomId}${user.isObserver ? ' [OBSERVER]' : ''}`)
 
-      // Notify all users in the room including self (with position for initial sync)
-      io.to(roomId).emit('room:user-joined', {
-        user: user.user,
-        socketId: socket.id,
-        position: user.position || [0, 2, 0],
-        rotation: user.rotation || 0,
-        animation: user.animation || 'idle',
-      })
+      // 참관자가 아닌 경우에만 다른 사용자에게 알림
+      if (!user.isObserver) {
+        io.to(roomId).emit('room:user-joined', {
+          user: user.user,
+          socketId: socket.id,
+          position: user.position || [0, 2, 0],
+          rotation: user.rotation || 0,
+          animation: user.animation || 'idle',
+        })
+      }
 
       // Send current room users to the new user (with positions for multiplayer sync)
+      // 다른 참관자는 제외
       const roomUsers = Array.from(rooms.get(roomId) || [])
         .map(id => connectedUsers.get(id))
         .filter(Boolean)
+        .filter(u => !u.isObserver) // 다른 참관자는 제외
         .map(u => ({
           user: u?.user,
           socketId: u?.socketId,
@@ -125,13 +147,16 @@ export function setupSocketHandlers(io) {
         rooms.get(roomId)?.delete(socket.id)
         user.roomId = undefined
 
-        socket.to(roomId).emit('room:user-left', {
-          userId: user.id,
-          socketId: socket.id,
-          user: user.user, // 사용자 정보 추가 (퇴장 알림용)
-        })
+        // 참관자가 아닌 경우에만 퇴장 알림
+        if (!user.isObserver) {
+          socket.to(roomId).emit('room:user-left', {
+            userId: user.id,
+            socketId: socket.id,
+            user: user.user, // 사용자 정보 추가 (퇴장 알림용)
+          })
+        }
 
-        console.log(`🚪 User ${user.user.name} left room: ${roomId}`)
+        console.log(`🚪 User ${user.user.name} left room: ${roomId}${user.isObserver ? ' [OBSERVER]' : ''}`)
       }
     })
 
@@ -146,15 +171,17 @@ export function setupSocketHandlers(io) {
       }
 
       const locationName = location === 'classroom' ? '강의실' : '서버'
-      console.log(`📍 ${user.user.name} entered ${locationName} in room ${roomId}`)
+      console.log(`📍 ${user.user.name} entered ${locationName} in room ${roomId}${user.isObserver ? ' [OBSERVER - NO BROADCAST]' : ''}`)
 
-      // Broadcast to all users in the room (including sender)
-      io.to(roomId).emit('location:entered', {
-        userId: user.id,
-        userName: user.user.name,
-        location: location,
-        locationName: locationName,
-      })
+      // 참관자가 아닌 경우에만 위치 변경 알림
+      if (!user.isObserver) {
+        io.to(roomId).emit('location:entered', {
+          userId: user.id,
+          userName: user.user.name,
+          location: location,
+          locationName: locationName,
+        })
+      }
     })
 
     // Handle chat messages
@@ -304,15 +331,17 @@ export function setupSocketHandlers(io) {
       user.rotation = rotation
       user.animation = animation
 
-      // Broadcast to other users in the room
-      socket.to(roomId).emit('player:moved', {
-        socketId: socket.id,
-        userId: user.id,
-        user: user.user,
-        position,
-        rotation,
-        animation,
-      })
+      // 참관자가 아닌 경우에만 다른 사용자에게 위치 브로드캐스트
+      if (!user.isObserver) {
+        socket.to(roomId).emit('player:moved', {
+          socketId: socket.id,
+          userId: user.id,
+          user: user.user,
+          position,
+          rotation,
+          animation,
+        })
+      }
     })
 
     // Handle voice chat signaling
@@ -829,11 +858,15 @@ export function setupSocketHandlers(io) {
 
       if (user && user.roomId) {
         rooms.get(user.roomId)?.delete(socket.id)
-        socket.to(user.roomId).emit('room:user-left', {
-          userId: user.id,
-          socketId: socket.id,
-          user: user.user, // 사용자 정보 추가 (퇴장 알림용)
-        })
+
+        // 참관자가 아닌 경우에만 퇴장 알림
+        if (!user.isObserver) {
+          socket.to(user.roomId).emit('room:user-left', {
+            userId: user.id,
+            socketId: socket.id,
+            user: user.user, // 사용자 정보 추가 (퇴장 알림용)
+          })
+        }
 
         // If user was screen sharing, stop it
         const sharingInfo = screenSharing.get(user.roomId)
@@ -856,36 +889,16 @@ export function setupSocketHandlers(io) {
           })
           console.log(`🎨 Whiteboard stopped due to disconnect: ${user.user.name}`)
         }
-
-        // If instructor had CCTV enabled, disable it
-        for (const [classroomId, session] of cctvSessions.entries()) {
-          if (session.enabledBy === user.id) {
-            cctvSessions.delete(classroomId)
-            io.to(classroomId).emit('cctv:disabled', { classroomId })
-            console.log(`📹 CCTV disabled due to instructor disconnect: ${user.user.name}`)
-          }
-        }
-      }
-
-      // Clean up CCTV viewer if user was watching
-      for (const [classroomId, session] of cctvSessions.entries()) {
-        if (session.viewers.has(socket.id)) {
-          session.viewers.delete(socket.id)
-          io.to(classroomId).emit('cctv:viewer-left', {
-            viewerId: connectedUsers.get(socket.id)?.id,
-            viewerCount: session.viewers.size,
-          })
-        }
       }
 
       // Clean up student location
       studentLocations.delete(socket.id)
 
-      // Clean up student screen sharing
-      studentScreenSharing.delete(socket.id)
+      // Clean up parent observer
+      parentObservers.delete(socket.id)
 
       connectedUsers.delete(socket.id)
-      console.log(`❌ Client disconnected: ${socket.id}`)
+      console.log(`❌ Client disconnected: ${socket.id}${user?.isObserver ? ' [OBSERVER]' : ''}`)
     })
   })
 }

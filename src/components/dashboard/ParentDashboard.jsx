@@ -1,15 +1,14 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { parentService } from '@/services/parentService'
 import { socketService } from '@/services/socket'
 import { useAuthStore } from '@/stores/authStore'
-import CCTVViewer from '@/components/parent/CCTVViewer'
 import ChildLocationCard from '@/components/parent/ChildLocationCard'
-import StudentScreenViewer from '@/components/parent/StudentScreenViewer'
 
 export default function ParentDashboard() {
   const { user } = useAuthStore()
+  const navigate = useNavigate()
   const [children, setChildren] = useState([])
   const [selectedChildId, setSelectedChildId] = useState(null)
   const [dashboardData, setDashboardData] = useState(null)
@@ -313,26 +312,50 @@ export default function ParentDashboard() {
               studentName={selectedChild.nickname || selectedChild.name}
             />
 
-            {/* CCTV and Student Screen Viewers */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* CCTV Viewer */}
-              <div>
-                <h4 className="text-sm font-medium text-gray-400 mb-3">교실 CCTV</h4>
-                <CCTVViewer
-                  classroomId={childLocation?.classroomId}
-                  studentId={selectedChild.id}
-                  studentName={selectedChild.nickname || selectedChild.name}
-                />
+            {/* Metaverse Observer Mode Entry */}
+            <div className="bg-gray-800 rounded-lg p-6">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">메타버스 참관 모드</h3>
+                  <p className="text-sm text-gray-400">
+                    자녀의 수업을 메타버스에서 직접 참관하실 수 있습니다.
+                  </p>
+                </div>
               </div>
 
-              {/* Student Screen Viewer (FR-7) */}
-              <div>
-                <h4 className="text-sm font-medium text-gray-400 mb-3">학생 화면 공유</h4>
-                <StudentScreenViewer
-                  studentId={selectedChild.id}
-                  studentName={selectedChild.nickname || selectedChild.name}
-                />
+              <div className="bg-gray-700/50 rounded-lg p-4 mb-4">
+                <h4 className="text-sm font-medium text-gray-300 mb-2">참관 모드 안내</h4>
+                <ul className="text-sm text-gray-400 space-y-1">
+                  <li className="flex items-center gap-2">
+                    <span className="text-green-400">✓</span>
+                    투명 모드로 입장하여 수업에 방해가 되지 않습니다.
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="text-green-400">✓</span>
+                    학생과 강사에게 참관자의 캐릭터가 보이지 않습니다.
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="text-green-400">✓</span>
+                    자녀가 수강 중인 강의실에만 입장할 수 있습니다.
+                  </li>
+                </ul>
               </div>
+
+              <button
+                onClick={() => navigate('/metaverse?mode=observer&studentId=' + selectedChild.id)}
+                className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+                메타버스 참관하기
+              </button>
             </div>
           </div>
         )}

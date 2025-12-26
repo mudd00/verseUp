@@ -14,7 +14,6 @@ import { useScreenReceive } from '../../hooks/useScreenReceive'
 import { useStudentScreen } from '../../hooks/useStudentScreen'
 import { useVoiceChat } from '../../hooks/useVoiceChat'
 import { useChat } from '../../hooks/useChat'
-import { useCCTV } from '../../hooks/useCCTV'
 import { useAuthStore } from '../../stores/authStore'
 import { socketService } from '../../services/socket'
 import api from '../../services/api'
@@ -61,6 +60,10 @@ export default function MetaverseScene({ onReady }) {
   // 프로덕션에서는 테스트 역할 비활성화 (보안)
   const testRole = import.meta.env.DEV ? urlParams.get('role') : null // ?role=instructor 또는 ?role=student
 
+  // 부모 참관 모드 확인 (URL: ?mode=observer&studentId=xxx)
+  const isObserverMode = urlParams.get('mode') === 'observer'
+  const observerStudentId = urlParams.get('studentId')
+
   // 테스트용 임시 사용자 생성 (useMemo로 안정화 - 매 렌더마다 새로 생성되지 않도록)
   const effectiveUser = useMemo(() => {
     if (user) return user
@@ -76,22 +79,20 @@ export default function MetaverseScene({ onReady }) {
   }, [user, testRole])
 
   const isInstructor = testRole === 'instructor' || effectiveUser?.role === 'instructor' || effectiveUser?.email?.startsWith('instructor@')
+  const isParentObserver = isObserverMode && effectiveUser?.role === 'parent'
 
-  // WebRTC 훅 사용 (역할에 따라 활성화 여부 전달)
-  const screenShare = useScreenShare(roomId, students, isInstructor)
-  const screenReceive = useScreenReceive(roomId, !isInstructor)
+  // WebRTC 훅 사용 (역할에 따라 활성화 여부 전달, 참관자는 비활성화)
+  const screenShare = useScreenShare(roomId, students, isInstructor && !isParentObserver)
+  const screenReceive = useScreenReceive(roomId, !isInstructor && !isParentObserver)
 
-  // 학생용 화면 캡처 및 WebRTC 스트리밍 (버튼으로 수동 제어)
-  const studentScreen = useStudentScreen(!isInstructor, roomId)
+  // 학생용 화면 캡처 및 WebRTC 스트리밍 (버튼으로 수동 제어, 참관자는 비활성화)
+  const studentScreen = useStudentScreen(!isInstructor && !isParentObserver, roomId)
 
-  // 음성 채팅 훅 (모든 맵에서 활성화)
-  const voiceChat = useVoiceChat(roomId, students, true)
+  // 음성 채팅 훅 (참관자는 비활성화 - 소리만 들을 수 있음)
+  const voiceChat = useVoiceChat(roomId, students, !isParentObserver)
 
-  // 텍스트 채팅 훅 (모든 맵에서 활성화)
-  const chat = useChat(roomId, true)
-
-  // CCTV 훅 (강사용 - 부모에게 화면 스트리밍)
-  const cctv = useCCTV(roomId, isInstructor)
+  // 텍스트 채팅 훅 (참관자는 읽기만 가능)
+  const chat = useChat(roomId, !isParentObserver)
 
   // 디버깅: voiceChat 상태 모니터링
   useEffect(() => {
@@ -395,12 +396,16 @@ export default function MetaverseScene({ onReady }) {
 
         if (!isMounted) return
 
-        console.log('✅ [Room Join] Socket connected, joining as:', effectiveUserName, 'to room:', roomId)
+        const isObserver = isObserverMode && effectiveUserRole === 'parent'
+        console.log('✅ [Room Join] Socket connected, joining as:', effectiveUserName, 'to room:', roomId, isObserver ? '[OBSERVER]' : '')
+
         socketService.emit('user:join', {
           user: { id: effectiveUserId, name: effectiveUserName, role: effectiveUserRole },
-          roomId
+          roomId,
+          isObserver, // 참관 모드 여부
+          studentId: observerStudentId, // 참관 대상 학생 ID (부모인 경우)
         })
-        console.log('📤 [Room Join] Emitted user:join with roomId')
+        console.log('📤 [Room Join] Emitted user:join with roomId', isObserver ? '(observer mode)' : '')
       } catch (error) {
         console.error('❌ [Room Join] Failed to join room:', error)
       }
@@ -416,7 +421,7 @@ export default function MetaverseScene({ onReady }) {
       socketService.off('room:user-joined', handleUserJoined)
       socketService.off('room:user-left', handleUserLeft)
     }
-  }, [effectiveUserId, effectiveUserRole, effectiveUserName, roomId, currentMap])
+  }, [effectiveUserId, effectiveUserRole, effectiveUserName, roomId, currentMap, isObserverMode, observerStudentId])
 
   // 컴포넌트 언마운트 시에만 room:leave 전송
   useEffect(() => {
@@ -722,6 +727,7 @@ export default function MetaverseScene({ onReady }) {
             isInputDisabled={chat.isInputActive || isMenuOpen}
             isFirstPerson={isFirstPerson}
             userName={effectiveUser?.name || ''}
+            isInvisible={isParentObserver}
           />
           {/* 다른 플레이어들 렌더링 */}
           {Array.from(otherPlayers.values()).map((player) => (
@@ -964,6 +970,61 @@ export default function MetaverseScene({ onReady }) {
           teacherName={screenReceive.teacherInfo?.teacherName || '강사'}
           onClose={() => setIsViewingScreen(false)}
         />
+      )}
+
+      {/* 부모 참관 모드 UI */}
+      {isParentObserver && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '20px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)',
+            color: '#fff',
+            padding: '12px 24px',
+            borderRadius: '12px',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            zIndex: 9999,
+            boxShadow: '0 4px 15px rgba(124, 58, 237, 0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+          }}
+        >
+          <div style={{
+            width: '10px',
+            height: '10px',
+            background: '#a78bfa',
+            borderRadius: '50%',
+            animation: 'pulse 2s infinite',
+          }}></div>
+          <span>👁️ 참관 모드</span>
+          <span style={{ fontSize: '12px', opacity: 0.8 }}>• 수업에 방해되지 않는 투명 모드입니다</span>
+          <button
+            onClick={() => window.history.back()}
+            style={{
+              marginLeft: '16px',
+              background: 'rgba(255, 255, 255, 0.2)',
+              color: '#fff',
+              border: '1px solid rgba(255, 255, 255, 0.3)',
+              padding: '6px 12px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: 'bold',
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = 'rgba(255, 255, 255, 0.3)'
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = 'rgba(255, 255, 255, 0.2)'
+            }}
+          >
+            참관 종료
+          </button>
+        </div>
       )}
 
       {/* 플레이어 위치 및 상태 표시 */}

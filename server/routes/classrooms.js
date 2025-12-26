@@ -310,6 +310,42 @@ router.get('/:id/check-access', authMiddleware, async (req, res) => {
       hasAccess = true
       accessReason = 'instructor'
     }
+    // 부모인 경우 자녀가 해당 강의에 수강 중인지 확인
+    else if (userRole === 'parent') {
+      // 부모의 자녀 목록 조회
+      const { data: children, error: childrenError } = await supabase
+        .from('parent_children')
+        .select('student_id')
+        .eq('parent_id', userId)
+        .eq('status', 'active')
+
+      if (childrenError) {
+        console.error('자녀 목록 조회 실패:', childrenError)
+      }
+
+      if (children && children.length > 0) {
+        const childIds = children.map(c => c.student_id)
+
+        // 자녀 중 해당 강의에 수강 중인 학생이 있는지 확인
+        const { data: enrollment, error: enrollError } = await supabase
+          .from('enrollments')
+          .select('id, student_id')
+          .eq('course_id', currentCourse.id)
+          .in('student_id', childIds)
+          .eq('status', 'active')
+          .maybeSingle()
+
+        if (enrollError) {
+          console.error('자녀 수강 신청 확인 실패:', enrollError)
+        }
+
+        if (enrollment) {
+          hasAccess = true
+          accessReason = 'parent_observer'
+          console.log(`👁️ 부모 ${userId} 참관 허용 (자녀: ${enrollment.student_id})`)
+        }
+      }
+    }
     // 학생이면 수강 신청 확인
     else {
       const { data: enrollment, error: enrollError } = await supabase
@@ -332,10 +368,14 @@ router.get('/:id/check-access', authMiddleware, async (req, res) => {
 
     // 7. 결과 반환
     if (!hasAccess) {
+      const message = userRole === 'parent'
+        ? '자녀가 이 강의를 수강하고 있지 않아 참관할 수 없습니다.'
+        : '이 강의실에 접근할 권한이 없습니다. 해당 강의를 수강 신청해주세요.'
+
       return res.json({
         hasAccess: false,
-        reason: 'not_enrolled',
-        message: '이 강의실에 접근할 권한이 없습니다. 해당 강의를 수강 신청해주세요.',
+        reason: userRole === 'parent' ? 'child_not_enrolled' : 'not_enrolled',
+        message,
         classroom,
         currentCourse: {
           id: currentCourse.id,
