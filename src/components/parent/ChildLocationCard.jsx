@@ -42,16 +42,36 @@ export default function ChildLocationCard({ studentId, studentName }) {
     })
   }
 
-  const getLocationName = (classroomId) => {
-    if (!classroomId) return '오프라인'
+  const getLocationDisplay = (loc) => {
+    if (!loc) return { name: '오프라인', icon: '🔴', color: 'text-gray-400' }
 
-    // Parse classroom ID to get a friendly name
-    if (classroomId.includes('lobby')) return '로비'
-    if (classroomId.includes('classroom')) {
-      const num = classroomId.match(/\d+/)
-      return num ? `강의실 ${num[0]}` : '강의실'
+    // 서버에서 직접 전달받은 locationName 사용
+    if (loc.locationName) {
+      const name = loc.locationName
+      // 위치에 따른 아이콘과 색상
+      if (name.includes('운동장')) {
+        return { name, icon: '🏃', color: 'text-green-400' }
+      }
+      if (name.includes('복도')) {
+        return { name, icon: '🚶', color: 'text-yellow-400' }
+      }
+      if (name.includes('강의실')) {
+        return { name, icon: '📚', color: 'text-blue-400' }
+      }
+      return { name, icon: '📍', color: 'text-purple-400' }
     }
-    return classroomId
+
+    // 레거시 fallback: classroomId 파싱
+    if (loc.classroomId) {
+      if (loc.classroomId.includes('lobby')) return { name: '로비', icon: '🏢', color: 'text-yellow-400' }
+      if (loc.classroomId.includes('classroom')) {
+        const num = loc.classroomId.match(/\d+/)
+        return { name: num ? `강의실 ${num[0]}` : '강의실', icon: '📚', color: 'text-blue-400' }
+      }
+      return { name: loc.classroomId, icon: '📍', color: 'text-purple-400' }
+    }
+
+    return { name: '접속 중', icon: '🟢', color: 'text-green-400' }
   }
 
   return (
@@ -85,29 +105,30 @@ export default function ChildLocationCard({ studentId, studentName }) {
         <div className="space-y-3">
           {/* Location Info */}
           <div className="bg-gray-700/50 rounded-lg p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                />
-              </svg>
-              <span className="text-white font-medium">
-                {location ? getLocationName(location.classroomId) : '오프라인'}
-              </span>
-            </div>
+            {(() => {
+              const locDisplay = getLocationDisplay(location)
+              return (
+                <>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xl">{locDisplay.icon}</span>
+                    <span className={`font-medium ${locDisplay.color}`}>
+                      {locDisplay.name}
+                    </span>
+                  </div>
+
+                  {/* 맵 타입 표시 */}
+                  {location?.mapType && (
+                    <div className="text-xs text-gray-500 mb-1">
+                      {location.mapType === 'main' ? '야외' : '학교 건물 내부'}
+                    </div>
+                  )}
+                </>
+              )
+            })()}
 
             {location?.position && (
               <div className="text-xs text-gray-400">
-                위치: X={location.position[0]?.toFixed(1)}, Y={location.position[1]?.toFixed(1)}, Z=
+                좌표: X={location.position[0]?.toFixed(1)}, Y={location.position[1]?.toFixed(1)}, Z=
                 {location.position[2]?.toFixed(1)}
               </div>
             )}

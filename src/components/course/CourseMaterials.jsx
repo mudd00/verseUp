@@ -116,6 +116,39 @@ export default function CourseMaterials({ courseId, isInstructor, weeks = 8 }) {
     }
   }
 
+  const handleDownload = async (material) => {
+    try {
+      // 서버에서 직접 파일을 스트리밍하므로 fetch로 blob 다운로드
+      const token = localStorage.getItem('accessToken')
+      const response = await fetch(
+        `/api/courses/${courseId}/materials/${material.id}/download`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error('Download failed')
+      }
+
+      // Blob으로 변환 후 다운로드 (파일명은 이미 material에서 알고 있음)
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = material.file_name || 'download'
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (error) {
+      console.error('Download failed:', error)
+      toast.error('다운로드에 실패했습니다.')
+    }
+  }
+
   const formatFileSize = (bytes) => {
     if (bytes === 0) return '0 Bytes'
     const k = 1024
@@ -329,14 +362,12 @@ export default function CourseMaterials({ courseId, isInstructor, weeks = 8 }) {
                 </div>
 
                 <div className="flex items-center gap-2 flex-shrink-0 ml-4">
-                  <a
-                    href={material.file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    onClick={() => handleDownload(material)}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition text-sm"
                   >
                     다운로드
-                  </a>
+                  </button>
                   {isInstructor && (
                     <button
                       onClick={() => handleDelete(material.id, material.file_url)}

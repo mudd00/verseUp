@@ -210,6 +210,19 @@ export default function Register() {
             로그인
           </Link>
         </p>
+
+        <div className="mt-4 pt-4 border-t border-gray-600">
+          <p className="text-center text-gray-400 mb-3">
+            자녀의 학습 현황을 확인하고 싶으신가요?
+          </p>
+          <Link
+            to="/register-parent"
+            className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition flex items-center justify-center gap-2"
+          >
+            <span className="text-xl">👨‍👩‍👧</span>
+            부모 계정으로 가입하기
+          </Link>
+        </div>
       </div>
     </div>
   )

@@ -265,12 +265,18 @@ export default function EnrollmentManagement() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          enrollment.payment_id
-                            ? 'bg-green-600/20 text-green-400'
-                            : 'bg-yellow-600/20 text-yellow-400'
+                          !enrollment.course?.price || enrollment.course?.price === 0
+                            ? 'bg-blue-600/20 text-blue-400'
+                            : enrollment.payment_id
+                              ? 'bg-green-600/20 text-green-400'
+                              : 'bg-yellow-600/20 text-yellow-400'
                         }`}
                       >
-                        {enrollment.payment_id ? '결제 완료' : '미결제'}
+                        {!enrollment.course?.price || enrollment.course?.price === 0
+                          ? '무료'
+                          : enrollment.payment_id
+                            ? '결제 완료'
+                            : '미결제'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

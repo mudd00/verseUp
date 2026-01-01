@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { parentService } from '@/services/parentService'
 import { socketService } from '@/services/socket'
-import CCTVViewer from '@/components/parent/CCTVViewer'
+import { useAuthStore } from '@/stores/authStore'
 import ChildLocationCard from '@/components/parent/ChildLocationCard'
-import StudentScreenViewer from '@/components/parent/StudentScreenViewer'
 
 export default function ParentDashboard() {
+  const { user } = useAuthStore()
+  const navigate = useNavigate()
   const [children, setChildren] = useState([])
   const [selectedChildId, setSelectedChildId] = useState(null)
   const [dashboardData, setDashboardData] = useState(null)
@@ -29,13 +30,24 @@ export default function ParentDashboard() {
 
   // Connect socket when "live" tab is active (for CCTV and student screen sharing)
   useEffect(() => {
-    if (activeTab === 'live') {
+    if (activeTab === 'live' && user) {
       console.log('🔌 [ParentDashboard] Connecting socket for live monitoring...')
-      const socket = socketService.connect(null)
+      const token = localStorage.getItem('accessToken')
+      const socket = socketService.connect(token)
 
       const handleConnect = () => {
         console.log('🔌 [ParentDashboard] Socket connected')
         setIsSocketConnected(true)
+
+        // 부모 정보를 서버에 등록 (user:join)
+        socketService.emit('user:join', { user })
+        console.log('👤 [ParentDashboard] Sent user:join for parent:', user.name)
+
+        // 선택된 자녀가 있으면 위치 추적 시작
+        if (selectedChildId) {
+          socketService.emit('parent:watch-student', { studentId: selectedChildId })
+          console.log('👁️ [ParentDashboard] Started watching student:', selectedChildId)
+        }
       }
 
       const handleDisconnect = () => {
@@ -43,13 +55,33 @@ export default function ParentDashboard() {
         setIsSocketConnected(false)
       }
 
+      // 자녀 위치 업데이트 수신
+      const handleStudentLocation = (data) => {
+        console.log('📍 [ParentDashboard] Student location update received:', data)
+        console.log('📍 [ParentDashboard] Comparing studentId:', data.studentId, '===', selectedChildId, '?', data.studentId === selectedChildId)
+        if (data.studentId === selectedChildId) {
+          console.log('📍 [ParentDashboard] Setting childLocation with classroomId:', data.classroomId)
+          setChildLocation(data)
+        }
+      }
+
       if (socket) {
         socket.on('connect', handleConnect)
         socket.on('disconnect', handleDisconnect)
+        socketService.on('student:location', handleStudentLocation)
 
         // Check if already connected
         if (socket.connected) {
           setIsSocketConnected(true)
+          // 이미 연결된 경우에도 user:join 전송
+          socketService.emit('user:join', { user })
+          console.log('👤 [ParentDashboard] Sent user:join for parent (already connected):', user.name)
+
+          // 선택된 자녀가 있으면 위치 추적 시작
+          if (selectedChildId) {
+            socketService.emit('parent:watch-student', { studentId: selectedChildId })
+            console.log('👁️ [ParentDashboard] Started watching student:', selectedChildId)
+          }
         }
       }
 
@@ -57,10 +89,15 @@ export default function ParentDashboard() {
         if (socket) {
           socket.off('connect', handleConnect)
           socket.off('disconnect', handleDisconnect)
+          socketService.off('student:location', handleStudentLocation)
+        }
+        // 위치 추적 중지
+        if (selectedChildId) {
+          socketService.emit('parent:unwatch-student', { studentId: selectedChildId })
         }
       }
     }
-  }, [activeTab])
+  }, [activeTab, user, selectedChildId])
 
   useEffect(() => {
     if (selectedChildId) {
@@ -106,22 +143,26 @@ export default function ParentDashboard() {
   const loadTabData = async (studentId, tab) => {
     try {
       switch (tab) {
-        case 'courses':
+        case 'courses': {
           const coursesRes = await parentService.getCourses(studentId)
           setCourses(coursesRes.courses || [])
           break
-        case 'assignments':
+        }
+        case 'assignments': {
           const assignmentsRes = await parentService.getAssignments(studentId)
           setAssignments(assignmentsRes.assignments || [])
           break
-        case 'attendance':
+        }
+        case 'attendance': {
           const attendanceRes = await parentService.getAttendance(studentId)
           setAttendance(attendanceRes)
           break
-        case 'progress':
+        }
+        case 'progress': {
           const progressRes = await parentService.getProgress(studentId)
           setProgress(progressRes.progress || [])
           break
+        }
       }
     } catch (error) {
       console.error(`Error loading ${tab} data:`, error)
@@ -275,26 +316,50 @@ export default function ParentDashboard() {
               studentName={selectedChild.nickname || selectedChild.name}
             />
 
-            {/* CCTV and Student Screen Viewers */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* CCTV Viewer */}
-              <div>
-                <h4 className="text-sm font-medium text-gray-400 mb-3">교실 CCTV</h4>
-                <CCTVViewer
-                  classroomId={childLocation?.classroomId}
-                  studentId={selectedChild.id}
-                  studentName={selectedChild.nickname || selectedChild.name}
-                />
+            {/* Metaverse Observer Mode Entry */}
+            <div className="bg-gray-800 rounded-lg p-6">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">메타버스 참관 모드</h3>
+                  <p className="text-sm text-gray-400">
+                    자녀의 수업을 메타버스에서 직접 참관하실 수 있습니다.
+                  </p>
+                </div>
               </div>
 
-              {/* Student Screen Viewer (FR-7) */}
-              <div>
-                <h4 className="text-sm font-medium text-gray-400 mb-3">학생 화면 공유</h4>
-                <StudentScreenViewer
-                  studentId={selectedChild.id}
-                  studentName={selectedChild.nickname || selectedChild.name}
-                />
+              <div className="bg-gray-700/50 rounded-lg p-4 mb-4">
+                <h4 className="text-sm font-medium text-gray-300 mb-2">참관 모드 안내</h4>
+                <ul className="text-sm text-gray-400 space-y-1">
+                  <li className="flex items-center gap-2">
+                    <span className="text-green-400">✓</span>
+                    투명 모드로 입장하여 수업에 방해가 되지 않습니다.
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="text-green-400">✓</span>
+                    학생과 강사에게 참관자의 캐릭터가 보이지 않습니다.
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="text-green-400">✓</span>
+                    자녀가 수강 중인 강의실에만 입장할 수 있습니다.
+                  </li>
+                </ul>
               </div>
+
+              <button
+                onClick={() => navigate('/metaverse?mode=observer&studentId=' + selectedChild.id)}
+                className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+                메타버스 참관하기
+              </button>
             </div>
           </div>
         )}
@@ -316,19 +381,60 @@ export default function ParentDashboard() {
               courses.map((course) => (
                 <div
                   key={course.id}
-                  className="flex items-center justify-between bg-gray-700/50 rounded-lg p-4"
+                  className="bg-gray-700/50 rounded-lg p-4"
                 >
-                  <div className="flex-1">
-                    <h4 className="text-white font-medium">{course.title}</h4>
-                    <p className="text-sm text-gray-400">
-                      강사: {course.instructor?.name} | 진도: {course.progress}%
-                    </p>
+                  {/* 상단: 제목과 통계 */}
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <h4 className="text-white font-medium text-lg">{course.title}</h4>
+                      <p className="text-sm text-gray-400">강사: {course.instructor?.name}</p>
+                    </div>
+                    <div className="flex gap-4 text-center">
+                      <div>
+                        <p className="text-xs text-gray-500">진도율</p>
+                        <p className="text-lg font-bold text-purple-400">{course.progress}%</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">출석률</p>
+                        <p className="text-lg font-bold text-green-400">{course.attendanceRate ?? '-'}%</p>
+                      </div>
+                      {course.averageGrade !== null && (
+                        <div>
+                          <p className="text-xs text-gray-500">평균점수</p>
+                          <p className="text-lg font-bold text-yellow-400">{course.averageGrade}</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm text-gray-400">출석률</p>
-                    <p className="text-lg font-medium text-green-400">
-                      {course.attendanceRate ?? '-'}%
-                    </p>
+
+                  {/* 진행 바 */}
+                  <div className="w-full bg-gray-600 rounded-full h-2 mb-3">
+                    <div
+                      className="bg-purple-500 h-2 rounded-full transition-all"
+                      style={{ width: `${course.progress}%` }}
+                    />
+                  </div>
+
+                  {/* 하단: 주차 및 일정 정보 */}
+                  <div className="flex flex-wrap gap-4 text-sm text-gray-400">
+                    <div className="flex items-center gap-1">
+                      <span className="text-purple-400">📚</span>
+                      <span>현재 {course.currentWeek || 1}주차 / 총 {course.weeks || 10}주차</span>
+                    </div>
+                    {course.startDate && (
+                      <div className="flex items-center gap-1">
+                        <span className="text-green-400">📅</span>
+                        <span>
+                          {formatDate(course.startDate)} ~ {formatDate(course.endDate)}
+                        </span>
+                      </div>
+                    )}
+                    {course.lastActivity && (
+                      <div className="flex items-center gap-1">
+                        <span className="text-blue-400">🕐</span>
+                        <span>마지막 활동: {formatDate(course.lastActivity)}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))

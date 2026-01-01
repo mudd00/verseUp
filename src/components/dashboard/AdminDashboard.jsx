@@ -246,7 +246,9 @@ export default function AdminDashboard({ children }) {
                 <p className="text-3xl font-bold">
                   {isLoading
                     ? '...'
-                    : `₩${(stats.totalRevenue / 10000).toFixed(0)}만`}
+                    : stats.totalRevenue >= 10000
+                      ? `₩${(stats.totalRevenue / 10000).toFixed(0)}만원`
+                      : `₩${stats.totalRevenue?.toLocaleString() || 0}원`}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">누적 매출</p>
               </div>

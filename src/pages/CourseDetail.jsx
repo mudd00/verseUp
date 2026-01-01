@@ -119,10 +119,39 @@ export default function CourseDetail() {
     }
   }
 
-  const handleDownload = (material) => {
-    // 새 창에서 파일 URL 열기 (다운로드)
-    window.open(material.file_url, '_blank')
-    toast.success(`${material.title} 다운로드를 시작합니다.`)
+  const handleDownload = async (material) => {
+    try {
+      // 서버에서 직접 파일을 스트리밍하므로 fetch로 blob 다운로드
+      const token = localStorage.getItem('accessToken')
+      const response = await fetch(
+        `/api/courses/${id}/materials/${material.id}/download`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error('Download failed')
+      }
+
+      // Blob으로 변환 후 다운로드 (파일명은 이미 material에서 알고 있음)
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = material.file_name || 'download'
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+
+      toast.success(`${material.title} 다운로드 완료`)
+    } catch (error) {
+      console.error('Download failed:', error)
+      toast.error('다운로드에 실패했습니다.')
+    }
   }
 
   const handleEnroll = async () => {

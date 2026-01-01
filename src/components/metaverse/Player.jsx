@@ -25,7 +25,7 @@ const CAPSULE_Y_OFFSET = 1.28
 const STEP_UP_SPEED = 4 // 계단 오를 때 상승 속도 (중력 -20 기준)
 const BLOCKED_THRESHOLD = 0.45 // 이 비율 이하로 움직이면 막힌 것으로 판단
 
-const Player = forwardRef(({ currentMap = 'main', cameraAngleRef, onPositionChange, bodyRef: externalBodyRef, isInputDisabled = false, isFirstPerson = false, userName = '' }, ref) => {
+const Player = forwardRef(({ currentMap = 'main', cameraAngleRef, onPositionChange, bodyRef: externalBodyRef, isInputDisabled = false, isFirstPerson = false, userName = '', isInvisible = false }, ref) => {
   const START_POS = START_POSITIONS[currentMap] || START_POSITIONS.main
   const bodyRef = useRef(null)
   const characterRef = useRef(null)
@@ -257,10 +257,11 @@ const Player = forwardRef(({ currentMap = 'main', cameraAngleRef, onPositionChan
         friction={1}
         restitution={0}
       />
-      <group ref={characterRef} visible={!isFirstPerson}>
+      {/* 참관자(부모)는 캐릭터를 렌더링하지 않음 */}
+      <group ref={characterRef} visible={!isFirstPerson && !isInvisible}>
         <CharacterModel isMoving={isMoving} isSitting={isSitting} />
         {/* 내 닉네임 표시 (항상 카메라를 바라봄) */}
-        {userName && (
+        {userName && !isInvisible && (
           <Billboard position={[0, 2.8, 0]} follow={true} lockX={false} lockY={false} lockZ={false}>
             <mesh position={[0, 0, -0.01]}>
               <planeGeometry args={[1.8, 0.4]} />

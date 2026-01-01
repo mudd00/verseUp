@@ -7,6 +7,7 @@ const ROLE_LABELS = {
   student: '학생',
   instructor: '강사',
   admin: '관리자',
+  parent: '부모',
 }
 
 export default function UserManagement() {
@@ -109,7 +110,7 @@ export default function UserManagement() {
       <h1 className="text-4xl font-bold mb-8">사용자 관리</h1>
 
       {/* 통계 */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
         <div className="bg-gray-800 p-4 rounded-lg">
           <p className="text-sm text-gray-400">전체 사용자</p>
           <p className="text-2xl font-bold">{total}명</p>
@@ -124,6 +125,12 @@ export default function UserManagement() {
           <p className="text-sm text-gray-400">강사</p>
           <p className="text-2xl font-bold text-green-400">
             {users.filter((u) => u.role === 'instructor').length}
+          </p>
+        </div>
+        <div className="bg-gray-800 p-4 rounded-lg">
+          <p className="text-sm text-gray-400">부모</p>
+          <p className="text-2xl font-bold text-yellow-400">
+            {users.filter((u) => u.role === 'parent').length}
           </p>
         </div>
         <div className="bg-gray-800 p-4 rounded-lg">
@@ -158,6 +165,7 @@ export default function UserManagement() {
             <option value="">모든 역할</option>
             <option value="student">학생</option>
             <option value="instructor">강사</option>
+            <option value="parent">부모</option>
             <option value="admin">관리자</option>
           </select>
           <button
@@ -224,7 +232,9 @@ export default function UserManagement() {
                             ? 'bg-purple-600/20 text-purple-400'
                             : user.role === 'instructor'
                               ? 'bg-green-600/20 text-green-400'
-                              : 'bg-blue-600/20 text-blue-400'
+                              : user.role === 'parent'
+                                ? 'bg-yellow-600/20 text-yellow-400'
+                                : 'bg-blue-600/20 text-blue-400'
                         }`}
                       >
                         {ROLE_LABELS[user.role] || user.role}

@@ -60,6 +60,10 @@ export default function MetaverseScene({ onReady }) {
   // 프로덕션에서는 테스트 역할 비활성화 (보안)
   const testRole = import.meta.env.DEV ? urlParams.get('role') : null // ?role=instructor 또는 ?role=student
 
+  // 부모 참관 모드 확인 (URL: ?mode=observer&studentId=xxx)
+  const isObserverMode = urlParams.get('mode') === 'observer'
+  const observerStudentId = urlParams.get('studentId')
+
   // 테스트용 임시 사용자 생성 (useMemo로 안정화 - 매 렌더마다 새로 생성되지 않도록)
   const effectiveUser = useMemo(() => {
     if (user) return user
@@ -75,19 +79,20 @@ export default function MetaverseScene({ onReady }) {
   }, [user, testRole])
 
   const isInstructor = testRole === 'instructor' || effectiveUser?.role === 'instructor' || effectiveUser?.email?.startsWith('instructor@')
+  const isParentObserver = isObserverMode && effectiveUser?.role === 'parent'
 
-  // WebRTC 훅 사용 (역할에 따라 활성화 여부 전달)
-  const screenShare = useScreenShare(roomId, students, isInstructor)
-  const screenReceive = useScreenReceive(roomId, !isInstructor)
+  // WebRTC 훅 사용 (역할에 따라 활성화 여부 전달, 참관자는 비활성화)
+  const screenShare = useScreenShare(roomId, students, isInstructor && !isParentObserver)
+  const screenReceive = useScreenReceive(roomId, !isInstructor && !isParentObserver)
 
-  // 학생용 화면 캡처 (버튼으로 수동 제어)
-  const studentScreen = useStudentScreen(!isInstructor)
+  // 학생용 화면 캡처 및 WebRTC 스트리밍 (버튼으로 수동 제어, 참관자는 비활성화)
+  const studentScreen = useStudentScreen(!isInstructor && !isParentObserver, roomId)
 
-  // 음성 채팅 훅 (모든 맵에서 활성화)
-  const voiceChat = useVoiceChat(roomId, students, true)
+  // 음성 채팅 훅 (참관자는 비활성화 - 소리만 들을 수 있음)
+  const voiceChat = useVoiceChat(roomId, students, !isParentObserver)
 
-  // 텍스트 채팅 훅 (모든 맵에서 활성화)
-  const chat = useChat(roomId, true)
+  // 텍스트 채팅 훅 (참관자는 읽기만 가능)
+  const chat = useChat(roomId, !isParentObserver)
 
   // 디버깅: voiceChat 상태 모니터링
   useEffect(() => {
@@ -141,8 +146,25 @@ export default function MetaverseScene({ onReady }) {
         rotation: rotationY,
         animation: playerRef.current?.isMoving?.() ? 'walk' : 'idle',
       })
+
+      // 학생인 경우 부모 추적용 위치 업데이트 전송
+      if (effectiveUser.role === 'student') {
+        // 정확한 위치 정보 생성
+        let locationName = '운동장'
+        if (currentMap === 'school') {
+          locationName = currentClassroom ? `강의실 ${currentClassroom}` : '복도'
+        }
+
+        socketService.emit('student:location-update', {
+          classroomId: roomId,
+          position: [position.x, position.y, position.z],
+          locationName, // 위치 이름 (운동장/복도/강의실 A 등)
+          mapType: currentMap, // main 또는 school
+          classroom: currentClassroom, // 교실 이름 (A, B 등) 또는 null
+        })
+      }
     }
-  }, [currentMap, effectiveUser, roomId])
+  }, [currentMap, currentClassroom, effectiveUser, roomId])
 
   const handleCameraRotate = useCallback((angle) => {
     cameraAngleRef.current = angle // ref 업데이트 - 리렌더링 없음
@@ -246,23 +268,32 @@ export default function MetaverseScene({ onReady }) {
   }, [])
 
   // Socket.IO 방 참가 및 사용자 목록 관리
-  useEffect(() => {
-    console.log('🔍 [Room Join Effect] Checking conditions:', {
-      hasEffectiveUser: !!effectiveUser,
-      effectiveUser,
-      currentMap,
-      roomId,
-      socketConnected: socketService.getSocket()?.connected
-    })
+  // effectiveUser.id를 사용하여 불필요한 re-render 방지
+  const effectiveUserId = effectiveUser?.id
+  const effectiveUserRole = effectiveUser?.role
+  const effectiveUserName = effectiveUser?.name
 
-    if (!effectiveUser) return
+  useEffect(() => {
+    if (!effectiveUserId || !effectiveUserName) return
+
+    // 이미 방에 참가한 상태면 중복 참가 방지
+    if (hasJoinedRef.current) {
+      console.log('🔄 [Room Join] Already joined, skipping...')
+      return
+    }
+
+    console.log('🔍 [Room Join Effect] Joining room:', {
+      effectiveUserId,
+      effectiveUserName,
+      roomId,
+    })
 
     let isMounted = true
 
     // 방 사용자 목록 수신 (초기 접속 시 기존 유저들의 위치 포함)
     const handleRoomUsers = ({ users }) => {
       console.log('📚 [Room Join] Received room:users event:', users)
-      const otherUsers = users.filter(u => u.user?.id !== effectiveUser.id)
+      const otherUsers = users.filter(u => u.user?.id !== effectiveUserId)
       setStudents(otherUsers) // 본인 제외
 
       // 다른 플레이어들의 위치 정보로 otherPlayers 초기화
@@ -284,26 +315,44 @@ export default function MetaverseScene({ onReady }) {
       })
 
       console.log('📚 [Room Join] Room users:', users.length, 'total -', users.map(u => u.user?.name))
-      console.log('📚 [Room Join] Initialized otherPlayers with positions:', otherUsers.length)
     }
 
     // user:joined 응답을 받은 후 location:change 실행 (room:join은 서버에서 자동 처리)
     const handleUserJoinedConfirmation = ({ success }) => {
-      if (success && isMounted && !hasJoinedRef.current) {
+      if (success && isMounted) {
         hasJoinedRef.current = true // 중복 방지
         console.log('✅ [Room Join] user:join confirmed (room auto-joined by server)')
 
         // 학교 입장 알림 (초기 입장)
         socketService.emit('location:change', { roomId, location: 'school' })
         console.log('📍 [Location] Initial entry to school')
+
+        // 학생인 경우 부모 추적용 초기 위치 전송
+        if (effectiveUserRole === 'student') {
+          const startPos = currentMap === 'school' ? [-1.32, 2, -14.63] : [-1.91, 2, 32.55]
+          const initialLocationName = currentMap === 'main' ? '운동장' : '복도'
+
+          socketService.emit('student:location-update', {
+            classroomId: roomId,
+            position: startPos,
+            locationName: initialLocationName,
+            mapType: currentMap,
+            classroom: null,
+          })
+          console.log('📍 [Parent Tracking] Initial student location sent:', initialLocationName)
+        }
       }
     }
 
     // 새 사용자 입장 (위치 정보 포함)
     const handleUserJoined = ({ user: newUser, socketId, position, rotation, animation }) => {
-      console.log('👋 [Room Join] Received room:user-joined:', newUser.name, socketId, { position, rotation, animation })
-      if (newUser.id !== effectiveUser.id) {
-        setStudents(prev => [...prev, { user: newUser, socketId }])
+      console.log('👋 [Room Join] Received room:user-joined:', newUser.name, socketId)
+      if (newUser.id !== effectiveUserId) {
+        setStudents(prev => {
+          // 중복 방지
+          if (prev.some(s => s.socketId === socketId)) return prev
+          return [...prev, { user: newUser, socketId }]
+        })
 
         // 새 플레이어를 otherPlayers에 추가 (위치 정보 포함)
         setOtherPlayers(prev => {
@@ -318,8 +367,6 @@ export default function MetaverseScene({ onReady }) {
           })
           return newMap
         })
-
-        console.log('👋 [Room Join] User added to students and otherPlayers:', newUser.name)
       }
     }
 
@@ -332,11 +379,9 @@ export default function MetaverseScene({ onReady }) {
         newMap.delete(socketId)
         return newMap
       })
-      console.log('👋 [Room Join] User removed from students and otherPlayers')
     }
 
     // 이벤트 핸들러 등록
-    console.log('📌 [Room Join] Registering room event handlers')
     socketService.on('user:joined', handleUserJoinedConfirmation)
     socketService.on('room:users', handleRoomUsers)
     socketService.on('room:user-joined', handleUserJoined)
@@ -351,9 +396,16 @@ export default function MetaverseScene({ onReady }) {
 
         if (!isMounted) return
 
-        console.log('✅ [Room Join] Socket connected, joining as:', effectiveUser.name, 'to room:', roomId)
-        socketService.emit('user:join', { user: effectiveUser, roomId })
-        console.log('📤 [Room Join] Emitted user:join with roomId')
+        const isObserver = isObserverMode && effectiveUserRole === 'parent'
+        console.log('✅ [Room Join] Socket connected, joining as:', effectiveUserName, 'to room:', roomId, isObserver ? '[OBSERVER]' : '')
+
+        socketService.emit('user:join', {
+          user: { id: effectiveUserId, name: effectiveUserName, role: effectiveUserRole },
+          roomId,
+          isObserver, // 참관 모드 여부
+          studentId: observerStudentId, // 참관 대상 학생 ID (부모인 경우)
+        })
+        console.log('📤 [Room Join] Emitted user:join with roomId', isObserver ? '(observer mode)' : '')
       } catch (error) {
         console.error('❌ [Room Join] Failed to join room:', error)
       }
@@ -361,16 +413,26 @@ export default function MetaverseScene({ onReady }) {
 
     joinRoom()
 
+    // Cleanup은 컴포넌트 언마운트 시에만 실행
     return () => {
       isMounted = false
       socketService.off('user:joined', handleUserJoinedConfirmation)
       socketService.off('room:users', handleRoomUsers)
       socketService.off('room:user-joined', handleUserJoined)
       socketService.off('room:user-left', handleUserLeft)
-      socketService.emit('room:leave', { roomId })
-      console.log('🚪 [Room Join] Cleanup: left room and removed handlers')
     }
-  }, [effectiveUser, roomId])
+  }, [effectiveUserId, effectiveUserRole, effectiveUserName, roomId, currentMap, isObserverMode, observerStudentId])
+
+  // 컴포넌트 언마운트 시에만 room:leave 전송
+  useEffect(() => {
+    return () => {
+      if (hasJoinedRef.current) {
+        console.log('🚪 [Room Leave] Component unmounting, leaving room:', roomId)
+        socketService.emit('room:leave', { roomId })
+        hasJoinedRef.current = false
+      }
+    }
+  }, [roomId])
 
   // 화면 공유 토글 (강사용)
   const handleScreenShareToggle = useCallback(() => {
@@ -431,6 +493,12 @@ export default function MetaverseScene({ onReady }) {
   const handleObjectInteract = useCallback((objectId, type, position) => {
     if (!playerRef.current) return
 
+    // 부모 참관자는 의자/교탁 상호작용 불가
+    if (isParentObserver) {
+      console.log('👁️ [Observer] 참관자는 앉기/서기 불가')
+      return
+    }
+
     console.log(`상호작용:`, objectId, type, position)
 
     if (type === 'sit') {
@@ -448,7 +516,7 @@ export default function MetaverseScene({ onReady }) {
     }
 
     setObjectInfo({ isNear: false, objectId: null, label: null, type: null, position: null })
-  }, [])
+  }, [isParentObserver])
 
   const handleDoorEnter = useCallback(async (doorId) => {
     if (!playerBodyRef.current) return
@@ -909,6 +977,61 @@ export default function MetaverseScene({ onReady }) {
         />
       )}
 
+      {/* 부모 참관 모드 UI */}
+      {isParentObserver && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '20px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)',
+            color: '#fff',
+            padding: '12px 24px',
+            borderRadius: '12px',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            zIndex: 9999,
+            boxShadow: '0 4px 15px rgba(124, 58, 237, 0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+          }}
+        >
+          <div style={{
+            width: '10px',
+            height: '10px',
+            background: '#a78bfa',
+            borderRadius: '50%',
+            animation: 'pulse 2s infinite',
+          }}></div>
+          <span>👁️ 참관 모드</span>
+          <span style={{ fontSize: '12px', opacity: 0.8 }}>• 수업에 방해되지 않는 투명 모드입니다</span>
+          <button
+            onClick={() => window.history.back()}
+            style={{
+              marginLeft: '16px',
+              background: 'rgba(255, 255, 255, 0.2)',
+              color: '#fff',
+              border: '1px solid rgba(255, 255, 255, 0.3)',
+              padding: '6px 12px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: 'bold',
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = 'rgba(255, 255, 255, 0.3)'
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = 'rgba(255, 255, 255, 0.2)'
+            }}
+          >
+            참관 종료
+          </button>
+        </div>
+      )}
+
       {/* 플레이어 위치 및 상태 표시 */}
       {showDebugInfo && (
         <div
@@ -950,8 +1073,8 @@ export default function MetaverseScene({ onReady }) {
             <div style={{ color: '#fff', fontWeight: 'bold', marginBottom: '4px' }}>Status:</div>
             <div style={{ fontSize: '12px' }}>
               <div>Map: {currentMap}</div>
-              <div style={{ color: currentClassroom ? '#10b981' : '#9ca3af' }}>
-                Classroom: {currentClassroom ? `강의실 ${currentClassroom}` : '복도'}
+              <div style={{ color: currentMap === 'main' ? '#10b981' : currentClassroom ? '#3b82f6' : '#fbbf24' }}>
+                Location: {currentMap === 'main' ? '운동장' : currentClassroom ? `강의실 ${currentClassroom}` : '복도'}
               </div>
               <div>Sitting: {isSitting ? '✅' : '❌'}</div>
               <div>At Desk: {isAtDesk ? '✅' : '❌'}</div>
@@ -1073,8 +1196,8 @@ export default function MetaverseScene({ onReady }) {
         </div>
       )}
 
-      {/* 상호작용 객체 안내 (의자, 교탁 등) */}
-      {objectInfo.isNear && !isSitting && (
+      {/* 상호작용 객체 안내 (의자, 교탁 등) - 부모 참관자에게는 표시 안 함 */}
+      {objectInfo.isNear && !isSitting && !isParentObserver && (
         <div
           style={{
             position: 'absolute',
@@ -1235,7 +1358,7 @@ export default function MetaverseScene({ onReady }) {
         <div
           style={{
             position: 'absolute',
-            top: '140px',
+            top: '220px',
             right: '20px',
             background: 'rgba(0, 0, 0, 0.9)',
             color: '#fff',

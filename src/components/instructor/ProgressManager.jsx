@@ -2,10 +2,9 @@ import { useState, useEffect } from 'react'
 import { toast } from 'react-hot-toast'
 import { progressService } from '@/services/progressService'
 
-const TOTAL_WEEKS = 10
-
 export default function ProgressManager({ courseId, courseTitle }) {
   const [progress, setProgress] = useState([])
+  const [totalWeeks, setTotalWeeks] = useState(10)
   const [isLoading, setIsLoading] = useState(true)
   const [isUpdating, setIsUpdating] = useState({})
 
@@ -18,6 +17,10 @@ export default function ProgressManager({ courseId, courseTitle }) {
     try {
       const result = await progressService.getCourseProgress(courseId)
       setProgress(result.progress || [])
+      // 강의의 총 주차 수 설정
+      if (result.course?.weeks) {
+        setTotalWeeks(result.course.weeks)
+      }
     } catch (error) {
       console.error('Error loading progress:', error)
       toast.error('진도율을 불러오는데 실패했습니다.')
@@ -109,7 +112,7 @@ export default function ProgressManager({ courseId, courseTitle }) {
       <div className="bg-gray-700/50 rounded-lg p-4">
         <h4 className="text-sm font-medium text-gray-300 mb-3">주차별 전체 완료</h4>
         <div className="flex flex-wrap gap-2">
-          {Array.from({ length: TOTAL_WEEKS }, (_, i) => i + 1).map((week) => (
+          {Array.from({ length: totalWeeks }, (_, i) => i + 1).map((week) => (
             <button
               key={week}
               onClick={() => handleBulkComplete(week)}
@@ -156,7 +159,7 @@ export default function ProgressManager({ courseId, courseTitle }) {
                       {Math.round(p.completion_percentage || 0)}%
                     </p>
                     <p className="text-xs text-gray-400">
-                      {completedWeeks.length}/{TOTAL_WEEKS}주차 완료
+                      {completedWeeks.length}/{totalWeeks}주차 완료
                     </p>
                   </div>
                 </div>
@@ -171,7 +174,7 @@ export default function ProgressManager({ courseId, courseTitle }) {
 
                 {/* Week Checkboxes */}
                 <div className="flex flex-wrap gap-2">
-                  {Array.from({ length: TOTAL_WEEKS }, (_, i) => i + 1).map((week) => {
+                  {Array.from({ length: totalWeeks }, (_, i) => i + 1).map((week) => {
                     const isCompleted = completedWeeks.includes(week)
                     const isLoading = isUpdating[`${p.id}-${week}`]
                     return (
