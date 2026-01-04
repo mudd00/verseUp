@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { socketService } from '@/services/socket'
+import { getRTCConfiguration } from '@/utils/webrtc'
 
 /**
  * 학생용 화면 캡처 및 공유 훅
@@ -20,14 +21,14 @@ export function useStudentScreen(enabled = true, roomId = 'metaverse-classroom-1
     try {
       setError(null)
 
-      // 화면 캡처
+      // 화면 캡처 (시스템 오디오 포함)
       const capturedStream = await navigator.mediaDevices.getDisplayMedia({
         video: {
           width: { ideal: 1920 },
           height: { ideal: 1080 },
           frameRate: { ideal: 30 },
         },
-        audio: false,
+        audio: true, // 시스템 오디오 캡처 활성화
       })
 
       streamRef.current = capturedStream
@@ -95,12 +96,7 @@ export function useStudentScreen(enabled = true, roomId = 'metaverse-classroom-1
       }
 
       // 새 피어 연결 생성
-      const pc = new RTCPeerConnection({
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-        ],
-      })
+      const pc = new RTCPeerConnection(getRTCConfiguration())
 
       peerConnectionsRef.current.set(targetSocketId, pc)
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { socketService } from '../services/socket'
+import { getRTCConfiguration } from '../utils/webrtc'
 
 /**
  * 학생용 화면 수신 훅 (WebRTC)
@@ -14,12 +15,7 @@ export function useScreenReceive(roomId, enabled = true) {
 
   // RTCPeerConnection 생성
   const createPeerConnection = useCallback(() => {
-    const configuration = {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-      ],
-    }
+    const configuration = getRTCConfiguration()
 
     const peerConnection = new RTCPeerConnection(configuration)
 

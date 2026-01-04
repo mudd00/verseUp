@@ -6,13 +6,10 @@ const socketUrl = import.meta.env.VITE_SOCKET_URL
 export const API_BASE_URL = apiUrl || (import.meta.env.PROD ? '/api' : 'http://localhost:3000/api')
 export const SOCKET_URL = socketUrl || (import.meta.env.PROD ? '' : 'http://localhost:3000')
 
-// WebRTC configuration
-export const TURN_SERVER_CONFIG = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    // TURN server configuration will be added later
-  ],
-}
+// WebRTC configuration - Use getRTCConfiguration() from webrtc.js instead
+// This is kept for backward compatibility
+import { getRTCConfiguration } from './webrtc'
+export const TURN_SERVER_CONFIG = getRTCConfiguration()
 
 // App constants
 export const MAX_UPLOAD_SIZE = 10 * 1024 * 1024 // 10MB

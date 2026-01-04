@@ -16,11 +16,11 @@ export default function Door({
         onIntersectionEnter={() => onNearChange?.({ isNear: true, doorId, label })}
         onIntersectionExit={() => onNearChange?.({ isNear: false, doorId: null, label: null })}
       />
-      {/* 디버그용 시각화 (필요시 주석 해제) */}
-      {/* <mesh position={[0, size[1] / 2, 0]}>
+      {/* 디버그용 시각화 */}
+      <mesh position={[0, size[1] / 2, 0]}>
         <boxGeometry args={size} />
         <meshStandardMaterial color="#00ff00" transparent opacity={0.3} />
-      </mesh> */}
+      </mesh>
     </RigidBody>
   )
 }

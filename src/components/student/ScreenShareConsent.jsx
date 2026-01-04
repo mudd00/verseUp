@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { socketService } from '@/services/socket'
 import { toast } from 'react-hot-toast'
+import { getRTCConfiguration } from '@/utils/webrtc'
 
 /**
  * Screen Share Consent Component for Students
@@ -69,7 +70,7 @@ export default function ScreenShareConsent({ roomId }) {
           cursor: 'always',
           displaySurface: 'monitor',
         },
-        audio: false,
+        audio: true, // 시스템 오디오 캡처 활성화
       })
 
       // Handle stream ending (user clicked stop sharing in browser)
@@ -110,12 +111,7 @@ export default function ScreenShareConsent({ roomId }) {
   const createOfferFor = async (targetSocketId) => {
     if (!streamRef.current) return
 
-    const peerConnection = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-      ],
-    })
+    const peerConnection = new RTCPeerConnection(getRTCConfiguration())
 
     streamRef.current.getTracks().forEach((track) => {
       peerConnection.addTrack(track, streamRef.current)

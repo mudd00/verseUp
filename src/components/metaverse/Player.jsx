@@ -9,24 +9,46 @@ import CharacterModel from './CharacterModel.jsx'
 const WALK_SPEED = 8
 const RUN_SPEED = 18
 
-// 맵별 시작 위치
-const START_POSITIONS = {
-  main: [-1.91, 2, 32.55],       // 메인 맵 시작 위치 (물리 일시정지로 낮춰도 안전)
-  school: [-1.32, 2, -14.63],    // 학교 맵 시작 위치
+// 맵별 설정 (시작 위치, 캐릭터 스케일, 콜라이더)
+const MAP_SETTINGS = {
+  main: {
+    startPosition: [-1.91, 2, 32.55],
+    characterScale: 0.8,
+    capsuleHalfHeight: 0.8,
+    capsuleRadius: 0.52,
+    capsuleYOffset: 1.28,
+  },
+  school: {
+    startPosition: [-1.32, 2, -14.63],
+    characterScale: 0.8,
+    capsuleHalfHeight: 0.8,
+    capsuleRadius: 0.52,
+    capsuleYOffset: 1.28,
+  },
+  anime: {
+    startPosition: [0, 5, 0],
+    characterScale: 0.5,           // 애니메 학교용 작은 캐릭터
+    capsuleHalfHeight: 0.5,
+    capsuleRadius: 0.32,
+    capsuleYOffset: 0.8,
+  },
 }
 
-// 3DCommunity 방식: scale 2 기준 캡슐 args=[2, 1.3], position=[0, 3.2, 0]
-// VerseUp scale 0.8 기준으로 비례 조정 (ratio = 0.4)
-const CAPSULE_HALF_HEIGHT = 0.8
-const CAPSULE_RADIUS = 0.52
-const CAPSULE_Y_OFFSET = 1.28
+// 기본값 (하위 호환)
+const DEFAULT_SETTINGS = MAP_SETTINGS.main
 
 // 계단 오르기 설정
 const STEP_UP_SPEED = 4 // 계단 오를 때 상승 속도 (중력 -20 기준)
 const BLOCKED_THRESHOLD = 0.45 // 이 비율 이하로 움직이면 막힌 것으로 판단
 
 const Player = forwardRef(({ currentMap = 'main', cameraAngleRef, onPositionChange, bodyRef: externalBodyRef, isInputDisabled = false, isFirstPerson = false, userName = '', isInvisible = false }, ref) => {
-  const START_POS = START_POSITIONS[currentMap] || START_POSITIONS.main
+  // 맵별 설정 가져오기
+  const mapSettings = MAP_SETTINGS[currentMap] || DEFAULT_SETTINGS
+  const START_POS = mapSettings.startPosition
+  const CHARACTER_SCALE = mapSettings.characterScale
+  const CAPSULE_HALF_HEIGHT = mapSettings.capsuleHalfHeight
+  const CAPSULE_RADIUS = mapSettings.capsuleRadius
+  const CAPSULE_Y_OFFSET = mapSettings.capsuleYOffset
   const bodyRef = useRef(null)
   const characterRef = useRef(null)
   const currentRotationRef = useRef(new THREE.Quaternion())
@@ -259,16 +281,16 @@ const Player = forwardRef(({ currentMap = 'main', cameraAngleRef, onPositionChan
       />
       {/* 참관자(부모)는 캐릭터를 렌더링하지 않음 */}
       <group ref={characterRef} visible={!isFirstPerson && !isInvisible}>
-        <CharacterModel isMoving={isMoving} isSitting={isSitting} />
-        {/* 내 닉네임 표시 (항상 카메라를 바라봄) */}
+        <CharacterModel isMoving={isMoving} isSitting={isSitting} scale={CHARACTER_SCALE} />
+        {/* 내 닉네임 표시 (항상 카메라를 바라봄) - 캐릭터 크기에 맞게 조정 */}
         {userName && !isInvisible && (
-          <Billboard position={[0, 2.8, 0]} follow={true} lockX={false} lockY={false} lockZ={false}>
+          <Billboard position={[0, 2.8 * CHARACTER_SCALE, 0]} follow={true} lockX={false} lockY={false} lockZ={false}>
             <mesh position={[0, 0, -0.01]}>
-              <planeGeometry args={[1.8, 0.4]} />
+              <planeGeometry args={[1.8 * CHARACTER_SCALE, 0.4 * CHARACTER_SCALE]} />
               <meshBasicMaterial color="#1e293b" transparent opacity={0.85} />
             </mesh>
             <Text
-              fontSize={0.2}
+              fontSize={0.2 * CHARACTER_SCALE}
               color="#4ade80"
               anchorX="center"
               anchorY="middle"

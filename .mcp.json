@@ -1,5 +1,9 @@
 {
   "mcpServers": {
+    "blender": {
+      "command": "cmd",
+      "args": ["/c", "uvx", "blender-mcp"]
+    },
     "supabase": {
       "command": "npx",
       "args": [

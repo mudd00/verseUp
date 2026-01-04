@@ -8,7 +8,7 @@ const WALK = 'Walk'
 const RUN = 'Run'
 const SITDOWN = 'SitDown'
 
-export default function CharacterModel({ isMoving = false, isSitting = false }) {
+export default function CharacterModel({ isMoving = false, isSitting = false, scale = 0.8 }) {
   const group = useRef(null)
   const { scene, animations } = useGLTF('/models/BaseCharacter.gltf')
 
@@ -73,7 +73,7 @@ export default function CharacterModel({ isMoving = false, isSitting = false }) 
   }, [isMoving, isSitting, actions])
 
   return (
-    <group ref={group} scale={0.8}>
+    <group ref={group} scale={scale}>
       <primitive object={clonedScene} />
     </group>
   )

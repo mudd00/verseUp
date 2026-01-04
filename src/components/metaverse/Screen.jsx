@@ -11,7 +11,7 @@ export default function Screen({ position, size = [8, 4.5], videoStream }) {
       const video = document.createElement('video')
       video.srcObject = videoStream
       video.autoplay = true
-      video.muted = true
+      video.muted = false // 오디오 활성화 (강사 화면 공유 소리 들림)
       video.playsInline = true
 
       video.onloadedmetadata = () => {

@@ -1,4 +1,5 @@
 import { socketService } from './socket'
+import { getRTCConfiguration } from '@/utils/webrtc'
 
 class CCTVService {
   constructor() {
@@ -72,12 +73,7 @@ class CCTVService {
       return
     }
 
-    const peerConnection = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-      ],
-    })
+    const peerConnection = new RTCPeerConnection(getRTCConfiguration())
 
     // Add local stream tracks
     this.localStream.getTracks().forEach((track) => {
@@ -111,12 +107,7 @@ class CCTVService {
    * Handle incoming offer (for viewers)
    */
   async handleOffer(fromSocketId, offer) {
-    const peerConnection = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-      ],
-    })
+    const peerConnection = new RTCPeerConnection(getRTCConfiguration())
 
     // Handle incoming tracks
     peerConnection.ontrack = (event) => {

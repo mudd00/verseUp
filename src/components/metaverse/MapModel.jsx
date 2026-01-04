@@ -1,5 +1,6 @@
-import { useEffect, Suspense, useMemo, useState } from 'react'
-import { useGLTF } from '@react-three/drei'
+import { useEffect, Suspense, useMemo, useState, useRef } from 'react'
+import { useGLTF, useAnimations } from '@react-three/drei'
+import { useFrame } from '@react-three/fiber'
 import { RigidBody, CuboidCollider } from '@react-three/rapier'
 import * as THREE from 'three'
 import ErrorBoundary from './ErrorBoundary'
@@ -7,6 +8,80 @@ import Portal from './Portal'
 import Door from './Door'
 import InteractiveObject from './InteractiveObject'
 import Blackboard from './Blackboard'
+
+// 문 비주얼 컴포넌트 (애니메이션을 따라가는 별도 메시들)
+function AnimatedDoorVisual({ doorData }) {
+  const groupRef = useRef()
+
+  useFrame(() => {
+    if (groupRef.current && doorData?.mesh) {
+      // 원본 문 그룹의 world transform을 복사
+      doorData.mesh.updateMatrixWorld(true)
+      groupRef.current.matrixAutoUpdate = false
+      groupRef.current.matrix.copy(doorData.mesh.matrixWorld)
+    }
+  })
+
+  if (!doorData || !doorData.meshes) return null
+
+  return (
+    <group ref={groupRef}>
+      {doorData.meshes.map((meshData, index) => (
+        <mesh
+          key={index}
+          geometry={meshData.geometry}
+          material={meshData.material}
+          castShadow
+          receiveShadow
+        />
+      ))}
+    </group>
+  )
+}
+
+// 문 콜라이더 컴포넌트 (애니메이션을 따라가는 kinematic 콜라이더)
+function AnimatedDoorCollider({ doorData }) {
+  const rigidBodyRef = useRef(null)
+  const positionVec = useMemo(() => new THREE.Vector3(), [])
+  const quaternionVec = useMemo(() => new THREE.Quaternion(), [])
+
+  useFrame(() => {
+    if (rigidBodyRef.current && doorData?.mesh) {
+      doorData.mesh.updateMatrixWorld(true)
+      doorData.mesh.getWorldPosition(positionVec)
+      doorData.mesh.getWorldQuaternion(quaternionVec)
+
+      // 문 피벗에서 문 중심으로 오프셋
+      const offset = new THREE.Vector3(0, -1.0, 0.5)
+      offset.applyQuaternion(quaternionVec)
+
+      rigidBodyRef.current.setTranslation(
+        {
+          x: positionVec.x + offset.x,
+          y: positionVec.y + offset.y,
+          z: positionVec.z + offset.z
+        },
+        true
+      )
+      rigidBodyRef.current.setRotation(
+        { x: quaternionVec.x, y: quaternionVec.y, z: quaternionVec.z, w: quaternionVec.w },
+        true
+      )
+    }
+  })
+
+  if (!doorData) return null
+
+  return (
+    <RigidBody
+      ref={rigidBodyRef}
+      type="kinematicPosition"
+      colliders={false}
+    >
+      <CuboidCollider args={[0.1, 1.2, 0.5]} />
+    </RigidBody>
+  )
+}
 
 // 맵별 설정
 const MAP_CONFIG = {
@@ -16,13 +91,36 @@ const MAP_CONFIG = {
     portalSize: [3, 4, 3],
     portalTarget: 'school',
     portalLabel: '학교 입장',
+    // 두 번째 포탈 (애니메 학교로)
+    portal2Position: [5, 1.0, -7.11],
+    portal2Size: [3, 4, 3],
+    portal2Target: 'anime',
+    portal2Label: '애니메 학교 입장',
   },
   school: {
     path: '/models/classroom.glb',
-    portalPosition: [0, 1.0, -5],  // 학교 안쪽으로 이동 (임시)
+    portalPosition: [0, 1.0, -5],
     portalSize: [3, 4, 3],
     portalTarget: 'main',
     portalLabel: '메인 맵으로',
+  },
+  anime: {
+    path: '/models/anime_school.glb',
+    portalPosition: [0, 1.0, 28],
+    portalSize: [3, 4, 3],
+    portalTarget: 'main',
+    portalLabel: '메인 맵으로',
+    // 문 애니메이션 설정
+    animatedDoors: [
+      {
+        doorId: 'anime_left_door',
+        position: [-25.92, 0.60, -15.02],
+        size: [2, 3, 2],
+        label: '문 열기 (F)',
+        meshName: 'F1 Left_Door 1',
+        animationName: 'F1 DoorOpen_Left 1',
+      },
+    ],
   },
 }
 
@@ -52,9 +150,42 @@ function LoadingPlaceholder() {
 
 function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNearChange, onObjectNearChange, onLoad }) {
   const config = MAP_CONFIG[currentMap] || MAP_CONFIG.main
-  const { scene } = useGLTF(config.path)
+  const { scene, animations } = useGLTF(config.path)
+  const sceneRef = useRef()
+  const { actions } = useAnimations(animations, sceneRef)
   const [doorPositions, setDoorPositions] = useState([])
   const [interactiveObjects, setInteractiveObjects] = useState([])
+  const [openedDoors, setOpenedDoors] = useState({})  // 열린 문 상태 추적
+
+  // 문 애니메이션 재생 함수 (열기/닫기 토글)
+  const playDoorAnimation = (animationName, doorId) => {
+    console.log('🚪 문 애니메이션:', animationName, '현재 상태:', openedDoors[doorId] ? '열림' : '닫힘')
+    const action = actions[animationName]
+    if (action) {
+      const isOpen = openedDoors[doorId]
+
+      if (isOpen) {
+        // 닫기: 역재생 (1.5배속)
+        action.paused = false
+        action.timeScale = -1.5
+        action.setLoop(THREE.LoopOnce, 1)
+        action.play()
+        setOpenedDoors(prev => ({ ...prev, [doorId]: false }))
+        console.log('🚪 문 닫기 애니메이션')
+      } else {
+        // 열기: 정방향 재생 (1.5배속)
+        action.reset()
+        action.timeScale = 1.5
+        action.setLoop(THREE.LoopOnce, 1)
+        action.clampWhenFinished = true
+        action.play()
+        setOpenedDoors(prev => ({ ...prev, [doorId]: true }))
+        console.log('🚪 문 열기 애니메이션')
+      }
+    } else {
+      console.warn('❌ 애니메이션을 찾을 수 없음:', animationName)
+    }
+  }
 
   // 맵 로딩 완료 알림
   useEffect(() => {
@@ -220,15 +351,86 @@ function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNe
       setInteractiveObjects(foundObjects)
     }
 
-    return { cloned, foundBlackboardMesh }
+    // anime 맵에서 문 처리: visible=false로 trimesh에서 제외
+    let doorData = null
+    if (currentMap === 'anime') {
+      // 전체 오브젝트 이름 출력
+      const allNames = []
+      cloned.traverse((child) => {
+        if (child.name) {
+          allNames.push(`${child.name} (${child.type})`)
+        }
+      })
+      console.log('🔍 anime 맵 전체 오브젝트:', allNames)
+
+      // 문 관련 오브젝트 찾기
+      cloned.traverse((child) => {
+        const nameLower = child.name.toLowerCase()
+        if (nameLower.includes('door') || nameLower.includes('left') || child.name.includes('F1')) {
+          console.log('🚪 문 후보:', child.name, 'type:', child.type, 'isMesh:', child.isMesh)
+        }
+      })
+
+      // 정확한 이름으로 찾기 - visible=false로 trimesh에서 제외
+      cloned.traverse((child) => {
+        if (child.name === 'anime_left_door' || child.name === 'F1 Left_Door 1' || child.name === 'F1_Left_Door_1') {
+          console.log('🚪 문 발견:', child.name)
+
+          if (child.isMesh && child.geometry) {
+            doorData = {
+              mesh: child,
+              meshes: [{ geometry: child.geometry.clone(), material: child.material }]
+            }
+            child.visible = false
+            console.log('🚪 문 visible=false 설정:', child.name)
+          } else {
+            // 그룹인 경우 모든 하위 메시들 저장
+            const meshes = []
+            child.traverse((subChild) => {
+              if (subChild.isMesh && subChild.geometry) {
+                meshes.push({
+                  geometry: subChild.geometry.clone(),
+                  material: subChild.material
+                })
+                subChild.visible = false
+                console.log('🚪 문 하위 메시 visible=false:', subChild.name)
+              }
+            })
+            if (meshes.length > 0) {
+              doorData = {
+                mesh: child,
+                meshes: meshes
+              }
+            }
+          }
+        }
+      })
+
+      if (!doorData) {
+        console.warn('⚠️ 문을 찾지 못했습니다!')
+      }
+    }
+
+    return { cloned, foundBlackboardMesh, doorData }
   }, [scene, currentMap])
 
   return (
     <>
       {/* 3DCommunity 방식: RigidBody에 colliders="trimesh" 사용 */}
+      {/* anime 맵의 경우 문 geometry가 비어있어서 trimesh에서 제외됨 */}
       <RigidBody type="fixed" colliders="trimesh" friction={1} restitution={0}>
-        <primitive object={clonedScene.cloned} />
+        <primitive ref={sceneRef} object={clonedScene.cloned} />
       </RigidBody>
+
+      {/* anime 맵: 문 비주얼 별도 렌더링 (애니메이션 따라감) */}
+      {currentMap === 'anime' && clonedScene.doorData && (
+        <AnimatedDoorVisual doorData={clonedScene.doorData} />
+      )}
+
+      {/* anime 맵: 문 콜라이더 (애니메이션 따라감) */}
+      {currentMap === 'anime' && clonedScene.doorData && (
+        <AnimatedDoorCollider doorData={clonedScene.doorData} />
+      )}
 
       {/* 안전망 바닥 콜라이더 (맵 밖으로 떨어질 경우 대비) */}
       <RigidBody type="fixed" position={[0, -5, 0]}>
@@ -243,6 +445,18 @@ function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNe
         onEnter={onMapChange}
         onNearChange={onPortalNearChange}
       />
+
+      {/* 두 번째 포탈 (있는 경우에만) */}
+      {config.portal2Position && (
+        <Portal
+          position={config.portal2Position}
+          size={config.portal2Size}
+          targetMap={config.portal2Target}
+          label={config.portal2Label}
+          onEnter={onMapChange}
+          onNearChange={onPortalNearChange}
+        />
+      )}
 
       {/* 문 컴포넌트들 (학교 맵에서만) */}
       {doorPositions.map((door) => {
@@ -279,6 +493,22 @@ function MapModelContent({ currentMap, onMapChange, onPortalNearChange, onDoorNe
           </group>
         )
       })}
+
+      {/* 애니메이션이 있는 문 (anime 맵 등) */}
+      {config.animatedDoors?.map((door) => (
+        <Door
+          key={door.doorId}
+          position={door.position}
+          size={door.size}
+          doorId={door.doorId}
+          label={openedDoors[door.doorId] ? '문 닫기 (F)' : door.label}
+          onNearChange={(info) => onDoorNearChange?.({
+            ...info,
+            playAnimation: () => playDoorAnimation(door.animationName, door.doorId),
+            isOpened: openedDoors[door.doorId],
+          })}
+        />
+      ))}
 
       {/* 상호작용 객체들 (의자, 교탁) */}
       {interactiveObjects.map((obj) => {
@@ -336,6 +566,7 @@ export default function MapModel({ currentMap, onMapChange, onPortalNearChange, 
   )
 }
 
-// 두 맵 모두 preload
+// 모든 맵 preload
 useGLTF.preload('/models/map.glb')
 useGLTF.preload('/models/classroom.glb')
+useGLTF.preload('/models/anime_school.glb')

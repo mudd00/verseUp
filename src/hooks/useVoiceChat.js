@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { socketService } from '../services/socket'
+import { getRTCConfiguration } from '../utils/webrtc'
 
 /**
  * 음성 채팅 훅 (Mesh P2P 방식)
@@ -19,12 +20,7 @@ export function useVoiceChat(roomId, otherUsers = [], enabled = true) {
 
   // RTCPeerConnection 생성
   const createPeerConnection = useCallback((targetSocketId) => {
-    const configuration = {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-      ],
-    }
+    const configuration = getRTCConfiguration()
 
     const peerConnection = new RTCPeerConnection(configuration)
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { socketService } from '../services/socket'
+import { getRTCConfiguration } from '../utils/webrtc'
 
 /**
  * 강사용 화면 공유 훅 (WebRTC)
@@ -15,12 +16,7 @@ export function useScreenShare(roomId, students = [], enabled = true) {
 
   // RTCPeerConnection 설정
   const createPeerConnection = useCallback((studentSocketId) => {
-    const configuration = {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-      ],
-    }
+    const configuration = getRTCConfiguration()
 
     const peerConnection = new RTCPeerConnection(configuration)
 
@@ -129,14 +125,14 @@ export function useScreenShare(roomId, students = [], enabled = true) {
     try {
       setError(null)
 
-      // 화면 캡처
+      // 화면 캡처 (시스템 오디오 포함)
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: {
           width: { ideal: 1920 },
           height: { ideal: 1080 },
           frameRate: { ideal: 30 },
         },
-        audio: false,
+        audio: true, // 시스템 오디오 캡처 활성화
       })
 
       console.log('✅ Screen captured successfully')

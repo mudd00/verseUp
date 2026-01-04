@@ -518,10 +518,26 @@ export default function MetaverseScene({ onReady }) {
     setObjectInfo({ isNear: false, objectId: null, label: null, type: null, position: null })
   }, [isParentObserver])
 
-  const handleDoorEnter = useCallback(async (doorId) => {
+  const handleDoorEnter = useCallback(async (doorId, teleportTo, playAnimation, isOpened) => {
     if (!playerBodyRef.current) return
 
     console.log('🚪 [Door] F키 눌림, doorId:', doorId)
+
+    // 애니메이션 문 처리 (anime 맵 등) - 열기/닫기 토글
+    if (playAnimation) {
+      playAnimation()
+      console.log(`✅ [Door] ${doorId} 문 애니메이션 토글`)
+      setDoorInfo({ isNear: false, doorId: null, label: null })
+      return
+    }
+
+    // teleportTo가 있으면 바로 텔레포트
+    if (teleportTo) {
+      playerBodyRef.current.setTranslation({ x: teleportTo[0], y: teleportTo[1], z: teleportTo[2] }, true)
+      setDoorInfo({ isNear: false, doorId: null, label: null })
+      console.log(`✅ [Door] ${doorId} 텔레포트 완료 ->`, teleportTo)
+      return
+    }
 
     // 입장(_enter)과 퇴장(_exit) 구분
     if (doorId.endsWith('_enter')) {
@@ -644,7 +660,7 @@ export default function MetaverseScene({ onReady }) {
         }
         // 문 처리
         else if (doorInfo.isNear) {
-          handleDoorEnter(doorInfo.doorId)
+          handleDoorEnter(doorInfo.doorId, doorInfo.teleportTo, doorInfo.playAnimation, doorInfo.isOpened)
         }
         // 상호작용 객체 처리 (의자, 교탁 등)
         else if (objectInfo.isNear) {
