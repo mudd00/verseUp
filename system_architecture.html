@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VerseUp! 시스템 구성도</title>
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 40px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 24px;
+      padding: 40px;
+      box-shadow: 0 25px 80px rgba(0, 0, 0, 0.3);
+    }
+
+    .title {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .title h1 {
+      font-size: 28px;
+      color: #1a1a2e;
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+
+    .title p {
+      color: #666;
+      font-size: 14px;
+    }
+
+    /* User Layer */
+    .user-layer {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-bottom: 30px;
+    }
+
+    .user-card {
+      width: 140px;
+      padding: 20px 16px;
+      border-radius: 16px;
+      text-align: center;
+      color: white;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+      transition: transform 0.3s;
+    }
+
+    .user-card:hover {
+      transform: translateY(-4px);
+    }
+
+    .user-card.student {
+      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    }
+
+    .user-card.instructor {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .user-card.parent {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+
+    .user-card.admin {
+      background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    }
+
+    .user-card i {
+      font-size: 36px;
+      margin-bottom: 12px;
+      display: block;
+    }
+
+    .user-card h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .user-card ul {
+      list-style: none;
+      font-size: 11px;
+      opacity: 0.9;
+      line-height: 1.6;
+    }
+
+    /* Arrow */
+    .arrow-down {
+      text-align: center;
+      margin: 20px 0;
+      color: #764ba2;
+      font-size: 32px;
+    }
+
+    /* Layer Sections */
+    .layer {
+      border-radius: 20px;
+      padding: 24px;
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    .layer-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .layer-header i {
+      font-size: 24px;
+    }
+
+    .layer-header h2 {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .layer-header span {
+      font-size: 12px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    /* Frontend Layer */
+    .frontend-layer {
+      background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+    }
+
+    .frontend-layer .layer-header {
+      color: #2d3748;
+    }
+
+    /* Backend Layer */
+    .backend-layer {
+      background: linear-gradient(135deg, #d299c2 0%, #fef9d7 100%);
+    }
+
+    .backend-layer .layer-header {
+      color: #2d3748;
+    }
+
+    /* Database Layer */
+    .database-layer {
+      background: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%);
+    }
+
+    .database-layer .layer-header {
+      color: #1a365d;
+    }
+
+    /* External Layer */
+    .external-layer {
+      background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+    }
+
+    .external-layer .layer-header {
+      color: #744210;
+    }
+
+    /* Tech Cards */
+    .tech-grid {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .tech-card {
+      background: white;
+      border-radius: 12px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .tech-card i {
+      font-size: 28px;
+      width: 44px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+    }
+
+    .tech-card.react i { background: #61dafb20; color: #61dafb; }
+    .tech-card.tailwind i { background: #38bdf820; color: #38bdf8; }
+    .tech-card.threejs i { background: #00000015; color: #000; }
+    .tech-card.zustand i { background: #764ba220; color: #764ba2; }
+    .tech-card.express i { background: #00000015; color: #333; }
+    .tech-card.socket i { background: #25c2a020; color: #25c2a0; }
+    .tech-card.webrtc i { background: #ff630020; color: #ff6300; }
+    .tech-card.supabase i { background: #3ecf8e20; color: #3ecf8e; }
+    .tech-card.postgres i { background: #336791 ; color: white; }
+    .tech-card.storage i { background: #f59e0b20; color: #f59e0b; }
+    .tech-card.auth i { background: #ef444420; color: #ef4444; }
+    .tech-card.toss i { background: #0064ff20; color: #0064ff; }
+    .tech-card.stun i { background: #4285f420; color: #4285f4; }
+
+    .tech-info h4 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-bottom: 2px;
+    }
+
+    .tech-info p {
+      font-size: 11px;
+      color: #666;
+    }
+
+    /* Connection Lines */
+    .connection {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      margin: 16px 0;
+      color: #764ba2;
+    }
+
+    .connection-line {
+      height: 2px;
+      width: 60px;
+      background: linear-gradient(90deg, transparent, #764ba2, transparent);
+    }
+
+    .connection i {
+      font-size: 20px;
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 2px dashed #e2e8f0;
+    }
+
+    .footer p {
+      color: #666;
+      font-size: 12px;
+    }
+
+    .footer .highlight {
+      color: #764ba2;
+      font-weight: 600;
+    }
+
+    /* Two column layout for some layers */
+    .two-column {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 768px) {
+      .two-column {
+        grid-template-columns: 1fr;
+      }
+      .user-layer {
+        flex-wrap: wrap;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="title">
+      <h1>🎓 VerseUp! 전체 시스템 구성도</h1>
+      <p>메타버스 학습 플랫폼 아키텍처</p>
+    </div>
+
+    <!-- User Layer -->
+    <div class="user-layer">
+      <div class="user-card student">
+        <i class="ri-graduation-cap-fill"></i>
+        <h3>학생</h3>
+        <ul>
+          <li>강의 수강</li>
+          <li>메타버스 입장</li>
+          <li>과제 제출</li>
+        </ul>
+      </div>
+      <div class="user-card instructor">
+        <i class="ri-presentation-fill"></i>
+        <h3>강사</h3>
+        <ul>
+          <li>강의 생성</li>
+          <li>출석/진도 관리</li>
+          <li>화면 공유</li>
+        </ul>
+      </div>
+      <div class="user-card parent">
+        <i class="ri-parent-fill"></i>
+        <h3>학부모</h3>
+        <ul>
+          <li>자녀 학습 현황</li>
+          <li>출석/진도 확인</li>
+          <li>수업 참관</li>
+        </ul>
+      </div>
+      <div class="user-card admin">
+        <i class="ri-settings-3-fill"></i>
+        <h3>관리자</h3>
+        <ul>
+          <li>사용자 관리</li>
+          <li>강의 관리</li>
+          <li>결제 관리</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="connection">
+      <div class="connection-line"></div>
+      <i class="ri-arrow-down-s-fill"></i>
+      <div class="connection-line"></div>
+    </div>
+
+    <!-- Frontend Layer -->
+    <div class="layer frontend-layer">
+      <div class="layer-header">
+        <i class="ri-layout-4-fill"></i>
+        <h2>프론트엔드</h2>
+        <span>Presentation Layer</span>
+      </div>
+      <div class="tech-grid">
+        <div class="tech-card react">
+          <i class="ri-reactjs-fill"></i>
+          <div class="tech-info">
+            <h4>React 19 + Vite 6</h4>
+            <p>UI 컴포넌트 및 라우팅</p>
+          </div>
+        </div>
+        <div class="tech-card tailwind">
+          <i class="ri-palette-fill"></i>
+          <div class="tech-info">
+            <h4>Tailwind CSS</h4>
+            <p>반응형 스타일링</p>
+          </div>
+        </div>
+        <div class="tech-card threejs">
+          <i class="ri-box-3-fill"></i>
+          <div class="tech-info">
+            <h4>Three.js + R3F</h4>
+            <p>3D 메타버스 렌더링</p>
+          </div>
+        </div>
+        <div class="tech-card zustand">
+          <i class="ri-database-2-fill"></i>
+          <div class="tech-info">
+            <h4>Zustand + TanStack</h4>
+            <p>상태 관리</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="connection">
+      <div class="connection-line"></div>
+      <i class="ri-arrow-up-down-fill"></i>
+      <div class="connection-line"></div>
+    </div>
+
+    <!-- Backend Layer -->
+    <div class="layer backend-layer">
+      <div class="layer-header">
+        <i class="ri-server-fill"></i>
+        <h2>백엔드 서버</h2>
+        <span>Application Layer</span>
+      </div>
+      <div class="tech-grid">
+        <div class="tech-card express">
+          <i class="ri-terminal-box-fill"></i>
+          <div class="tech-info">
+            <h4>Express.js 5</h4>
+            <p>REST API 서버</p>
+          </div>
+        </div>
+        <div class="tech-card socket">
+          <i class="ri-broadcast-fill"></i>
+          <div class="tech-info">
+            <h4>Socket.IO 4</h4>
+            <p>실시간 양방향 통신</p>
+          </div>
+        </div>
+        <div class="tech-card webrtc">
+          <i class="ri-vidicon-fill"></i>
+          <div class="tech-info">
+            <h4>WebRTC</h4>
+            <p>P2P 화면 공유</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="connection">
+      <div class="connection-line"></div>
+      <i class="ri-arrow-up-down-fill"></i>
+      <div class="connection-line"></div>
+    </div>
+
+    <!-- Two Column: Database + External -->
+    <div class="two-column">
+      <!-- Database Layer -->
+      <div class="layer database-layer">
+        <div class="layer-header">
+          <i class="ri-cloud-fill"></i>
+          <h2>Supabase Cloud</h2>
+          <span>Data Layer</span>
+        </div>
+        <div class="tech-grid" style="flex-direction: column;">
+          <div class="tech-card postgres">
+            <i class="ri-database-fill"></i>
+            <div class="tech-info">
+              <h4>PostgreSQL + RLS</h4>
+              <p>관계형 DB + 행 수준 보안</p>
+            </div>
+          </div>
+          <div class="tech-card auth">
+            <i class="ri-shield-keyhole-fill"></i>
+            <div class="tech-info">
+              <h4>Supabase Auth</h4>
+              <p>JWT 인증/인가</p>
+            </div>
+          </div>
+          <div class="tech-card storage">
+            <i class="ri-folder-3-fill"></i>
+            <div class="tech-info">
+              <h4>Storage</h4>
+              <p>파일 저장소</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- External Services -->
+      <div class="layer external-layer">
+        <div class="layer-header">
+          <i class="ri-links-fill"></i>
+          <h2>외부 서비스</h2>
+          <span>External APIs</span>
+        </div>
+        <div class="tech-grid" style="flex-direction: column;">
+          <div class="tech-card toss">
+            <i class="ri-bank-card-fill"></i>
+            <div class="tech-info">
+              <h4>토스페이먼츠</h4>
+              <p>온라인 결제 처리</p>
+            </div>
+          </div>
+          <div class="tech-card stun">
+            <i class="ri-global-fill"></i>
+            <div class="tech-info">
+              <h4>Google STUN</h4>
+              <p>WebRTC NAT 통과</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <p><span class="highlight">VerseUp!</span> - 새로운 학습 경험을 제공하는 웹 메타버스 교육 플랫폼</p>
+    </div>
+  </div>
+</body>
+</html>
